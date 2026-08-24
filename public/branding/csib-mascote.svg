@@ -1,0 +1,9 @@
+<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mascote CSIB">
+  <!-- Minimalist placeholder mascot: an abstract caring/health emblem, restrained line art
+       (not a cartoon character) so it reads as professional until the official mascot asset
+       (csib-mascote-reference.png) replaces it. -->
+  <circle cx="80" cy="80" r="70" fill="#E7EEF3"/>
+  <path d="M80 112 C48 92 40 68 56 52 C66 42 80 48 80 60 C80 48 94 42 104 52 C120 68 112 92 80 112 Z"
+        fill="none" stroke="#0B3D5C" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="80" cy="76" r="6" fill="#0B3D5C"/>
+</svg>

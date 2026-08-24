@@ -1,0 +1,85 @@
+"use client"
+
+import { usePathname } from "next/navigation"
+import { useState } from "react"
+import { Bell, Menu } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import type { NavSection } from "@/config/navigation"
+import { AppSidebar } from "./app-sidebar"
+import { GlobalPatientSearch } from "./global-patient-search"
+
+type Props = {
+  sections: NavSection[]
+  clinicName: string
+  fullName: string
+  roleName: string
+  canSeePatients: boolean
+}
+
+function currentTitle(pathname: string, sections: NavSection[]) {
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (pathname === item.href || pathname.startsWith(item.href + "/")) return item.label
+    }
+  }
+  return "CSIB"
+}
+
+export function AppHeader({ sections, clinicName, fullName, roleName, canSeePatients }: Props) {
+  const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const title = currentTitle(pathname, sections)
+
+  return (
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-md lg:px-6">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="lg:hidden"
+        aria-label="Abrir menu"
+        onClick={() => setMobileOpen(true)}
+      >
+        <Menu className="size-4" />
+      </Button>
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" showCloseButton={false} className="w-[248px] border-0 p-0">
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+          <AppSidebar
+            sections={sections}
+            clinicName={clinicName}
+            fullName={fullName}
+            roleName={roleName}
+            collapsed={false}
+            variant="mobile"
+            onNavigate={() => setMobileOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+
+      <h1 className="min-w-0 truncate font-heading text-[0.95rem] font-semibold lg:hidden">{title}</h1>
+
+      <div className="hidden flex-1 lg:flex">{canSeePatients && <GlobalPatientSearch />}</div>
+
+      <div className="ml-auto flex items-center gap-1">
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button variant="ghost" size="icon-sm" aria-label="Notificações">
+                <Bell className="size-[1.05rem]" />
+              </Button>
+            }
+          />
+          <PopoverContent className="w-72" align="end">
+            <p className="text-sm font-medium">Notificações</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Nada por aqui ainda. Confirmações e lembretes aparecerão nesta lista.
+            </p>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </header>
+  )
+}

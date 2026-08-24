@@ -1,0 +1,293 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-bricolage);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-card: var(--shadow-card);
+  --shadow-lifted: var(--shadow-lifted);
+  --color-status-neutral: var(--status-neutral);
+  --color-status-info: var(--status-info);
+  --color-status-warning: var(--status-warning);
+  --color-status-success: var(--status-success);
+  --color-status-danger: var(--status-danger);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ============================================================================
+   CSIB design system — light chrome / grey canvas / white panels.
+   Deliberate move away from the dark-navy-sidebar admin look: white chrome
+   (sidebar + header) framing a soft grey canvas, with pure-white panels
+   separated by hairline borders. Brand azul-petróleo stays the primary action
+   colour; a teal accent carries interactive state (item 4: sober, few colours).
+   ============================================================================ */
+:root {
+  --background: #F4F6F8; /* canvas — panels sit on top of this */
+  --foreground: #0D1B24;
+  --card: #FFFFFF;
+  --card-foreground: #0D1B24;
+  --popover: #FFFFFF;
+  --popover-foreground: #0D1B24;
+  --primary: #0B3D5C; /* CSIB azul-petróleo */
+  --primary-foreground: #FFFFFF;
+  --secondary: #EDF1F4;
+  --secondary-foreground: #16333F;
+  --muted: #F1F4F6;
+  --muted-foreground: #63737E;
+  --accent: #E8F1F5;
+  --accent-foreground: #0B3D5C;
+  --destructive: #C33C2E;
+  --border: #E3E8EC; /* hairline — depth comes from this, not heavy shadow */
+  --input: #DDE3E8;
+  --ring: #1B7F94; /* teal focus ring reads livelier than a navy halo */
+  --chart-1: #0B3D5C;
+  --chart-2: #1B7F94;
+  --chart-3: #4795AE;
+  --chart-4: #83B3C6;
+  --chart-5: #BFD8E1;
+  --radius: 0.75rem; /* softer, contemporary corner language */
+
+  /* Chrome: white sidebar + header, so the grey canvas reads as the workspace. */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #16333F;
+  --sidebar-primary: #1B7F94;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EAF2F6;
+  --sidebar-accent-foreground: #0B3D5C;
+  --sidebar-border: #E3E8EC;
+  --sidebar-ring: #1B7F94;
+}
+
+.dark {
+  --background: #0A1219;
+  --foreground: #E6EDF1;
+  --card: #111C25;
+  --card-foreground: #E6EDF1;
+  --popover: #111C25;
+  --popover-foreground: #E6EDF1;
+  --primary: #4FA3BC;
+  --primary-foreground: #05121A;
+  --secondary: #172530;
+  --secondary-foreground: #E6EDF1;
+  --muted: #16232E;
+  --muted-foreground: #8B9AA5;
+  --accent: #17303C;
+  --accent-foreground: #E6EDF1;
+  --destructive: #E0685A;
+  --border: #1E2E3A;
+  --input: #24363F;
+  --ring: #4FA3BC;
+  --chart-1: #4FA3BC;
+  --chart-2: #83B3C6;
+  --chart-3: #1B7F94;
+  --chart-4: #0B3D5C;
+  --chart-5: #BFD8E1;
+
+  --sidebar: #0D171F;
+  --sidebar-foreground: #D9E3E9;
+  --sidebar-primary: #4FA3BC;
+  --sidebar-primary-foreground: #05121A;
+  --sidebar-accent: #16262F;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1C2A34;
+  --sidebar-ring: #4FA3BC;
+}
+
+:root {
+  /* Micro shadows only. On a hairline-border system, big soft blurs read dated —
+     elevation is a 1px lift, not a cloud. */
+  --shadow-soft: 0 1px 2px rgb(13 27 36 / 0.04);
+  --shadow-card: 0 1px 2px rgb(13 27 36 / 0.05), 0 4px 12px -6px rgb(13 27 36 / 0.08);
+  --shadow-lifted: 0 2px 4px rgb(13 27 36 / 0.06), 0 16px 32px -12px rgb(13 27 36 / 0.16);
+}
+
+.dark {
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 12px -6px rgb(0 0 0 / 0.5);
+  --shadow-lifted: 0 2px 4px rgb(0 0 0 / 0.5), 0 16px 32px -12px rgb(0 0 0 / 0.7);
+}
+
+:root {
+  /* Small, deliberate semantic set for StatusDot — item 20/4: color always paired with
+     text, and kept to this fixed palette so status never turns into a rainbow. */
+  --status-neutral: #8494A0;
+  --status-info: #1B7F94;
+  --status-warning: #B07C1F;
+  --status-success: #2F8461;
+  --status-danger: #C33C2E;
+}
+
+.dark {
+  --status-neutral: #7B8B97;
+  --status-info: #4FA3BC;
+  --status-warning: #D2A24C;
+  --status-success: #4FAE85;
+  --status-danger: #E0685A;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Grotesques benefit from slightly opened spacing at body sizes and a touch of
+       optical sizing; keeps dense tables legible without shrinking type. */
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: normal;
+  }
+  html {
+    @apply font-sans;
+  }
+  /* Display type: tighter tracking as size grows — a grotesque set at default
+     tracking looks loose and unfinished at heading sizes. */
+  .font-heading {
+    letter-spacing: -0.018em;
+    font-variation-settings: "wdth" 96;
+  }
+  /* Numbers in a clinical product are scanned, not read: always tabular so columns
+     of times, counts and currency align. */
+  th,
+  td,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Big metric numerals (dashboard, timer): tabular, tightly tracked, optically
+     aligned so a row of KPI cards reads as one instrument panel. */
+  .metric {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    font-feature-settings: "ss01";
+  }
+}
+
+/* Slim, unobtrusive scrollbars — the default chunky Windows bar undercuts an
+   otherwise refined surface. Firefox gets the standard properties. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--foreground) 15%, transparent);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--foreground) 28%, transparent);
+}
+
+/* ---- Motion: one well-orchestrated entrance per screen, not scattered micro-fades.
+   Kept short (<=420ms) so navigation still reads as instant — item 6: speed over flourish. ---- */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up {
+    animation: none;
+  }
+}
+
+/* One staggered reveal per grid of cards (dashboard summaries) instead of scattered
+   per-element fades — apply to the grid container, direct children stagger in. */
+.stagger > * {
+  animation: fade-in-up 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 45ms; }
+.stagger > *:nth-child(3) { animation-delay: 90ms; }
+.stagger > *:nth-child(4) { animation-delay: 135ms; }
+.stagger > *:nth-child(5) { animation-delay: 180ms; }
+.stagger > *:nth-child(6) { animation-delay: 225ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger > * {
+    animation: none;
+  }
+}
+
+/* Recurring brand motif echoing the logo's diamond mark — used sparingly as a section
+   marker instead of a generic bullet. */
+.motif-diamond {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  background: currentColor;
+}
+
+/* Subtle paper-grain texture for large calm surfaces (login backdrop) — adds tactility
+   without competing with content. Self-contained SVG noise, no network fetch. */
+.bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}

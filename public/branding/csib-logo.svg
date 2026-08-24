@@ -1,0 +1,8 @@
+<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CSIB">
+  <circle cx="80" cy="80" r="76" fill="#0B3D5C"/>
+  <circle cx="80" cy="80" r="76" fill="none" stroke="#74A6C4" stroke-width="2"/>
+  <path d="M80 40 L96 56 L80 72 L64 56 Z" fill="#F5F7FA"/>
+  <path d="M56 88 h48" stroke="#F5F7FA" stroke-width="6" stroke-linecap="round"/>
+  <path d="M56 104 h48" stroke="#F5F7FA" stroke-width="6" stroke-linecap="round" opacity="0.7"/>
+  <text x="80" y="132" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="16" letter-spacing="4" fill="#F5F7FA">CSIB</text>
+</svg>

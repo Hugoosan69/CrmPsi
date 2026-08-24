@@ -1,0 +1,47 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — real credentials never get committed.
+.env*
+# ...but the template must be, so a new machine knows which vars to fill in.
+!.env.example
+
+# vercel
+.vercel
+
+# Separate project with its own git history (design handoff "Corpo & Mente").
+# Kept on disk as reference material; it is not part of the CSIB repository.
+/crm-psi/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
