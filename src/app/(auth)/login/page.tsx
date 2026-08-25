@@ -1,9 +1,17 @@
 import Image from "next/image"
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { isSupabaseConfigured } from "@/lib/supabase/env"
+import { ConfigurationRequired } from "@/components/shared/configuration-required"
 import { LoginForm } from "./login-form"
 
 export default function LoginPage() {
+  // Without configuration the form would accept credentials and then fail with an
+  // opaque error — say so up front instead.
+  if (!isSupabaseConfigured()) {
+    return <ConfigurationRequired />
+  }
+
   return (
     <div className="grid gap-5">
       <Card className="shadow-lifted">
