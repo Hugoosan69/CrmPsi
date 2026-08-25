@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { type NextRequest, NextResponse } from "next/server"
 
-import { supabaseEnv } from "@/lib/supabase/env"
+import { isSupabaseConfigured, supabaseEnv } from "@/lib/supabase/env"
 
 const PUBLIC_PATHS = ["/login"]
 
@@ -14,6 +14,18 @@ const PUBLIC_PATHS = ["/login"]
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
+
+  // The matcher covers essentially every route, so anything thrown here takes the whole
+  // site down — including /login, leaving no way back in. When Supabase isn't configured
+  // (a missing or misnamed env var on a fresh deploy), skip the optimistic redirect and
+  // let each page surface its own error. Security is unaffected: the real check is
+  // requireMembership() in the Data Access Layer, which still refuses without a session.
+  if (!isSupabaseConfigured()) {
+    console.error(
+      "proxy: Supabase env vars ausentes — verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no ambiente do deploy."
+    )
+    return response
+  }
 
   const supabase = createServerClient(supabaseEnv.url, supabaseEnv.anonKey, {
     cookies: {
@@ -32,9 +44,15 @@ export async function proxy(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // A transient Supabase outage must not lock everyone out of the app either.
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch (err) {
+    console.error("proxy: falha ao consultar a sessao no Supabase", err)
+    return response
+  }
 
   const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))
 
@@ -51,5 +69,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|branding/).*)"],
+  // /api/health is excluded so the probe answers even when auth is broken — that is the
+  // whole point of having it.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|branding/|api/health).*)"],
 }
