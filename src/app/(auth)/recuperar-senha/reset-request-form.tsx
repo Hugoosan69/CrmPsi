@@ -33,6 +33,9 @@ export function ResetRequestForm() {
 
   return (
     <form action={formAction} className="grid gap-4">
+      <p className="text-[0.82rem] text-muted-foreground">
+        Informe o e-mail da sua conta. Enviaremos um link para você definir uma nova senha.
+      </p>
       <div className="grid gap-1.5">
         <Label htmlFor="reset-email">E-mail</Label>
         <Input

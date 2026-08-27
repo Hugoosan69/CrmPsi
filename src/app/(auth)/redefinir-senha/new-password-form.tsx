@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation"
 import { AlertTriangle, CheckCircle2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { PasswordField } from "@/components/ui/password-field"
 import { createClient } from "@/lib/supabase/client"
 import { newPasswordSchema } from "@/schemas/auth.schema"
 
@@ -124,31 +123,21 @@ export function NewPasswordForm() {
 
   return (
     <form action={submit} className="grid gap-4">
-      <div className="grid gap-1.5">
-        <Label htmlFor="new-password">Nova senha</Label>
-        <Input
-          id="new-password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-          autoFocus
-        />
-        <p className="text-[0.75rem] text-muted-foreground">Ao menos 8 caracteres.</p>
-      </div>
+      <PasswordField
+        name="password"
+        label="Nova senha"
+        hint="Ao menos 8 caracteres."
+        minLength={8}
+        required
+        autoFocus
+      />
 
-      <div className="grid gap-1.5">
-        <Label htmlFor="confirm-new-password">Confirmar nova senha</Label>
-        <Input
-          id="confirm-new-password"
-          name="confirm"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-        />
-      </div>
+      <PasswordField
+        name="confirm"
+        label="Confirmar nova senha"
+        minLength={8}
+        required
+      />
 
       {error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
