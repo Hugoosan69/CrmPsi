@@ -6,7 +6,65 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+/**
+ * Walks the rendered children and pairs each `<SelectItem>`'s value with its own label.
+ *
+ * Base UI's `<Select.Value>` renders the *raw value* unless `Select.Root` is given an
+ * `items` map ("When specified, `<Select.Value>` renders the label of the selected item
+ * instead of the raw value" — @base-ui/react/select/root/SelectRoot.d.ts). Without it every
+ * trigger in the app showed a uuid, a slug or a bare number once something was chosen.
+ *
+ * Deriving the map here rather than passing `items` at each of the 31 call sites is
+ * deliberate: the labels come from the same children that render in the popup, so the
+ * trigger can never drift out of sync with the list. A hand-written `items` prop next to a
+ * `.map()` of the same items is exactly the kind of duplication that rots.
+ *
+ * Constraint: an option rendered by some component *other* than `<SelectItem>` — one that
+ * does not expose `value` as a prop — will not be collected, and that Select must pass
+ * `items` explicitly. No call site does this today.
+ */
+function collectItems(
+  children: React.ReactNode,
+  acc: { value: unknown; label: React.ReactNode }[] = []
+) {
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return
+
+    // Identified by prop shape, NOT by `child.type === SelectItem`. This module is
+    // "use client", so when a Server Component writes `<SelectItem>` the element's `type`
+    // is a client-reference proxy, never the function object in this file — identity
+    // comparison silently yields an empty map and every trigger falls back to the raw
+    // value. Inside a Select subtree, `value` + `children` uniquely identifies an option:
+    // Trigger, Content, Group, GroupLabel and Separator all take no `value`.
+    const props = child.props as { value?: unknown; children?: React.ReactNode }
+    if (props && "value" in props) {
+      acc.push({ value: props.value, label: props.children })
+      return
+    }
+
+    if (props?.children) collectItems(props.children, acc)
+  })
+  return acc
+}
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  children,
+  items,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  // An explicit `items` always wins — a caller with labels that live outside the popup
+  // (an async list, say) can still supply its own.
+  const derived = items ?? collectItems(children)
+
+  return (
+    <SelectPrimitive.Root
+      {...(props as SelectPrimitive.Root.Props<Value, Multiple>)}
+      items={derived}
+    >
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

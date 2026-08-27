@@ -15,6 +15,7 @@ import {
   resumeService,
   startService,
 } from "@/services/service.service"
+import { getProfessionalByUserId } from "@/services/professionals.service"
 import { getTransaction } from "@/services/financial.service"
 import { recordAudit } from "@/services/audit.service"
 
@@ -54,9 +55,24 @@ export async function startServiceAction(queueEntryId: string) {
     )
   }
 
+  // service_sessions.professional_id references professionals(id), not profiles(id) —
+  // falling back to the caller's profile id here would be a guaranteed FK violation.
+  // An unassigned walk-in is claimed by whoever starts it, which requires the caller to
+  // actually have a professional record.
+  let professionalId = entry.professional_id
+  if (!professionalId) {
+    const caller = await getProfessionalByUserId(supabase, membership.clinicId, membership.userId)
+    if (!caller) {
+      throw new Error(
+        "Este paciente está na fila sem profissional definido e seu usuário não tem cadastro de profissional vinculado. Peça à gestão para vincular seu login a um profissional."
+      )
+    }
+    professionalId = caller.id
+  }
+
   const sessionId = await startService(supabase, membership.clinicId, {
     queueEntryId,
-    professionalId: entry.professional_id ?? membership.userId,
+    professionalId,
     patientId: entry.patient_id,
     createdBy: membership.userId,
   })

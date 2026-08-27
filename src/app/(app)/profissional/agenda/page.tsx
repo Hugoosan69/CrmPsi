@@ -1,26 +1,46 @@
 import Link from "next/link"
 
-import { requirePermission } from "@/lib/auth/session"
+import { hasPermission, requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
-import { hydrateAppointments, listAppointmentsForDay } from "@/services/scheduling.service"
+import {
+  hydrateAppointments,
+  listAppointmentsForDay,
+  listAppointmentsForRange,
+} from "@/services/scheduling.service"
 import { getProfessionalByUserId, listProfessionals } from "@/services/professionals.service"
 import { listProcedures } from "@/services/procedures.service"
+import {
+  listAvailabilityIfAvailable,
+  listScheduleExceptionsIfAvailable,
+} from "@/services/availability.service"
 import { AppointmentsList } from "@/features/scheduling/components/appointments-list"
-import { DateNav } from "@/features/scheduling/components/date-nav"
-import { todaySaoPauloDate } from "@/utils/datetime"
+import { AgendaViewNav } from "@/features/scheduling/components/agenda-view-nav"
+import { parseView, type AgendaView } from "@/config/agenda"
+import { WeekCalendar } from "@/features/scheduling/components/agenda-calendar"
+import { addDays, startOfWeek, todaySaoPauloDate } from "@/utils/datetime"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
 
+/** The professional's own week is the useful default — a single day of one person's
+ *  agenda is what the fila already shows better. */
+const VIEWS: AgendaView[] = ["semana", "lista"]
+
 export default async function ProfissionalAgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ data?: string }>
+  searchParams: Promise<{ data?: string; vista?: string }>
 }) {
   const membership = await requirePermission(PERMISSIONS.SERVICE_MANAGE)
-  const { data } = await searchParams
-  const date = data || todaySaoPauloDate()
+  // A professional can open the modal to read the booking; acting on it needs
+  // agenda.manage, which the seeded `professional` role does not have.
+  const canManageAgenda = hasPermission(membership, PERMISSIONS.AGENDA_MANAGE)
+  const { data, vista } = await searchParams
+  const today = todaySaoPauloDate()
+  const date = data || today
+  const view = parseView(vista, VIEWS)
+  const weekStart = startOfWeek(date)
 
   const supabase = await createClient()
   const professional = await getProfessionalByUserId(supabase, membership.clinicId, membership.userId)
@@ -35,28 +55,68 @@ export default async function ProfissionalAgendaPage({
     )
   }
 
-  const [rawAppointments, professionals, procedures] = await Promise.all([
-    listAppointmentsForDay(supabase, membership.clinicId, date, { professionalId: professional.id }),
+  const [rawAppointments, professionals, procedures, rules, exceptions] = await Promise.all([
+    view === "semana"
+      ? listAppointmentsForRange(
+          supabase,
+          membership.clinicId,
+          weekStart,
+          addDays(weekStart, 6),
+          { professionalId: professional.id }
+        )
+      : listAppointmentsForDay(supabase, membership.clinicId, date, {
+          professionalId: professional.id,
+        }),
     listProfessionals(supabase, membership.clinicId),
     listProcedures(supabase, membership.clinicId),
+    listAvailabilityIfAvailable(supabase, membership.clinicId, professional.id),
+    listScheduleExceptionsIfAvailable(supabase, membership.clinicId, {
+      from: view === "semana" ? weekStart : date,
+      to: view === "semana" ? addDays(weekStart, 6) : date,
+    }),
   ])
   const appointments = await hydrateAppointments(supabase, rawAppointments)
 
   return (
-    <div className="grid gap-6">
+    <div className="grid animate-fade-in-up gap-6">
       <PageHeader
         title="Minha agenda"
         description={professional.full_name}
-        actions={<Button nativeButton={false} variant="outline" render={<Link href="/profissional/fila">Ir para a fila</Link>} />}
+        actions={
+          <Button
+            nativeButton={false}
+            variant="outline"
+            render={<Link href="/profissional/fila">Ir para a fila</Link>}
+          />
+        }
       />
-      <DateNav date={date} />
-      <AppointmentsList
-        appointments={appointments}
-        professionals={professionals}
-        procedures={procedures}
-        canManage={false}
-        canCheckIn={false}
-      />
+
+      <AgendaViewNav view={view} date={date} views={VIEWS} />
+
+      {view === "semana" ? (
+        <WeekCalendar
+          weekStart={weekStart}
+          today={today}
+          appointments={appointments}
+          rules={rules}
+          exceptions={exceptions}
+          professionalId={professional.id}
+          formProfessionals={professionals
+            .filter((p) => p.active)
+            .map((p) => ({ id: p.id, full_name: p.full_name }))}
+          procedures={procedures.filter((p) => p.active)}
+          canManage={canManageAgenda}
+          canCheckIn={false}
+        />
+      ) : (
+        <AppointmentsList
+          appointments={appointments}
+          professionals={professionals}
+          procedures={procedures}
+          canManage={false}
+          canCheckIn={false}
+        />
+      )}
     </div>
   )
 }

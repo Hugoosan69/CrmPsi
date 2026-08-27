@@ -2,8 +2,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#082B41] px-4 py-10">
       {/* Layered atmosphere on a deep petrol canvas: a fine architectural grid for
-          structure, one off-centre glow for depth, and a whisper of grain for
-          tactility. Calm and institutional rather than decorative. */}
+          structure and one off-centre glow for depth. Calm and institutional rather
+          than decorative. */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.10]"
         style={{
@@ -26,7 +26,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         }}
         aria-hidden
       />
-      <div className="bg-grain pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-overlay" aria-hidden />
 
       <div className="relative z-10 w-full max-w-[25rem] animate-fade-in-up">{children}</div>
     </div>

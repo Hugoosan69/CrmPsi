@@ -13,11 +13,10 @@ type Props = {
   clinicName: string
   fullName: string
   roleName: string
-  canSeePatients: boolean
   children: React.ReactNode
 }
 
-export function AppShell({ sections, clinicName, fullName, roleName, canSeePatients, children }: Props) {
+export function AppShell({ sections, clinicName, fullName, roleName, children }: Props) {
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
@@ -58,7 +57,6 @@ export function AppShell({ sections, clinicName, fullName, roleName, canSeePatie
           clinicName={clinicName}
           fullName={fullName}
           roleName={roleName}
-          canSeePatients={canSeePatients}
         />
         <main className="flex-1 px-4 py-5 lg:px-7 lg:py-6">
           {/* Capped measure: on ultrawide monitors an uncapped table stretches to

@@ -26,12 +26,56 @@ import {
   getProfessionalSummary,
   getReceptionSummary,
 } from "@/services/dashboard.service"
-import { getProfessionalByUserId } from "@/services/professionals.service"
+import { getProfessionalByUserId, listProfessionals } from "@/services/professionals.service"
+import { getOccupancy, type OccupancyRow } from "@/services/availability.service"
+import { pendingMigrationFor } from "@/lib/db-errors"
+import { OccupancyPanel } from "@/features/scheduling/components/occupancy-panel"
 import { todaySaoPauloDate } from "@/utils/datetime"
 import { cn } from "@/lib/utils"
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
+}
+
+type OccupancyBlock =
+  | { kind: "data"; rows: OccupancyRow[]; professionals: { id: string; full_name: string }[]; periodLabel: string }
+  | { kind: "migration"; migration: string }
+
+/**
+ * Occupancy depends on migrations/002. Rather than letting a missing migration throw the
+ * whole dashboard into the error boundary, it degrades to a named, actionable notice —
+ * every other indicator on this page still works without it.
+ */
+async function loadOccupancy(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  today: string
+): Promise<OccupancyBlock> {
+  const { start, end } = monthBounds(today)
+  try {
+    const [rows, professionals] = await Promise.all([
+      getOccupancy(supabase, clinicId, start, end),
+      listProfessionals(supabase, clinicId),
+    ])
+    return {
+      kind: "data",
+      rows,
+      professionals: professionals.filter((p) => p.active).map((p) => ({ id: p.id, full_name: p.full_name })),
+      periodLabel: `${new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "America/Sao_Paulo" }).format(new Date(`${start}T12:00:00-03:00`))} · horário semanal cadastrado × agendado`,
+    }
+  } catch (err) {
+    const migration = pendingMigrationFor(err)
+    if (migration) return { kind: "migration", migration }
+    throw err
+  }
+}
+
+/** First and last clinic-local calendar day of the month containing `today`. */
+function monthBounds(today: string) {
+  const start = `${today.slice(0, 7)}-01`
+  const [year, month] = today.split("-").map(Number)
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return { start, end: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}` }
 }
 
 /** Item 25: the dashboard varies by profile — each section below only renders for the
@@ -56,6 +100,15 @@ export default async function DashboardPage() {
 
   const professionalSummary = professional
     ? await getProfessionalSummary(supabase, membership.clinicId, professional.id, today)
+    : null
+
+  // Occupancy is the owner's question ("where is the idle capacity?"), so it follows the
+  // same permission as the rest of the management block. It reads through the agenda's own
+  // availability definition, which only exists once migrations/002 is applied — hence the
+  // tolerant read: an un-migrated database should show one clear setup prompt, not take
+  // the whole dashboard down.
+  const occupancy = canSeeFinancial
+    ? await loadOccupancy(supabase, membership.clinicId, today)
     : null
 
   return (
@@ -168,6 +221,30 @@ export default async function DashboardPage() {
         </Section>
       )}
 
+      {occupancy?.kind === "data" && (
+        <div className="animate-fade-in-up">
+          <OccupancyPanel
+            rows={occupancy.rows}
+            professionals={occupancy.professionals}
+            periodLabel={occupancy.periodLabel}
+          />
+        </div>
+      )}
+
+      {occupancy?.kind === "migration" && (
+        <div className="rounded-xl border border-status-warning/40 bg-status-warning/5 px-5 py-4">
+          <p className="text-sm font-medium">Ocupação da agenda indisponível</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Rode{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.8rem] text-foreground">
+              database/migrations/{occupancy.migration}
+            </code>{" "}
+            no SQL Editor do Supabase para habilitar horário de atendimento, salas e
+            indicadores de ocupação.
+          </p>
+        </div>
+      )}
+
       <Section title="Cadastros">
         <SummaryCard
           label="Pacientes ativos"
@@ -276,8 +353,14 @@ function SummaryCard({
     </Card>
   )
 
+  // `group/card` has to be declared on the hover target itself, otherwise the
+  // `group-hover/card:` arrow above never reveals — it named a group that didn't exist.
   return href ? (
-    <Link href={href} className="block h-full">
+    <Link
+      href={href}
+      className="group/card block h-full"
+      aria-label={hint ? `${label}: ${value} — ${hint}` : `${label}: ${value}`}
+    >
       {content}
     </Link>
   ) : (

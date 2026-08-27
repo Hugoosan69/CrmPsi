@@ -1,79 +1,56 @@
 "use client"
 
-import { useTransition } from "react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import type { AppointmentView } from "@/services/scheduling.service"
-import {
-  confirmAppointmentAction,
-  markNoShowAppointmentAction,
-} from "../actions/appointment.actions"
-import { CancelAppointmentDialog } from "./cancel-appointment-dialog"
-import { CheckInDialog } from "./check-in-dialog"
-import { RescheduleAppointmentDialog } from "./reschedule-appointment-dialog"
 import type { ProcedureOption, ProfessionalOption } from "@/types/options"
+import { AppointmentDetailDialog } from "./appointment-detail-dialog"
 
+/**
+ * The list row opens the same modal the calendar opens, rather than repeating confirm /
+ * check-in / reschedule / cancel as inline buttons. One implementation means the two views
+ * cannot disagree about what an action does — and the row stops being a cramped strip of
+ * five buttons.
+ */
 export function AppointmentRowActions({
   appointment,
   professionals,
   procedures,
+  rooms = [],
   canManage,
   canCheckIn,
 }: {
   appointment: AppointmentView
   professionals: ProfessionalOption[]
   procedures: ProcedureOption[]
+  rooms?: { id: string; name: string }[]
   canManage: boolean
   canCheckIn: boolean
 }) {
-  const [isPending, startTransition] = useTransition()
-
-  if (appointment.status === "cancelled" || appointment.status === "completed") {
-    return null
-  }
+  const [open, setOpen] = useState(false)
 
   return (
-    <div className="flex flex-wrap justify-end gap-1">
-      {canManage && appointment.status === "scheduled" && (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={isPending}
-          onClick={() => startTransition(() => confirmAppointmentAction(appointment.id))}
-        >
-          Confirmar
-        </Button>
-      )}
-      {canCheckIn &&
-        !appointment.checked_in_at &&
-        (appointment.status === "scheduled" || appointment.status === "confirmed") && (
-          <CheckInDialog
-            appointment={appointment}
-            procedurePrice={
-              appointment.procedure_id
-                ? procedures.find((p) => p.id === appointment.procedure_id)?.price ?? null
-                : null
-            }
-          />
-        )}
-      {canManage && (
-        <>
-          <RescheduleAppointmentDialog
-            appointment={appointment}
-            professionals={professionals}
-            procedures={procedures}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={isPending}
-            onClick={() => startTransition(() => markNoShowAppointmentAction(appointment.id))}
-          >
-            Não compareceu
-          </Button>
-          <CancelAppointmentDialog appointmentId={appointment.id} />
-        </>
-      )}
-    </div>
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+        aria-label={`Abrir agendamento de ${appointment.patientName}`}
+      >
+        Abrir
+      </Button>
+      <AppointmentDetailDialog
+        appointment={appointment}
+        professionals={professionals}
+        procedures={procedures}
+        rooms={rooms}
+        canManage={canManage}
+        canCheckIn={canCheckIn}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   )
 }

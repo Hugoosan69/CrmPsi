@@ -42,6 +42,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Gestão",
     items: [
       { href: "/gestao/financeiro", label: "Financeiro", permission: PERMISSIONS.FINANCIAL_VIEW },
+      { href: "/gestao/agenda", label: "Configuração da agenda", permission: PERMISSIONS.SETTINGS_MANAGE },
       { href: "/gestao/profissionais", label: "Profissionais", permission: PERMISSIONS.SETTINGS_MANAGE },
       { href: "/gestao/comunicacao", label: "Comunicação", permission: PERMISSIONS.SETTINGS_MANAGE },
       { href: "/gestao/procedimentos", label: "Procedimentos", permission: PERMISSIONS.SETTINGS_MANAGE },

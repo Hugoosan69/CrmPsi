@@ -3,7 +3,6 @@ import { isSupabaseConfigured } from "@/lib/supabase/env"
 import { ConfigurationRequired } from "@/components/shared/configuration-required"
 import { AppShell } from "@/components/layout/app-shell"
 import { NAV_SECTIONS } from "@/config/navigation"
-import { PERMISSIONS } from "@/config/permissions"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Checked before touching Supabase: without configuration every page below would throw
@@ -27,7 +26,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       clinicName={membership.clinicName}
       fullName={membership.fullName}
       roleName={membership.roleName}
-      canSeePatients={hasPermission(membership, PERMISSIONS.PATIENTS_VIEW)}
     >
       {children}
     </AppShell>

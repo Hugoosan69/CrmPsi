@@ -8,6 +8,8 @@ import { PERMISSIONS } from "@/config/permissions"
 import { appointmentSchema } from "@/schemas/appointment.schema"
 import {
   createAppointment,
+  deleteAppointment,
+  findAppointmentDeletionBlocker,
   getAppointment,
   rescheduleAppointment,
   setAppointmentStatus,
@@ -16,7 +18,11 @@ import { checkInAppointment } from "@/services/queue.service"
 import { getProcedure } from "@/services/procedures.service"
 import { createTransaction } from "@/services/financial.service"
 import { recordAudit } from "@/services/audit.service"
+import { notify, profileIdsForProfessionals } from "@/services/notifications.service"
 import { describeDbError } from "@/lib/db-errors"
+import { findSlotProblem } from "@/services/availability.service"
+import { describeSlotProblem } from "@/config/agenda"
+import { formatDateTime } from "@/utils/datetime"
 
 export type AppointmentActionState = { error?: string; success?: boolean }
 
@@ -37,7 +43,24 @@ export async function createAppointmentAction(
   }
 
   const supabase = await createClient()
-  const created = await createAppointment(supabase, membership.clinicId, membership.userId, parsed.data)
+
+  // Availability, blocks, professional and room conflicts — checked here for a message
+  // the receptionist can act on. The exclusion constraints in migrations/002 are the
+  // race-proof backstop for two people booking the same slot at the same moment.
+  const problem = await findSlotProblem(supabase, membership.clinicId, {
+    professionalId: parsed.data.professional_id,
+    roomId: parsed.data.room_id,
+    startsAt: parsed.data.scheduled_at,
+    durationMinutes: parsed.data.duration_minutes,
+  })
+  if (problem) return { error: describeSlotProblem(problem)! }
+
+  let created: { id: string }
+  try {
+    created = await createAppointment(supabase, membership.clinicId, membership.userId, parsed.data)
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
 
   await recordAudit({
     clinicId: membership.clinicId,
@@ -65,7 +88,23 @@ export async function rescheduleAppointmentAction(
   }
 
   const supabase = await createClient()
-  await rescheduleAppointment(supabase, membership.clinicId, appointmentId, parsed.data)
+
+  // Same gate as creation, minus this appointment's own reservation — otherwise every
+  // reschedule would collide with the slot it is moving out of.
+  const problem = await findSlotProblem(supabase, membership.clinicId, {
+    professionalId: parsed.data.professional_id,
+    roomId: parsed.data.room_id,
+    startsAt: parsed.data.scheduled_at,
+    durationMinutes: parsed.data.duration_minutes,
+    excludeAppointmentId: appointmentId,
+  })
+  if (problem) return { error: describeSlotProblem(problem)! }
+
+  try {
+    await rescheduleAppointment(supabase, membership.clinicId, appointmentId, parsed.data)
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
 
   await recordAudit({
     clinicId: membership.clinicId,
@@ -84,6 +123,8 @@ export async function cancelAppointmentAction(appointmentId: string, reason: str
   const membership = await requirePermission(PERMISSIONS.AGENDA_MANAGE)
 
   const supabase = await createClient()
+  // Read before the update, so the notification can name the slot that just freed up.
+  const appointment = await getAppointment(supabase, membership.clinicId, appointmentId)
   await setAppointmentStatus(supabase, membership.clinicId, appointmentId, "cancelled", reason)
 
   await recordAudit({
@@ -95,7 +136,70 @@ export async function cancelAppointmentAction(appointmentId: string, reason: str
     after: { reason },
   })
 
+  const recipients = await profileIdsForProfessionals(supabase, membership.clinicId, [
+    appointment.professional_id,
+  ])
+  await notify({
+    clinicId: membership.clinicId,
+    userIds: recipients,
+    kind: "agenda",
+    title: "Agendamento cancelado",
+    body: [`${formatDateTime(appointment.scheduled_at)}`, reason ? `Motivo: ${reason}` : null]
+      .filter(Boolean)
+      .join(" · "),
+    href: "/profissional/agenda",
+    entityType: "appointment",
+    entityId: appointmentId,
+    exceptUserId: membership.userId,
+  })
+
   revalidateAgenda()
+}
+
+/**
+ * Hard delete, for an appointment created by mistake. Refuses whenever anything
+ * operational hangs off it — see findAppointmentDeletionBlocker. The audit row is written
+ * *before* the delete so the trail outlives the record.
+ */
+export async function deleteAppointmentAction(
+  appointmentId: string
+): Promise<{ error?: string; success?: boolean }> {
+  const membership = await requirePermission(PERMISSIONS.AGENDA_MANAGE)
+  const supabase = await createClient()
+
+  let blocker: string | null
+  let appointment: Awaited<ReturnType<typeof getAppointment>>
+  try {
+    appointment = await getAppointment(supabase, membership.clinicId, appointmentId)
+    blocker = await findAppointmentDeletionBlocker(supabase, membership.clinicId, appointmentId)
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
+  if (blocker) return { error: blocker }
+
+  await recordAudit({
+    clinicId: membership.clinicId,
+    userId: membership.userId,
+    action: "appointment.delete",
+    entityType: "appointment",
+    entityId: appointmentId,
+    before: {
+      patient_id: appointment.patient_id,
+      professional_id: appointment.professional_id,
+      scheduled_at: appointment.scheduled_at,
+      duration_minutes: appointment.duration_minutes,
+      status: appointment.status,
+    },
+  })
+
+  try {
+    await deleteAppointment(supabase, membership.clinicId, appointmentId)
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
+
+  revalidateAgenda()
+  return { success: true }
 }
 
 export async function confirmAppointmentAction(appointmentId: string) {

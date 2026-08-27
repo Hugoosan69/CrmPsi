@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
+import { requirePermission } from "@/lib/auth/session"
+import { PERMISSIONS } from "@/config/permissions"
 import { listPrescriptionItems, listPrescriptionsForPatient } from "@/services/prescriptions.service"
 import { EmptyState } from "@/components/shared/empty-state"
 import { formatDateTime } from "@/utils/datetime"
@@ -12,6 +14,12 @@ export async function PatientPrescriptionsPanel({
   clinicId: string
   patientId: string
 }) {
+  // Clinical content, so it enforces records.view itself rather than trusting whoever
+  // rendered it. The architecture doc is explicit that a hidden tab is not authorization
+  // (docs/ARCHITECTURE.md §5, briefing item 23) — reception holds patients.view but not
+  // records.view, and RLS alone would let it read every prontuário.
+  await requirePermission(PERMISSIONS.RECORDS_VIEW)
+
   const supabase = await createClient()
   const prescriptions = await listPrescriptionsForPatient(supabase, clinicId, patientId)
 

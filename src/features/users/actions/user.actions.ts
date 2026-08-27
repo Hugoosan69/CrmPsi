@@ -11,7 +11,7 @@ import {
   setMembershipActive,
   updateMembershipRole,
 } from "@/services/users.service"
-import { setRolePermission } from "@/services/permissions.service"
+import { getPermission, setRolePermission } from "@/services/permissions.service"
 import { recordAudit } from "@/services/audit.service"
 
 export type UserActionState = { error?: string; success?: boolean }
@@ -88,8 +88,20 @@ export async function setMembershipActiveAction(membershipId: string, active: bo
 
 export async function setRolePermissionAction(roleId: string, permissionId: string, granted: boolean) {
   const membership = await requirePermission(PERMISSIONS.USERS_MANAGE)
+  const supabase = await createClient()
 
-  await setRolePermission(roleId, permissionId, granted)
+  // Revoking users.manage from your own role removes the only way back into this screen,
+  // and there is no recovery path short of SQL. Refuse it, whatever the UI allowed.
+  if (!granted && roleId === membership.roleId) {
+    const permission = await getPermission(supabase, permissionId)
+    if (permission?.slug === PERMISSIONS.USERS_MANAGE) {
+      throw new Error(
+        "Você não pode remover a permissão de gerenciar usuários do seu próprio papel — isso bloquearia seu acesso a esta tela permanentemente."
+      )
+    }
+  }
+
+  await setRolePermission(supabase, membership.clinicId, roleId, permissionId, granted)
 
   await recordAudit({
     clinicId: membership.clinicId,

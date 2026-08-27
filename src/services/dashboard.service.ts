@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/types/supabase"
+import { dayRange, monthStart } from "@/utils/datetime"
 
 type DB = SupabaseClient<Database>
 
@@ -22,8 +23,7 @@ export async function getClinicSummary(supabase: DB, clinicId: string) {
 
 /** Recepção view (item 8): today's agenda breakdown, live queue, pending payments. */
 export async function getReceptionSummary(supabase: DB, clinicId: string, todayDate: string) {
-  const dayStart = `${todayDate}T00:00:00`
-  const dayEnd = `${todayDate}T23:59:59.999`
+  const { start: dayStart, end: dayEnd } = dayRange(todayDate)
 
   const [{ data: appointments }, { data: queueEntries }, { data: pendingReceitas }] = await Promise.all([
     supabase
@@ -63,8 +63,7 @@ export async function getProfessionalSummary(
   professionalId: string,
   todayDate: string
 ) {
-  const dayStart = `${todayDate}T00:00:00`
-  const dayEnd = `${todayDate}T23:59:59.999`
+  const { start: dayStart, end: dayEnd } = dayRange(todayDate)
 
   const [{ data: appointments }, { data: queueEntries }] = await Promise.all([
     supabase
@@ -92,19 +91,19 @@ export async function getProfessionalSummary(
 
 /** Gestão view (item 25): faturamento, recebimentos, cancelamentos, faltas. */
 export async function getManagementSummary(supabase: DB, clinicId: string, todayDate: string) {
-  const monthStart = `${todayDate.slice(0, 7)}-01T00:00:00`
+  const monthFrom = monthStart(todayDate)
 
   const [{ data: monthAppointments }, { data: monthTransactions }] = await Promise.all([
     supabase
       .from("appointments")
       .select("status")
       .eq("clinic_id", clinicId)
-      .gte("scheduled_at", monthStart),
+      .gte("scheduled_at", monthFrom),
     supabase
       .from("financial_transactions")
       .select("type,status,amount")
       .eq("clinic_id", clinicId)
-      .gte("created_at", monthStart),
+      .gte("created_at", monthFrom),
   ])
 
   const appts = monthAppointments ?? []

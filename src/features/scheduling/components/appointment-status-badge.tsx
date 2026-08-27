@@ -1,22 +1,7 @@
-import { StatusDot, type StatusTone } from "@/components/shared/status-dot"
+import { StatusDot } from "@/components/shared/status-dot"
+import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_TONES } from "@/config/agenda"
 import type { AppointmentStatus } from "@/types/supabase"
 
-const LABELS: Record<AppointmentStatus, string> = {
-  scheduled: "Agendado",
-  confirmed: "Confirmado",
-  cancelled: "Cancelado",
-  no_show: "Não compareceu",
-  completed: "Concluído",
-}
-
-const TONES: Record<AppointmentStatus, StatusTone> = {
-  scheduled: "neutral",
-  confirmed: "info",
-  cancelled: "danger",
-  no_show: "warning",
-  completed: "success",
-}
-
 export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }) {
-  return <StatusDot tone={TONES[status]} label={LABELS[status]} />
+  return <StatusDot tone={APPOINTMENT_STATUS_TONES[status]} label={APPOINTMENT_STATUS_LABELS[status]} />
 }

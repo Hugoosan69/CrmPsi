@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
+import { requirePermission } from "@/lib/auth/session"
+import { PERMISSIONS } from "@/config/permissions"
 import {
   getCidDescriptions,
   listDiagnosesForRecords,
@@ -33,6 +35,12 @@ export async function PatientTimeline({
   /** The visit in progress, kept out of its own history. */
   excludeRecordId?: string
 }) {
+  // Clinical content, so it enforces records.view itself rather than trusting whoever
+  // rendered it. The architecture doc is explicit that a hidden tab is not authorization
+  // (docs/ARCHITECTURE.md §5, briefing item 23) — reception holds patients.view but not
+  // records.view, and RLS alone would let it read every prontuário.
+  await requirePermission(PERMISSIONS.RECORDS_VIEW)
+
   const supabase = await createClient()
   const allRecords = await listMedicalRecordsForPatient(supabase, clinicId, patientId)
   const records = allRecords.filter((r) => r.id !== excludeRecordId)

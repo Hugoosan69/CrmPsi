@@ -3,7 +3,11 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { isSupabaseConfigured, supabaseEnv } from "@/lib/supabase/env"
 
-const PUBLIC_PATHS = ["/login"]
+// /redefinir-senha is reachable without a session on purpose: Supabase returns the operator
+// with the recovery token in the URL *fragment*, which never reaches the server, so an
+// optimistic redirect to /login here would destroy the token before the browser could read
+// it. The page itself is inert without a valid token.
+const PUBLIC_PATHS = ["/login", "/recuperar-senha", "/redefinir-senha"]
 
 /**
  * Next.js 16 renamed middleware.ts -> proxy.ts. This only does an optimistic

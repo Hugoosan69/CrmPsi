@@ -2,21 +2,22 @@
 
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { Bell, Menu } from "lucide-react"
+import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import type { NavSection } from "@/config/navigation"
 import { AppSidebar } from "./app-sidebar"
-import { GlobalPatientSearch } from "./global-patient-search"
+import { GlobalSearch } from "./global-search"
+import { HeaderMessages } from "./header-messages"
+import { UserMenu } from "./user-menu"
+import { NotificationBell } from "@/features/notifications/components/notification-bell"
 
 type Props = {
   sections: NavSection[]
   clinicName: string
   fullName: string
   roleName: string
-  canSeePatients: boolean
 }
 
 function currentTitle(pathname: string, sections: NavSection[]) {
@@ -28,7 +29,7 @@ function currentTitle(pathname: string, sections: NavSection[]) {
   return "CSIB"
 }
 
-export function AppHeader({ sections, clinicName, fullName, roleName, canSeePatients }: Props) {
+export function AppHeader({ sections, clinicName, fullName, roleName }: Props) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const title = currentTitle(pathname, sections)
@@ -61,24 +62,14 @@ export function AppHeader({ sections, clinicName, fullName, roleName, canSeePati
 
       <h1 className="min-w-0 truncate font-heading text-[0.95rem] font-semibold lg:hidden">{title}</h1>
 
-      <div className="hidden flex-1 lg:flex">{canSeePatients && <GlobalPatientSearch />}</div>
+      <div className="hidden flex-1 lg:flex">
+        <GlobalSearch />
+      </div>
 
       <div className="ml-auto flex items-center gap-1">
-        <Popover>
-          <PopoverTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" aria-label="Notificações">
-                <Bell className="size-[1.05rem]" />
-              </Button>
-            }
-          />
-          <PopoverContent className="w-72" align="end">
-            <p className="text-sm font-medium">Notificações</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Nada por aqui ainda. Confirmações e lembretes aparecerão nesta lista.
-            </p>
-          </PopoverContent>
-        </Popover>
+        <HeaderMessages />
+        <NotificationBell />
+        <UserMenu fullName={fullName} roleName={roleName} clinicName={clinicName} />
       </div>
     </header>
   )

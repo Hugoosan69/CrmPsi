@@ -21,9 +21,11 @@ const initialState: AppointmentActionState = {}
 export function CreateAppointmentDialog({
   professionals,
   procedures,
+  rooms = [],
 }: {
   professionals: ProfessionalOption[]
   procedures: ProcedureOption[]
+  rooms?: { id: string; name: string }[]
 }) {
   const [open, setOpen] = useState(false)
   const [state, formAction, isPending] = useActionState(createAppointmentAction, initialState)
@@ -39,7 +41,7 @@ export function CreateAppointmentDialog({
             <DialogTitle>Novo agendamento</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <AppointmentFormFields professionals={professionals} procedures={procedures} />
+            <AppointmentFormFields professionals={professionals} procedures={procedures} rooms={rooms} />
           </div>
           {state.error ? (
             <p className="mb-3 text-sm text-destructive" role="alert">

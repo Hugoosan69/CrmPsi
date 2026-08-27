@@ -18,6 +18,26 @@ export type AppointmentStatus =
   | "no_show"
   | "completed"
 
+export type ScheduleExceptionKind = "block" | "extra"
+
+export type ConversationKind = "direct" | "group"
+
+/** Where a notification came from — drives the icon and the grouping in the bell. */
+export type NotificationKind = "system" | "chat" | "queue" | "agenda" | "financial"
+
+/**
+ * Reason codes returned by the `appointment_slot_problem` SQL function. The rule lives
+ * in the database (database/migrations/002) so a future public booking endpoint enforces
+ * exactly what the receptionist's form enforces; these codes are the shared vocabulary.
+ */
+export type SlotProblem =
+  | "invalid_duration"
+  | "crosses_midnight"
+  | "outside_availability"
+  | "blocked"
+  | "professional_busy"
+  | "room_busy"
+
 export type QueueEntryType = "scheduled" | "walk_in" | "fit_in" | "transfer"
 export type QueueStatus =
   | "payment_pending"
@@ -276,6 +296,7 @@ export interface Database {
           patient_id: string
           professional_id: string
           procedure_id: string | null
+          room_id: string | null
           scheduled_at: string
           duration_minutes: number
           status: AppointmentStatus
@@ -285,6 +306,11 @@ export interface Database {
           created_by: string | null
           created_at: string
           updated_at: string
+          /**
+           * Maintained by the `trg_appointments_time_range` trigger from scheduled_at +
+           * duration_minutes (migrations/002). Never write it — the trigger overwrites it.
+           */
+          time_range: string
         }
         Insert: Partial<Database["public"]["Tables"]["appointments"]["Row"]> & {
           clinic_id: string
@@ -649,9 +675,190 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Row"]>
         Relationships: []
       }
+      rooms: {
+        Row: {
+          id: string
+          clinic_id: string
+          name: string
+          kind: string
+          capacity: number
+          notes: string | null
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["rooms"]["Row"]> & {
+          clinic_id: string
+          name: string
+        }
+        Update: Partial<Database["public"]["Tables"]["rooms"]["Row"]>
+        Relationships: []
+      }
+      professional_availability: {
+        Row: {
+          id: string
+          clinic_id: string
+          professional_id: string
+          weekday: number
+          start_time: string
+          end_time: string
+          slot_minutes: number
+          room_id: string | null
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["professional_availability"]["Row"]> & {
+          clinic_id: string
+          professional_id: string
+          weekday: number
+          start_time: string
+          end_time: string
+        }
+        Update: Partial<Database["public"]["Tables"]["professional_availability"]["Row"]>
+        Relationships: []
+      }
+      schedule_exceptions: {
+        Row: {
+          id: string
+          clinic_id: string
+          professional_id: string | null
+          kind: ScheduleExceptionKind
+          starts_at: string
+          ends_at: string
+          reason: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["schedule_exceptions"]["Row"]> & {
+          clinic_id: string
+          starts_at: string
+          ends_at: string
+        }
+        Update: Partial<Database["public"]["Tables"]["schedule_exceptions"]["Row"]>
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          id: string
+          clinic_id: string
+          kind: ConversationKind
+          title: string | null
+          direct_key: string | null
+          created_by: string | null
+          last_message_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["conversations"]["Row"]> & {
+          clinic_id: string
+        }
+        Update: Partial<Database["public"]["Tables"]["conversations"]["Row"]>
+        Relationships: []
+      }
+      conversation_participants: {
+        Row: {
+          id: string
+          conversation_id: string
+          user_id: string
+          last_read_at: string | null
+          muted: boolean
+          created_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["conversation_participants"]["Row"]> & {
+          conversation_id: string
+          user_id: string
+        }
+        Update: Partial<Database["public"]["Tables"]["conversation_participants"]["Row"]>
+        Relationships: []
+      }
+      internal_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          clinic_id: string
+          sender_id: string
+          body: string
+          deleted_at: string | null
+          created_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["internal_messages"]["Row"]> & {
+          conversation_id: string
+          clinic_id: string
+          sender_id: string
+          body: string
+        }
+        Update: Partial<Database["public"]["Tables"]["internal_messages"]["Row"]>
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          clinic_id: string
+          user_id: string
+          kind: NotificationKind
+          title: string
+          body: string | null
+          href: string | null
+          entity_type: string | null
+          entity_id: string | null
+          read_at: string | null
+          created_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["notifications"]["Row"]> & {
+          clinic_id: string
+          user_id: string
+          title: string
+        }
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      appointment_slot_problem: {
+        Args: {
+          p_clinic: string
+          p_professional: string
+          p_room: string | null
+          p_start: string
+          p_duration: number
+          p_exclude?: string | null
+        }
+        Returns: SlotProblem | null
+      }
+      professional_free_slots: {
+        Args: {
+          p_clinic: string
+          p_professional: string
+          p_date: string
+          p_duration?: number | null
+        }
+        Returns: { slot_start: string; slot_end: string }[]
+      }
+      is_conversation_participant: {
+        Args: { p_conversation: string }
+        Returns: boolean
+      }
+      public_clinic_branding: {
+        Args: { p_slug?: string | null }
+        Returns: {
+          name: string
+          logo_url: string | null
+          mascot_url: string | null
+          primary_color: string
+        }[]
+      }
+      clinic_occupancy: {
+        Args: { p_clinic: string; p_from: string; p_to: string }
+        Returns: {
+          professional_id: string
+          available_minutes: number
+          booked_minutes: number
+        }[]
+      }
+    }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
   }

@@ -58,6 +58,10 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
   }
 
   const clinicalInfo = await getPatientClinicalInfo(supabase, patientId)
+  // Reception holds patients.view but not records.view (database/99_seed/seed.sql), so the
+  // prontuário, prescriptions and issued documents are not theirs to read. The panels
+  // enforce this themselves too — hiding the tab is presentation, not the control.
+  const canViewRecords = hasPermission(membership, PERMISSIONS.RECORDS_VIEW)
   const canEditClinicalInfo = hasPermission(membership, PERMISSIONS.SERVICE_MANAGE)
   const canViewFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_VIEW)
   const canManageFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
@@ -86,12 +90,19 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
         <TabsList>
           <TabsTrigger value="dados">Dados pessoais</TabsTrigger>
           <TabsTrigger value="clinico">Informações clínicas</TabsTrigger>
-          <TabsTrigger value="historico">Atendimentos</TabsTrigger>
-          <TabsTrigger value="prescricoes">Prescrições</TabsTrigger>
-          <TabsTrigger value="documentos">Documentos</TabsTrigger>
+          {canViewRecords && <TabsTrigger value="historico">Atendimentos</TabsTrigger>}
+          {canViewRecords && <TabsTrigger value="prescricoes">Prescrições</TabsTrigger>}
+          {canViewRecords && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
           {canViewFinancial && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           {canMessage && <TabsTrigger value="mensagens">Mensagens</TabsTrigger>}
         </TabsList>
+        {!canViewRecords && (
+          // §10: absence of permission is stated, not silently rendered as a shorter
+          // tab list the user is left to wonder about.
+          <p className="mt-2.5 text-[0.78rem] text-muted-foreground">
+            Prontuário, prescrições e documentos não aparecem no seu perfil de acesso.
+          </p>
+        )}
         <TabsContent value="dados" className="mt-4">
           <Card>
             <CardHeader>
@@ -118,15 +129,19 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
         <TabsContent value="clinico" className="mt-4">
           <ClinicalInfoCard patientId={patientId} info={clinicalInfo} canEdit={canEditClinicalInfo} />
         </TabsContent>
-        <TabsContent value="historico" className="mt-4">
-          <PatientTimeline clinicId={membership.clinicId} patientId={patientId} />
-        </TabsContent>
-        <TabsContent value="prescricoes" className="mt-4">
-          <PatientPrescriptionsPanel clinicId={membership.clinicId} patientId={patientId} />
-        </TabsContent>
-        <TabsContent value="documentos" className="mt-4">
-          <PatientDocumentsPanel clinicId={membership.clinicId} patientId={patientId} />
-        </TabsContent>
+        {canViewRecords && (
+          <>
+            <TabsContent value="historico" className="mt-4">
+              <PatientTimeline clinicId={membership.clinicId} patientId={patientId} />
+            </TabsContent>
+            <TabsContent value="prescricoes" className="mt-4">
+              <PatientPrescriptionsPanel clinicId={membership.clinicId} patientId={patientId} />
+            </TabsContent>
+            <TabsContent value="documentos" className="mt-4">
+              <PatientDocumentsPanel clinicId={membership.clinicId} patientId={patientId} />
+            </TabsContent>
+          </>
+        )}
         {canViewFinancial && (
           <TabsContent value="financeiro" className="mt-4">
             <PatientFinancialSummary

@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json, MessageChannel, MessageType } from "@/types/supabase"
+import { getN8nIntegration, type N8nIntegration } from "./clinic-settings.service"
 
 type DB = SupabaseClient<Database>
 
@@ -25,15 +26,83 @@ class ConsoleProvider implements MessageProvider {
   }
 }
 
-function getProvider(channel: MessageChannel): MessageProvider {
-  switch (channel) {
-    case "whatsapp":
-    case "sms":
-    case "email":
-    default:
-      // Each case is where a real vendor integration would plug in later.
-      return new ConsoleProvider()
+/**
+ * Posts each message to an n8n webhook and lets the workflow own the vendor side. n8n
+ * holds the WhatsApp/SMS/e-mail credentials, so none of them live in this codebase, and
+ * the clinic can change channel behaviour without a deploy.
+ *
+ * A non-2xx response or a network failure is recorded as `failed` with the body attached
+ * rather than thrown — sendMessage's contract is that the `messages` row always ends up
+ * reflecting what actually happened.
+ */
+class N8nProvider implements MessageProvider {
+  constructor(
+    private readonly config: { webhookUrl: string; secret: string | null },
+    private readonly context: { clinicId: string; type: MessageType; patientId: string }
+  ) {}
+
+  async send(input: { to: string; channel: MessageChannel; subject: string | null; body: string }) {
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (this.config.secret) headers["X-CSIB-Token"] = this.config.secret
+
+    try {
+      const response = await fetch(this.config.webhookUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          clinicId: this.context.clinicId,
+          patientId: this.context.patientId,
+          type: this.context.type,
+          channel: input.channel,
+          to: input.to,
+          subject: input.subject,
+          body: input.body,
+          requestedAt: new Date().toISOString(),
+        }),
+        // A slow workflow must not hold a Server Action open indefinitely.
+        signal: AbortSignal.timeout(15_000),
+      })
+
+      const text = await response.text()
+      if (!response.ok) {
+        return {
+          status: "failed" as const,
+          providerResponse: { provider: "n8n", httpStatus: response.status, body: text.slice(0, 1000) },
+        }
+      }
+
+      return {
+        status: "sent" as const,
+        providerResponse: {
+          provider: "n8n",
+          httpStatus: response.status,
+          body: text.slice(0, 1000),
+          sentAt: new Date().toISOString(),
+        },
+      }
+    } catch (err) {
+      return {
+        status: "failed" as const,
+        providerResponse: {
+          provider: "n8n",
+          error: err instanceof Error ? err.message : "erro desconhecido",
+        },
+      }
+    }
   }
+}
+
+function getProvider(
+  channel: MessageChannel,
+  n8n: N8nIntegration,
+  context: { clinicId: string; type: MessageType; patientId: string }
+): MessageProvider {
+  if (n8n.enabled && n8n.webhookUrl && n8n.channels.includes(channel)) {
+    return new N8nProvider({ webhookUrl: n8n.webhookUrl, secret: n8n.secret }, context)
+  }
+  // Console remains the fallback for channels the clinic has not routed to n8n, so an
+  // unconfigured channel is visibly simulated rather than silently dropped.
+  return new ConsoleProvider()
 }
 
 function contactFor(
@@ -137,7 +206,12 @@ export async function sendMessage(
     return { messageId: message.id, status: "skipped" as const }
   }
 
-  const provider = getProvider(input.channel)
+  const n8n = await getN8nIntegration(supabase, clinicId)
+  const provider = getProvider(input.channel, n8n, {
+    clinicId,
+    type: input.type,
+    patientId: input.patientId,
+  })
   const result = await provider.send({ to, channel: input.channel, subject: input.subject, body: input.body })
 
   await supabase

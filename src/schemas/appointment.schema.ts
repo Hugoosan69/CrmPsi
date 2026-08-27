@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { CLINIC_UTC_OFFSET } from "@/utils/datetime"
+
 const optionalText = z
   .string()
   .trim()
@@ -18,13 +20,19 @@ const localDateTimeToIso = z
   .min(1, "Informe data e horário")
   .transform((value) => {
     const withSeconds = value.length === 16 ? `${value}:00` : value
-    return `${withSeconds}-03:00`
+    return `${withSeconds}${CLINIC_UTC_OFFSET}`
   })
 
 export const appointmentSchema = z.object({
   patient_id: z.string().uuid("Selecione um paciente"),
   professional_id: z.string().uuid("Selecione um profissional"),
   procedure_id: z
+    .string()
+    .uuid()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : null)),
+  room_id: z
     .string()
     .uuid()
     .optional()

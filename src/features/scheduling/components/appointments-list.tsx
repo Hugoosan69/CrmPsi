@@ -17,12 +17,14 @@ export function AppointmentsList({
   appointments,
   professionals,
   procedures,
+  rooms = [],
   canManage,
   canCheckIn,
 }: {
   appointments: AppointmentView[]
   professionals: ProfessionalOption[]
   procedures: ProcedureOption[]
+  rooms?: { id: string; name: string }[]
   canManage: boolean
   canCheckIn: boolean
 }) {
@@ -59,6 +61,7 @@ export function AppointmentsList({
                 appointment={appointment}
                 professionals={professionals}
                 procedures={procedures}
+                rooms={rooms}
                 canManage={canManage}
                 canCheckIn={canCheckIn}
               />

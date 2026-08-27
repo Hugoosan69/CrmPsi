@@ -20,7 +20,7 @@ export default async function PermissionsPage() {
     <div className="grid gap-6">
       <PageHeader
         title="Permissões"
-        description="O que cada papel pode fazer. Alterações aqui valem para todos os usuários com aquele papel."
+        description="O que cada papel pode fazer. Alterações valem para todos os usuários daquele papel na clínica."
       />
       <PermissionMatrix roles={roles} permissions={permissions} initialGranted={rolePermissions} />
     </div>

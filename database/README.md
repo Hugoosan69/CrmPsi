@@ -21,6 +21,8 @@ each). Apply in numeric folder order — later domains reference earlier ones vi
 | `13_storage` | File metadata | `files` |
 | `14_settings` | Clinic config | `clinic_settings` |
 | `15_audit` | Audit trail | `audit_logs` |
+| `migrations/002` | Agenda foundation | `rooms`, `professional_availability`, `schedule_exceptions` |
+| `migrations/004` | Internal comms | `conversations`, `conversation_participants`, `internal_messages`, `notifications` |
 | `99_seed` | Demo data only | — |
 
 ## Known fix applied 2026-08-20
@@ -67,9 +69,47 @@ reused by every later domain's policies.
 
 ## Running this locally against Supabase
 
+Apply in this order. **The `migrations/` folder is not optional** — the domain `schema.sql`
+files describe the original shape, and each migration carries changes made after that.
+Provisioning only `00_core .. 15_audit` produces a database this application cannot run
+against: the payment gate has no enum values or columns, and the agenda has no availability
+rules, so the app reports "banco de dados desatualizado" on the affected screens.
+
 ```bash
-supabase db reset   # or: psql "$DATABASE_URL" -f <each schema.sql in folder order>
+# 1. domain schemas, in numeric folder order
+psql "$DATABASE_URL" -f 00_core/schema.sql          # ... through 15_audit/schema.sql
+
+# 2. migrations, in numeric order
+psql "$DATABASE_URL" -f migrations/001_payment_gate_and_timer.sql
+psql "$DATABASE_URL" -f migrations/002_agenda_foundation.sql
+psql "$DATABASE_URL" -f migrations/003_branding_and_integrations.sql
+psql "$DATABASE_URL" -f migrations/004_internal_comms.sql
+
+# 3. reference + demo data
+psql "$DATABASE_URL" -f 08_records/seed_cid.sql
+psql "$DATABASE_URL" -f 99_seed/seed.sql
 ```
 
+Or paste each file into the Supabase SQL Editor in the same order.
+
+| Migration | Adds |
+|---|---|
+| `001_payment_gate_and_timer.sql` | `queue_status` gains `payment_pending` / `released`; `queue_entries.financial_transaction_id`, `released_at`, `released_by`; `appointments.checked_in_at`; `service_sessions.total_seconds`, `effective_seconds`; the trigger enforcing payment before the queue |
+| `002_agenda_foundation.sql` | `rooms`, `professional_availability`, `schedule_exceptions`; `appointments.room_id` and a generated `time_range`; GiST exclusion constraints preventing professional and room double-booking; the `appointment_slot_problem`, `professional_free_slots` and `clinic_occupancy` functions |
+| `003_branding_and_integrations.sql` | `public_clinic_branding()` — a security-definer read granted to `anon` so the login screen can show the clinic's logo without a session; the public-read `branding` storage bucket with `settings.manage`-gated writes; a `clinic_settings` row per clinic |
+| `004_internal_comms.sql` | `conversations`, `conversation_participants`, `internal_messages`, `notifications`; `is_conversation_participant()`. **Note:** these are the only tables in the schema *not* scoped with `has_clinic_access` — chat is scoped to participation and notifications to `user_id = auth.uid()`, because a direct message must not be readable by every clinic member. Also adds both tables to the realtime publication |
+
 `99_seed/seed.sql` requires demo `auth.users` to be created first (Supabase Auth cannot be
-seeded with plain SQL inserts) — see the comments at the top of that file.
+seeded with plain SQL inserts) — see the comments at the top of that file. For a set of
+test logins against an already-provisioned project, use `scripts/dev/reset-users-01-create.mjs`
+instead, which goes through the Auth Admin API.
+
+### Deleting users
+
+`profiles.id` cascades from `auth.users`, but the clinical tables that reference
+`profiles(id)` — `professionals.user_id`, `patients.created_by`, `appointments.created_by`,
+`financial_transactions.created_by`, `payments.received_by`, `audit_logs.user_id`,
+`queue_entries.released_by` — declare **no** `on delete` action. Deleting an auth user who
+created any clinical record therefore fails with a foreign-key violation rather than
+destroying data. Re-point those references first; `scripts/dev/reset-users-01-create.mjs`
+does exactly that before `reset-users-02-delete-old.mjs` removes the old accounts.

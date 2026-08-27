@@ -21,7 +21,7 @@ export type ClinicMember = {
 export async function listRoles(supabase: DB, clinicId: string) {
   const { data, error } = await supabase
     .from("roles")
-    .select("id, slug, name, is_system")
+    .select("id, slug, name, is_system, clinic_id")
     .or(`clinic_id.is.null,clinic_id.eq.${clinicId}`)
     .order("name")
   if (error) throw error

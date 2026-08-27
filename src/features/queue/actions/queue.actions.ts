@@ -21,6 +21,8 @@ import {
   getServiceSessionForQueueEntry,
 } from "@/services/service.service"
 import { recordAudit } from "@/services/audit.service"
+import { notify, profileIdsForProfessionals } from "@/services/notifications.service"
+import { getPatient } from "@/services/patients.service"
 import { describeDbError, withDbError } from "@/lib/db-errors"
 import type { QueueEntryType } from "@/types/supabase"
 
@@ -73,6 +75,24 @@ export async function releaseToQueueAction(queueEntryId: string): Promise<{ erro
     action: "queue.release_to_queue",
     entityType: "queue_entry",
     entityId: queueEntryId,
+  })
+
+  // The professional is the one who needs to know a patient just entered their queue —
+  // until now they had to keep the fila open and notice the row appear.
+  const [patient, recipients] = await Promise.all([
+    getPatient(supabase, membership.clinicId, entry.patient_id).catch(() => null),
+    profileIdsForProfessionals(supabase, membership.clinicId, [entry.professional_id]),
+  ])
+  await notify({
+    clinicId: membership.clinicId,
+    userIds: recipients,
+    kind: "queue",
+    title: "Paciente liberado para a sua fila",
+    body: patient ? `${patient.social_name || patient.full_name} está aguardando.` : null,
+    href: "/profissional/fila",
+    entityType: "queue_entry",
+    entityId: queueEntryId,
+    exceptUserId: membership.userId,
   })
 
   revalidateQueue()
@@ -227,6 +247,30 @@ export async function transferQueueEntryAction(
       closedSessionId: openSession?.id ?? null,
       closedSessionTimes: closedTimes,
     },
+  })
+
+  // A transfer is the clearest case for a notification: the receiving professional took no
+  // action and has no reason to be looking at their fila right now.
+  const entry = await getQueueEntry(supabase, membership.clinicId, queueEntryId)
+  const [patient, recipients] = await Promise.all([
+    getPatient(supabase, membership.clinicId, entry.patient_id).catch(() => null),
+    profileIdsForProfessionals(supabase, membership.clinicId, [toProfessionalId]),
+  ])
+  await notify({
+    clinicId: membership.clinicId,
+    userIds: recipients,
+    kind: "queue",
+    title: "Paciente transferido para você",
+    body: [
+      patient ? patient.social_name || patient.full_name : null,
+      reason ? `Motivo: ${reason}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null,
+    href: "/profissional/fila",
+    entityType: "queue_entry",
+    entityId: queueEntryId,
+    exceptUserId: membership.userId,
   })
 
   revalidateQueue()

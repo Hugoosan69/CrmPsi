@@ -1,8 +1,10 @@
 import {
+  CalendarCog,
   CalendarDays,
   LayoutDashboard,
   ListOrdered,
   MessageSquare,
+  MessagesSquare,
   Package,
   Settings,
   ShieldCheck,
@@ -16,12 +18,14 @@ import {
  * concern, not part of the permission/route model. */
 export const NAV_ICONS: Record<string, LucideIcon> = {
   "/dashboard": LayoutDashboard,
+  "/mensagens": MessagesSquare,
   "/recepcao/pacientes": Users,
   "/recepcao/agenda": CalendarDays,
   "/recepcao/fila": ListOrdered,
   "/recepcao/financeiro": Wallet,
   "/profissional/agenda": CalendarDays,
   "/profissional/fila": ListOrdered,
+  "/gestao/agenda": CalendarCog,
   "/gestao/financeiro": Wallet,
   "/gestao/profissionais": UsersRound,
   "/gestao/comunicacao": MessageSquare,

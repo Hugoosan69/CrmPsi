@@ -19,11 +19,15 @@ export function AppointmentFormFields({
   patientDefault,
   professionals,
   procedures,
+  rooms = [],
 }: {
   appointment?: Appointment | null
   patientDefault?: { id: string; label: string }
   professionals: ProfessionalOption[]
   procedures: ProcedureOption[]
+  /** Empty until rooms are cadastradas — the field then stays hidden rather than
+   *  offering an empty select. */
+  rooms?: { id: string; name: string }[]
 }) {
   return (
     <div className="grid gap-4">
@@ -85,6 +89,24 @@ export function AppointmentFormFields({
           />
         </div>
       </div>
+      {rooms.length > 0 && (
+        <div className="grid gap-1.5">
+          <Label htmlFor="room_id">Sala</Label>
+          <Select name="room_id" defaultValue={appointment?.room_id ?? undefined}>
+            <SelectTrigger id="room_id" className="w-full">
+              <SelectValue placeholder="Sem sala definida" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Sem sala definida</SelectItem>
+              {rooms.map((room) => (
+                <SelectItem key={room.id} value={room.id}>
+                  {room.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="grid gap-1.5">
         <Label htmlFor="notes">Observações</Label>
         <Textarea id="notes" name="notes" rows={2} defaultValue={appointment?.notes ?? ""} />

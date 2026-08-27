@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { NavSection } from "@/config/navigation"
-import { signOut } from "@/app/(auth)/login/actions"
 import { NAV_ICONS } from "./nav-icons"
 
 type Props = {
@@ -154,18 +153,6 @@ export function AppSidebar({
               <p className="truncate text-[0.82rem] font-medium">{fullName}</p>
               <p className="truncate text-[0.7rem] text-muted-foreground">{roleName}</p>
             </div>
-            <form action={signOut}>
-              <Button
-                type="submit"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground hover:text-foreground"
-                aria-label="Sair"
-                title="Sair"
-              >
-                <LogOutIcon />
-              </Button>
-            </form>
           </>
         )}
       </div>
@@ -195,15 +182,5 @@ export function AppSidebar({
         </div>
       )}
     </aside>
-  )
-}
-
-function LogOutIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
   )
 }

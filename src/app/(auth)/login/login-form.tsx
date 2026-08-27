@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
+import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -67,6 +68,12 @@ export function LoginForm() {
         <Button type="submit" className="mt-1 h-10 w-full" disabled={isPending}>
           {isPending ? "Entrando..." : "Entrar"}
         </Button>
+        <Link
+          href="/recuperar-senha"
+          className="text-center text-[0.78rem] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          Esqueci minha senha
+        </Link>
       </form>
     </Form>
   )

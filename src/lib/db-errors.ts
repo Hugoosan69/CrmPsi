@@ -35,6 +35,47 @@ const MIGRATION_SIGNATURES: { code: string; test: (message: string) => boolean; 
       m.includes("total_seconds"),
     migration: "001_payment_gate_and_timer.sql",
   },
+  {
+    // Agenda foundation: rooms, availability, exceptions and the slot-check functions.
+    code: "PGRST204",
+    test: (m) => m.includes("room_id") || m.includes("time_range"),
+    migration: "002_agenda_foundation.sql",
+  },
+  {
+    // Table or RPC from 002 not present yet — PostgREST reports an unknown relation.
+    code: "PGRST205",
+    test: (m) =>
+      m.includes("rooms") ||
+      m.includes("professional_availability") ||
+      m.includes("schedule_exceptions"),
+    migration: "002_agenda_foundation.sql",
+  },
+  {
+    // RPC missing: appointment_slot_problem / professional_free_slots / clinic_occupancy.
+    code: "PGRST202",
+    test: (m) =>
+      m.includes("appointment_slot_problem") ||
+      m.includes("professional_free_slots") ||
+      m.includes("clinic_occupancy"),
+    migration: "002_agenda_foundation.sql",
+  },
+  {
+    // Internal chat and notifications. Without these signatures the notification bell —
+    // which is mounted on every screen — throws on an un-migrated database instead of
+    // degrading to an empty inbox.
+    code: "PGRST205",
+    test: (m) =>
+      m.includes("notifications") ||
+      m.includes("conversations") ||
+      m.includes("conversation_participants") ||
+      m.includes("internal_messages"),
+    migration: "004_internal_comms.sql",
+  },
+  {
+    code: "PGRST202",
+    test: (m) => m.includes("is_conversation_participant"),
+    migration: "004_internal_comms.sql",
+  },
 ]
 
 function asPostgrestError(err: unknown): MaybePostgrestError | null {
@@ -70,6 +111,14 @@ export function describeDbError(err: unknown): string {
   }
   if (typeof e?.code === "string" && e.code === "23505") {
     return "Já existe um registro com estes dados. Verifique se o horário ou o cadastro não está duplicado."
+  }
+  // Exclusion constraint — the double-booking backstop from migrations/002 firing because
+  // someone else took the slot between the availability check and the insert.
+  if (typeof e?.code === "string" && e.code === "23P01") {
+    if (message.includes("room")) {
+      return "Esta sala acabou de ser reservada para este horário. Escolha outra sala ou outro horário."
+    }
+    return "Este horário acabou de ser ocupado para este profissional. Recarregue a agenda e escolha outro horário."
   }
 
   return message || "Não foi possível concluir a operação. Tente novamente."
