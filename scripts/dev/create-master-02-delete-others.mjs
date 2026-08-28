@@ -26,6 +26,7 @@ if (!U || !K) {
 }
 const H = { apikey: K, Authorization: `Bearer ${K}`, 'Content-Type': 'application/json' }
 const MASTER_EMAIL = 'master@csib.local'
+const MASTER_PASSWORD = 'Master@2026'
 
 const api = async (path, opts = {}) => {
   const r = await fetch(`${U}${path}`, { ...opts, headers: { ...H, ...(opts.headers || {}) } })
@@ -58,6 +59,27 @@ if (!hasMembership) {
   console.error('Rode scripts/dev/create-master-01-create.mjs primeiro (ele cria a membership).')
   process.exit(1)
 }
+
+// The rows existing is NOT proof the account works. The incident that produced this
+// script had a master with a correct public.profiles row AND an active
+// clinic_memberships row that still could not authenticate — the damage was in the auth
+// schema, invisible from the public side. Deleting every other account on the strength of
+// a row check alone is exactly how a project ends up with zero usable logins, so the
+// password grant is exercised for real before anything is destroyed.
+const probe = await fetch(`${U}/auth/v1/token?grant_type=password`, {
+  method: 'POST',
+  headers: H,
+  body: JSON.stringify({ email: MASTER_EMAIL, password: MASTER_PASSWORD }),
+})
+if (!probe.ok) {
+  console.error(
+    `ABORT: o master existe no banco mas NÃO consegue logar (HTTP ${probe.status}).`
+  )
+  console.error((await probe.text()).slice(0, 300))
+  console.error('Nenhum usuário foi removido. Rode create-master-01-create.mjs novamente.')
+  process.exit(1)
+}
+console.log('login do master verificado — a conta autentica de verdade.\n')
 
 const others = users.filter((u) => u.id !== master.id)
 if (others.length === 0) {

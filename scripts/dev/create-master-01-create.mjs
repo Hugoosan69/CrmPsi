@@ -79,7 +79,13 @@ const profile = await api('/rest/v1/profiles', {
 console.log(`profiles upsert: ${profile.status}${profile.ok ? '' : ' ' + profile.body.slice(0, 240)}`)
 
 // --- 3. clinic_memberships ------------------------------------------------------------
-const membership = await api('/rest/v1/clinic_memberships', {
+// `on_conflict` is required here and NOT optional: PostgREST resolves
+// `resolution=merge-duplicates` against the PRIMARY KEY unless told otherwise, and this
+// table's PK is `id uuid default gen_random_uuid()`. Since the body carries no `id`, every
+// request mints a fresh uuid, never collides on the PK, and falls through to a plain
+// INSERT — which then violates the real constraint, `unique (clinic_id, user_id)`, with a
+// 409 on any second run. Naming the conflict target is what makes this actually idempotent.
+const membership = await api('/rest/v1/clinic_memberships?on_conflict=clinic_id,user_id', {
   method: 'POST',
   headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
   body: JSON.stringify({ clinic_id: CLINIC, user_id: masterId, role_id: OWNER_ROLE, active: true }),
