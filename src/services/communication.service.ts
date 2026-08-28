@@ -475,6 +475,10 @@ export async function queueMessage(
     subject: string | null
     body: string
     scheduledAt: string | null
+    /** "skipped" grava a linha sem entrar na fila do n8n — serve para registrar por que
+     *  alguém não recebeu, em vez de a pessoa sumir do relatório sem explicação. */
+    status?: "queued" | "skipped"
+    reason?: Json
   }
 ) {
   const { data, error } = await supabase
@@ -486,9 +490,10 @@ export async function queueMessage(
       template_id: input.templateId,
       channel: input.channel,
       type: input.type,
-      status: "queued",
+      status: input.status ?? "queued",
       scheduled_at: input.scheduledAt,
       payload: { subject: input.subject, body: input.body },
+      provider_response: input.reason ?? null,
     })
     .select("id")
     .single()

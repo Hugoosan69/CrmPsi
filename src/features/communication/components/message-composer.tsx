@@ -13,6 +13,7 @@ import {
   renderTemplate,
   sampleValues,
   unknownVariables,
+  usesAppointmentVariables,
   variableToken,
   type MessageVariable,
 } from "@/config/message-variables"
@@ -34,11 +35,15 @@ export function MessageComposer({
   defaultValue = "",
   label = "Mensagem",
   rows = 8,
+  /** Campanha para vários pacientes: aí variáveis de consulta ficam vazias para quem não
+   *  tem agendamento futuro, e vale avisar antes do disparo. */
+  warnAboutAppointmentVars = false,
 }: {
   name: string
   defaultValue?: string
   label?: string
   rows?: number
+  warnAboutAppointmentVars?: boolean
 }) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const [text, setText] = useState(defaultValue)
@@ -158,6 +163,20 @@ export function MessageComposer({
               {unknown.length === 1 ? "não existe" : "não existem"} — no envio{" "}
               {unknown.length === 1 ? "ela vira" : "elas viram"} texto vazio. Use os blocos ao
               lado.
+            </p>
+          </div>
+        )}
+
+        {warnAboutAppointmentVars && usesAppointmentVariables(text) && (
+          <div
+            className="flex gap-2.5 rounded-lg border border-status-info/40 bg-status-info/5 px-3.5 py-3"
+            role="status"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-info" aria-hidden />
+            <p className="text-[0.82rem] text-muted-foreground">
+              Esta mensagem usa dados da consulta. Pacientes <strong>sem consulta futura
+              marcada</strong> seriam pulados no disparo — a frase sairia com lacunas. A
+              pré-visualização acima usa dados de exemplo e não mostra isso.
             </p>
           </div>
         )}

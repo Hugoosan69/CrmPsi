@@ -128,7 +128,7 @@ export function CampaignForm({ patients }: { patients: PatientOption[] }) {
         </div>
       )}
 
-      <MessageComposer name="body_template" label="Mensagem" />
+      <MessageComposer name="body_template" label="Mensagem" warnAboutAppointmentVars />
 
       <fieldset className="grid gap-2 rounded-lg border border-border p-3.5">
         <legend className="px-1 text-[0.8rem] font-medium">Quando enviar</legend>

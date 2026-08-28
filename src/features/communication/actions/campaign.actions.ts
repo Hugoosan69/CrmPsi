@@ -15,7 +15,7 @@ import {
   sendMessage,
   setCampaignStatus,
 } from "@/services/communication.service"
-import { renderTemplate } from "@/config/message-variables"
+import { renderWithMissing } from "@/config/message-variables"
 import { recordAudit } from "@/services/audit.service"
 import { describeDbError } from "@/lib/db-errors"
 import type { MessageChannel, MessageType } from "@/types/supabase"
@@ -109,6 +109,7 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
 
     let sent = 0
     let failed = 0
+    let skipped = 0
     for (const person of recipients) {
       // Valores reais do banco, não só o que veio na lista de destinatários: data, hora,
       // profissional e procedimento saem da próxima consulta da pessoa, e sem isso um
@@ -119,7 +120,29 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
         person.patient_id,
         membership.clinicName
       )
-      const body = renderTemplate(campaign.body_template, values)
+      const { body, missing } = renderWithMissing(campaign.body_template, values)
+
+      // Pula em vez de enviar frase quebrada. A pré-visualização usa dados de exemplo e por
+      // isso mostra sempre a frase completa; para quem não tem consulta futura, {{data}},
+      // {{hora}} e {{profissional}} resolvem vazio e o texto vira "marcada para  às  com ."
+      // Mandar isso ao paciente é pior do que não mandar — e some sem deixar rastro se o
+      // motivo não for gravado.
+      if (missing.length > 0) {
+        await queueMessage(supabase, membership.clinicId, {
+          patientId: person.patient_id,
+          campaignId: campaign.id,
+          templateId: null,
+          channel: campaign.channel as MessageChannel,
+          type: "general" as MessageType,
+          subject: campaign.subject,
+          body,
+          scheduledAt: campaign.scheduled_for,
+          status: "skipped",
+          reason: { skipped: "variaveis_sem_valor", missing },
+        })
+        skipped += 1
+        continue
+      }
 
       try {
         if (campaign.scheduled_for) {
@@ -156,7 +179,9 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
 
     await setCampaignStatus(supabase, membership.clinicId, campaignId, "sent", {
       sent_count: sent,
-      failed_count: failed,
+      // Pulados contam como falha na tela: são pessoas que a campanha pretendia alcançar e
+      // não alcançou. Esconder isso no total de enviados mentiria sobre o alcance.
+      failed_count: failed + skipped,
     })
 
     await recordAudit({
@@ -165,7 +190,7 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
       action: "campaign.dispatch",
       entityType: "message_campaign",
       entityId: campaignId,
-      after: { recipients: recipients.length, sent, failed },
+      after: { recipients: recipients.length, sent, failed, skipped },
     })
 
     revalidateComms()
@@ -173,9 +198,11 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
       success:
         campaign.scheduled_for
           ? `${sent} mensagem(ns) na fila para ${new Date(campaign.scheduled_for).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`
-          : failed === 0
-          ? `Campanha enviada para ${sent} paciente(s).`
-          : `Enviada para ${sent}, com ${failed} falha(s). Veja o histórico de cada paciente.`,
+          : skipped > 0
+            ? `Enviada para ${sent}. ${skipped} paciente(s) pulado(s) por não ter dados para todas as variáveis usadas — a mensagem sairia com lacunas.`
+            : failed === 0
+              ? `Campanha enviada para ${sent} paciente(s).`
+              : `Enviada para ${sent}, com ${failed} falha(s). Veja o histórico de cada paciente.`,
     }
   } catch (err) {
     console.error("dispatchCampaignAction failed", err)

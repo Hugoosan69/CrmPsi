@@ -83,3 +83,47 @@ export function unknownVariables(template: string): string[] {
 export function sampleValues(): Record<string, string> {
   return Object.fromEntries(MESSAGE_VARIABLES.map((v) => [v.key, v.sample]))
 }
+
+/**
+ * Renderiza e informa quais variáveis ficaram vazias.
+ *
+ * Existe porque a pré-visualização usa valores de exemplo e por isso mostra sempre uma frase
+ * completa — dando a impressão de que o envio sairá igual. Para um paciente sem consulta
+ * futura, `{{data}}`, `{{hora}}` e `{{profissional}}` resolvem para vazio e o texto vira
+ * "marcada para  às  com ." Quem decide o que fazer com isso é o chamador; o que esta
+ * função garante é que ninguém precise adivinhar.
+ */
+export function renderWithMissing(
+  template: string,
+  values: Record<string, string | null>
+): { body: string; missing: string[] } {
+  const missing = new Set<string>()
+  const body = template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_, raw: string) => {
+    const key = raw.toLowerCase()
+    const value = values[key]
+    if (!value) {
+      missing.add(key)
+      return ""
+    }
+    return value
+  })
+  return { body, missing: [...missing] }
+}
+
+/** Variáveis que dependem de uma consulta futura existir. */
+export const APPOINTMENT_VARIABLES = ["data", "hora", "profissional", "procedimento"]
+
+/**
+ * O texto usa alguma variável de consulta?
+ *
+ * Reaproveita a mesma varredura de `unknownVariables` em vez de montar um regex por chave:
+ * construir o padrão dentro de template literal fazia `\s` virar `s` na string final,
+ * produzindo `{{s*datas*}}` — que acerta `{{data}}` por acidente (porque `s*` casa vazio) e
+ * erra `{{ data }}` com espaços.
+ */
+export function usesAppointmentVariables(template: string) {
+  for (const match of template.matchAll(/\{\{\s*([a-z_]+)\s*\}\}/gi)) {
+    if (APPOINTMENT_VARIABLES.includes(match[1].toLowerCase())) return true
+  }
+  return false
+}
