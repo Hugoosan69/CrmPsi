@@ -5,6 +5,7 @@ import { useActionState, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/shared/user-avatar"
 import { updateAvatarAction, type ProfileActionState } from "../actions/profile.actions"
+import { MAX_AVATAR_BYTES, formatMegabytes } from "@/config/uploads"
 
 const initialState: ProfileActionState = {}
 
@@ -30,6 +31,7 @@ export function AvatarField({
   const formRef = useRef<HTMLFormElement>(null)
   const removeRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
 
   // A prévia vence enquanto existe; depois vale o que voltou do servidor.
   const shown = preview ?? avatarUrl
@@ -37,6 +39,20 @@ export function AvatarField({
   function onPick(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
+
+    // Conferido aqui e de novo no servidor. Aqui porque o Next corta o corpo da requisição
+    // acima do teto configurado e devolve um 500 do framework, sem passar pela action — ou
+    // seja, sem a mensagem que explica o que houve. E porque não faz sentido subir dez
+    // megabytes para ouvir um "não" que já dava para dar na hora.
+    if (file.size > MAX_AVATAR_BYTES) {
+      setLocalError(
+        `Imagem muito grande (${formatMegabytes(file.size)}). O limite é ${formatMegabytes(MAX_AVATAR_BYTES)}.`
+      )
+      event.target.value = ""
+      return
+    }
+    setLocalError(null)
+
     setPreview((previous) => {
       if (previous) URL.revokeObjectURL(previous)
       return URL.createObjectURL(file)
@@ -46,6 +62,7 @@ export function AvatarField({
   }
 
   function onRemove() {
+    setLocalError(null)
     setPreview((previous) => {
       if (previous) URL.revokeObjectURL(previous)
       return null
@@ -69,11 +86,15 @@ export function AvatarField({
         <div className="grid gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             {/* O input fica escondido atrás do label: o controle nativo de arquivo não
-                aceita estilo e destoaria de todos os outros botões da tela. */}
+                aceita estilo e destoaria de todos os outros botões da tela.
+                `nativeButton={false}` porque o elemento renderizado é um <label>, não um
+                <button> — sem isso o Base UI reclama de perder a semântica nativa, e é ele
+                quem passa a cuidar de role e teclado. */}
             <Button
               type="button"
               variant="outline"
               size="sm"
+              nativeButton={false}
               disabled={isPending}
               render={<label htmlFor="avatar-file" />}
             >
@@ -102,14 +123,15 @@ export function AvatarField({
             )}
           </div>
           <p className="text-[0.75rem] text-muted-foreground">
-            PNG, JPEG ou WebP, até 2 MB. Aparece na barra lateral e no menu da conta.
+            PNG, JPEG ou WebP, até {formatMegabytes(MAX_AVATAR_BYTES)}. Aparece na barra
+            lateral e no menu da conta.
           </p>
         </div>
       </div>
 
-      {state.error && (
+      {(localError ?? state.error) && (
         <p className="text-sm text-destructive" role="alert">
-          {state.error}
+          {localError ?? state.error}
         </p>
       )}
       {state.success && (

@@ -15,6 +15,7 @@ import {
 import { recordAudit } from "@/services/audit.service"
 import { describeDbError } from "@/lib/db-errors"
 import { resetRedirectUrl } from "@/lib/auth/password-reset"
+import { MAX_AVATAR_BYTES, formatMegabytes } from "@/config/uploads"
 
 export type ProfileActionState = { error?: string; success?: string }
 
@@ -145,7 +146,6 @@ export async function sendOwnPasswordResetAction(): Promise<ProfileActionState> 
 // ---------------------------------------------------------------------------
 
 const AVATAR_BUCKET = "avatars"
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024
 const ALLOWED_AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"]
 
 const EXTENSION_BY_TYPE: Record<string, string> = {
@@ -190,7 +190,7 @@ export async function updateAvatarAction(
       return { error: "Formato não aceito. Envie PNG, JPEG ou WebP." }
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      return { error: "Imagem muito grande. O limite é 2 MB." }
+      return { error: `Imagem muito grande. O limite é ${formatMegabytes(MAX_AVATAR_BYTES)}.` }
     }
 
     const admin = createAdminClient()

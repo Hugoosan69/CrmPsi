@@ -15,6 +15,7 @@ import {
 } from "@/services/clinic-settings.service"
 import { recordAudit } from "@/services/audit.service"
 import { describeDbError } from "@/lib/db-errors"
+import { MAX_LOGO_BYTES, formatMegabytes } from "@/config/uploads"
 import type { MessageChannel } from "@/types/supabase"
 
 export type SettingsActionState = { error?: string; success?: string }
@@ -30,7 +31,6 @@ function revalidateSettings() {
 // ---------------------------------------------------------------------------
 
 const BRANDING_BUCKET = "branding"
-const MAX_LOGO_BYTES = 2 * 1024 * 1024
 const ALLOWED_LOGO_TYPES = ["image/svg+xml", "image/png", "image/jpeg", "image/webp"]
 
 export async function saveBrandingAction(
@@ -50,7 +50,7 @@ export async function saveBrandingAction(
       return { error: "Formato não aceito. Envie SVG, PNG, JPEG ou WebP." }
     }
     if (file.size > MAX_LOGO_BYTES) {
-      return { error: "Arquivo muito grande. O limite é 2 MB." }
+      return { error: `Arquivo muito grande. O limite é ${formatMegabytes(MAX_LOGO_BYTES)}.` }
     }
 
     // The bucket is public-read (migrations/003) because the login screen is
