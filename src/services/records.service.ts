@@ -126,3 +126,65 @@ export async function getCidDescriptions(supabase: DB, codes: string[]) {
   if (error) throw error
   return new Map((data ?? []).map((c) => [c.code, c.description]))
 }
+
+export type PrintableRecord = {
+  id: string
+  chief_complaint: string | null
+  history: string | null
+  exam: string | null
+  assessment: string | null
+  plan: string | null
+  notes: string | null
+  created_at: string
+  patient: { full_name: string; social_name: string | null; cpf: string | null; birth_date: string | null }
+  professional: { full_name: string; professional_register: string | null; specialty: string | null }
+}
+
+/**
+ * Prontuário com paciente e profissional para impressão.
+ *
+ * Filtrado por clinic_id além do id: a RLS destas tabelas prova apenas que o chamador
+ * pertence a ALGUMA clínica, então sem este filtro um id de outro tenant seria impresso.
+ */
+export async function getPrintableRecord(
+  supabase: DB,
+  clinicId: string,
+  recordId: string
+): Promise<PrintableRecord | null> {
+  const { data, error } = await supabase
+    .from("medical_records")
+    .select(
+      `id, chief_complaint, history, exam, assessment, plan, notes, created_at,
+       patients(full_name, social_name, cpf, birth_date),
+       professionals(full_name, professional_register, specialties(name))`
+    )
+    .eq("id", recordId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+
+  const p = data.patients as unknown as PrintableRecord["patient"]
+  const pro = data.professionals as unknown as {
+    full_name: string
+    professional_register: string | null
+    specialties: { name: string } | null
+  }
+
+  return {
+    id: data.id,
+    chief_complaint: data.chief_complaint,
+    history: data.history,
+    exam: data.exam,
+    assessment: data.assessment,
+    plan: data.plan,
+    notes: data.notes,
+    created_at: data.created_at,
+    patient: p,
+    professional: {
+      full_name: pro?.full_name ?? "",
+      professional_register: pro?.professional_register ?? null,
+      specialty: pro?.specialties?.name ?? null,
+    },
+  }
+}

@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
 import { listPrescriptionItems, listPrescriptionsForPatient } from "@/services/prescriptions.service"
 import { EmptyState } from "@/components/shared/empty-state"
+import { PrintLink } from "@/components/shared/print-link"
 import { formatDateTime } from "@/utils/datetime"
 
 /** Previously issued prescriptions, newest first — so the professional can see what the
@@ -41,9 +42,15 @@ export async function PatientPrescriptionsPanel({
         const own = items.filter((i) => i.prescription_id === prescription.id)
         return (
           <li key={prescription.id} className="rounded-xl border border-border bg-card p-4 shadow-soft">
-            <p className="font-heading text-[0.85rem] font-semibold tabular-nums">
-              {formatDateTime(prescription.issued_at)}
-            </p>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="font-heading text-[0.85rem] font-semibold tabular-nums">
+                {formatDateTime(prescription.issued_at)}
+              </p>
+              <PrintLink
+                href={`/imprimir/receituario/${prescription.id}`}
+                label={`Imprimir receituário de ${formatDateTime(prescription.issued_at)}`}
+              />
+            </div>
             <ul className="mt-2 grid gap-1.5">
               {own.map((item) => (
                 <li key={item.id} className="text-[0.85rem] leading-snug">

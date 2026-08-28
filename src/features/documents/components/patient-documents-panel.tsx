@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
 import { listClinicalDocumentsForPatient } from "@/services/documents.service"
 import { EmptyState } from "@/components/shared/empty-state"
+import { PrintLink } from "@/components/shared/print-link"
 import { formatDateTime } from "@/utils/datetime"
 import type { ClinicalDocumentType } from "@/types/supabase"
 
@@ -47,8 +48,12 @@ export async function PatientDocumentsPanel({
         <li key={document.id} className="rounded-xl border border-border bg-card p-4 shadow-soft">
           <div className="flex items-baseline justify-between gap-3">
             <p className="font-heading text-[0.85rem] font-semibold">{TYPE_LABELS[document.type]}</p>
-            <span className="shrink-0 text-[0.72rem] text-muted-foreground tabular-nums">
+            <span className="flex shrink-0 items-center gap-1 text-[0.72rem] text-muted-foreground tabular-nums">
               {formatDateTime(document.issued_at)}
+              <PrintLink
+                href={`/imprimir/documento/${document.id}`}
+                label={`Imprimir ${TYPE_LABELS[document.type]}`}
+              />
             </span>
           </div>
           <p className="mt-1.5 line-clamp-3 text-[0.82rem] whitespace-pre-line text-muted-foreground">

@@ -8,6 +8,7 @@ import {
 } from "@/services/records.service"
 import { sumEffectiveSecondsByQueueEntry } from "@/services/service.service"
 import { EmptyState } from "@/components/shared/empty-state"
+import { PrintLink } from "@/components/shared/print-link"
 import { formatDate } from "@/utils/datetime"
 
 function formatDuration(seconds: number | null) {
@@ -79,6 +80,10 @@ export async function PatientTimeline({
             <div className="flex items-baseline justify-between gap-3">
               <p className="font-heading text-[0.9rem] font-semibold tabular-nums">
                 {formatDate(record.created_at)}
+                <PrintLink
+                  href={`/imprimir/prontuario/${record.id}`}
+                  label={`Imprimir prontuário de ${formatDate(record.created_at)}`}
+                />
               </p>
               {duration && (
                 <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[0.7rem] font-medium text-secondary-foreground tabular-nums">
