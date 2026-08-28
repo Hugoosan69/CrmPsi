@@ -26,7 +26,13 @@ export async function AuthBrandHeader({
   const clinicName = branding?.name ?? "Centro de Saúde Integrada de Brasília"
 
   return (
-    <CardHeader className="items-center gap-3 pt-8 text-center">
+    // CardHeader is `display: grid`, so horizontal centering needs justify-items —
+    // `items-center` (align-items) only centers on the block axis and leaves an element
+    // with its own intrinsic width, like the logo, sitting at the inline start. The title
+    // looked centered anyway because `text-center` centers inline content inside a box
+    // that stretches the full width, which is what made the misalignment look like it was
+    // only the image's problem.
+    <CardHeader className="justify-items-center gap-3 pt-8 text-center">
       {logoSrc === FALLBACK_LOGO ? (
         <Image src={FALLBACK_LOGO} alt="" width={56} height={56} priority />
       ) : (
