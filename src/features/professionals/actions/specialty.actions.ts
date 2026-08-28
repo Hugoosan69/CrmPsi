@@ -26,7 +26,7 @@ export async function createSpecialtyAction(
   _prev: SpecialtyActionState,
   formData: FormData
 ): Promise<SpecialtyActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
 
   const parsed = specialtySchema.safeParse({
     name: formData.get("name"),
@@ -64,7 +64,7 @@ export async function updateSpecialtyAction(
   _prev: SpecialtyActionState,
   formData: FormData
 ): Promise<SpecialtyActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
 
   const parsed = specialtySchema.safeParse({
     name: formData.get("name"),
@@ -96,7 +96,7 @@ export async function updateSpecialtyAction(
 }
 
 export async function setSpecialtyActiveAction(specialtyId: string, active: boolean) {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
   const supabase = await createClient()
 
   await setSpecialtyActive(supabase, membership.clinicId, specialtyId, active)

@@ -19,7 +19,7 @@ export async function createProcedureAction(
   _prev: ProcedureActionState,
   formData: FormData
 ): Promise<ProcedureActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
 
   const parsed = procedureSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -46,7 +46,7 @@ export async function updateProcedureAction(
   _prev: ProcedureActionState,
   formData: FormData
 ): Promise<ProcedureActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
 
   const parsed = procedureSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -70,7 +70,7 @@ export async function updateProcedureAction(
 }
 
 export async function setProcedureActiveAction(procedureId: string, active: boolean) {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
 
   const supabase = await createClient()
   await setProcedureActive(supabase, membership.clinicId, procedureId, active)

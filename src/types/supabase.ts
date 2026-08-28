@@ -568,6 +568,9 @@ export interface Database {
           paid_at: string
           received_by: string | null
           notes: string | null
+          /** Origem de um recebimento que não veio do balcão — hoje só "stripe". */
+          external_provider: string | null
+          external_id: string | null
         }
         Insert: Partial<Database["public"]["Tables"]["payments"]["Row"]> & {
           clinic_id: string
@@ -870,6 +873,26 @@ export interface Database {
       // migrations/005 — exceção de permissão por pessoa. A ausência de linha
       // significa "herda do papel", então `granted` nunca é null: os três estados
       // são linha-com-true, linha-com-false e nenhuma linha.
+      stripe_events: {
+        Row: {
+          id: string
+          clinic_id: string | null
+          type: string
+          payload: Json
+          received_at: string
+          processed_at: string | null
+          error: string | null
+        }
+        Insert: Partial<Database["public"]["Tables"]["stripe_events"]["Row"]> & {
+          // O id vem do Stripe, não é gerado aqui: é ele que torna a segunda entrega do
+          // mesmo evento uma violação de chave.
+          id: string
+          type: string
+          payload: Json
+        }
+        Update: Partial<Database["public"]["Tables"]["stripe_events"]["Row"]>
+        Relationships: []
+      }
       user_permission_overrides: {
         Row: {
           id: string

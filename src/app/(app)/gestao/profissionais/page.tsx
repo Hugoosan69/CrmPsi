@@ -13,7 +13,7 @@ import { CreateProfessionalDialog } from "@/features/professionals/components/cr
 import { SpecialtiesPanel } from "@/features/professionals/components/specialties-panel"
 
 export default async function ProfessionalsPage() {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.PROFESSIONALS_MANAGE)
   const supabase = await createClient()
 
   // Duas listas de propósito: os seletores de cadastro só devem oferecer especialidades

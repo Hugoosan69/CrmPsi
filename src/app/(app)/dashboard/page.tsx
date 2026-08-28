@@ -86,7 +86,10 @@ export default async function DashboardPage() {
   const today = todaySaoPauloDate()
 
   const canSeePatients = hasPermission(membership, PERMISSIONS.PATIENTS_VIEW)
-  const canManageCatalog = hasPermission(membership, PERMISSIONS.SETTINGS_MANAGE)
+  // Dois atalhos, duas permissões: agora que a gestão foi separada, alguém pode cuidar do
+  // catálogo sem cuidar da equipe.
+  const canManageProfessionals = hasPermission(membership, PERMISSIONS.PROFESSIONALS_MANAGE)
+  const canManageCatalog = hasPermission(membership, PERMISSIONS.CATALOG_MANAGE)
   const canSeeReception = hasPermission(membership, PERMISSIONS.QUEUE_MANAGE)
   const canSeeService = hasPermission(membership, PERMISSIONS.SERVICE_MANAGE)
   const canSeeFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_VIEW)
@@ -256,7 +259,7 @@ export default async function DashboardPage() {
           label="Profissionais"
           value={summary.activeProfessionals}
           icon={UsersRound}
-          href={canManageCatalog ? "/gestao/profissionais" : undefined}
+          href={canManageProfessionals ? "/gestao/profissionais" : undefined}
         />
         <SummaryCard
           label="Procedimentos"

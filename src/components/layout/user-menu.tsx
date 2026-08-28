@@ -12,13 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { signOut } from "@/app/(auth)/login/actions"
-
-function initials(fullName: string) {
-  const parts = fullName.trim().split(/\s+/)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
+import { UserAvatar } from "@/components/shared/user-avatar"
 
 /**
  * Identity and account actions live in the header, which is the one piece of chrome present
@@ -27,10 +21,12 @@ function initials(fullName: string) {
  */
 export function UserMenu({
   fullName,
+  avatarUrl,
   roleName,
   clinicName,
 }: {
   fullName: string
+  avatarUrl?: string | null
   roleName: string
   clinicName: string
 }) {
@@ -43,12 +39,12 @@ export function UserMenu({
             className="h-9 gap-2 px-1.5"
             aria-label={`Conta de ${fullName}`}
           >
-            <span
-              className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.68rem] font-semibold text-secondary-foreground"
-              aria-hidden
-            >
-              {initials(fullName)}
-            </span>
+            <UserAvatar
+              src={avatarUrl}
+              name={fullName}
+              className="size-7"
+              textClassName="text-[0.68rem]"
+            />
             <span className="hidden min-w-0 text-left leading-tight lg:block">
               <span className="block truncate text-[0.78rem] font-medium">
                 {fullName.split(" ")[0]}

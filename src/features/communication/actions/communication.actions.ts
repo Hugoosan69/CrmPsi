@@ -20,7 +20,7 @@ export async function createMessageTemplateAction(
   _prev: CommunicationActionState,
   formData: FormData
 ): Promise<CommunicationActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
 
   const parsed = messageTemplateSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -47,7 +47,7 @@ export async function updateMessageTemplateAction(
   _prev: CommunicationActionState,
   formData: FormData
 ): Promise<CommunicationActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
 
   const parsed = messageTemplateSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -71,7 +71,7 @@ export async function updateMessageTemplateAction(
 }
 
 export async function setMessageTemplateActiveAction(templateId: string, active: boolean) {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
 
   const supabase = await createClient()
   await setMessageTemplateActive(supabase, templateId, active)

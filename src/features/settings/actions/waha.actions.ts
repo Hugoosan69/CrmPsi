@@ -25,7 +25,7 @@ export async function saveWahaAction(
   _prev: WahaActionState,
   formData: FormData
 ): Promise<WahaActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
 
   const baseUrl = String(formData.get("base_url") ?? "").trim()
   const session = String(formData.get("session") ?? "default").trim()
@@ -68,7 +68,7 @@ export async function saveWahaAction(
 
 /** Cria/inicia a sessão para o QR aparecer. */
 export async function startWahaAction(): Promise<WahaActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
 
@@ -86,7 +86,7 @@ export async function startWahaAction(): Promise<WahaActionState> {
 }
 
 export async function logoutWahaAction(): Promise<WahaActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
 
@@ -119,7 +119,7 @@ export async function logoutWahaAction(): Promise<WahaActionState> {
  * pareamento a quem não tem sessão.
  */
 export async function refreshWahaQrAction(): Promise<{ dataUri: string | null }> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
   return { dataUri: await fetchWahaQrDataUri(config) }
@@ -136,7 +136,7 @@ export async function requestPairingCodeAction(
   _prev: WahaActionState & { code?: string },
   formData: FormData
 ): Promise<WahaActionState & { code?: string }> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
   const phone = String(formData.get("phone") ?? "").trim()
 
   if (phone.replace(/\D/g, "").length < 10) {

@@ -30,7 +30,7 @@ export async function createCampaignAction(
   _prev: CampaignActionState,
   formData: FormData
 ): Promise<CampaignActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
 
   const parsed = campaignSchema.safeParse({
     name: formData.get("name"),
@@ -82,7 +82,7 @@ export async function createCampaignAction(
  * história na tela.
  */
 export async function dispatchCampaignAction(campaignId: string): Promise<CampaignActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
   const supabase = await createClient()
 
   try {
@@ -213,7 +213,7 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
 }
 
 export async function cancelCampaignAction(campaignId: string): Promise<CampaignActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
   const supabase = await createClient()
 
   try {
@@ -230,7 +230,7 @@ export async function saveAutomationAction(
   _prev: CampaignActionState,
   formData: FormData
 ): Promise<CampaignActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
 
   const parsed = automationSchema.safeParse({
     type: formData.get("type"),

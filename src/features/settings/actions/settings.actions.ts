@@ -115,7 +115,7 @@ export async function saveN8nAction(
   _prev: SettingsActionState,
   formData: FormData
 ): Promise<SettingsActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
 
   const parsed = parseN8nForm(formData)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
@@ -165,7 +165,7 @@ export async function saveN8nAction(
 export async function testN8nAction(
   mode: "production" | "test" = "production"
 ): Promise<SettingsActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
   const supabase = await createClient()
 
   const config = await getN8nIntegration(supabase, membership.clinicId)

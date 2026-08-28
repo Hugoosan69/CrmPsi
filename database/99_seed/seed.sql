@@ -27,13 +27,23 @@ insert into permissions (slug, module, description) values
   ('financial.view', 'financial', 'Visualizar financeiro'),
   ('financial.manage', 'financial', 'Registrar pagamentos e lançamentos'),
   ('users.manage', 'users', 'Gerenciar usuários e permissões'),
-  ('settings.manage', 'settings', 'Alterar configurações da clínica'),
+  ('settings.manage', 'settings', 'Identidade visual e ajustes gerais da clínica'),
+  ('catalog.manage', 'catalog', 'Procedimentos, especialidades e formas de pagamento'),
+  ('agenda.configure', 'agenda', 'Salas, horários de atendimento e bloqueios'),
+  ('professionals.manage', 'professionals', 'Cadastrar e editar profissionais'),
+  ('communication.manage', 'communication', 'Modelos, campanhas e automações de mensagem'),
+  ('integrations.manage', 'integrations', 'Configurar n8n, WhatsApp e pagamentos online'),
   ('audit.view', 'audit', 'Visualizar trilha de auditoria');
 
 insert into role_permissions (role_id, permission_id)
+-- Proprietário: tudo, integrações inclusive.
 select '00000000-0000-0000-0000-000000000010', id from permissions
 union all
+-- Administrador: tudo menos integrações. Conectar o WhatsApp da clínica ou a conta de
+-- pagamentos é um nível acima de administrar o sistema, e a clínica quer isso numa pessoa
+-- só. Quem precisar recebe por exceção individual (user_permission_overrides).
 select '00000000-0000-0000-0000-000000000011', id from permissions
+  where slug <> 'integrations.manage'
 union all
 select '00000000-0000-0000-0000-000000000012', id from permissions where slug in
   ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'financial.view', 'financial.manage')

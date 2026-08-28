@@ -9,6 +9,7 @@ export type CurrentMembership = {
   userId: string
   fullName: string
   email: string
+  avatarUrl: string | null
   clinicId: string
   clinicName: string
   clinicSlug: string
@@ -43,7 +44,7 @@ export const getCurrentMembership = cache(async (): Promise<CurrentMembership | 
   const [{ data: clinic }, { data: role }, { data: profile }] = await Promise.all([
     supabase.from("clinics").select("id, name, slug").eq("id", membership.clinic_id).single(),
     supabase.from("roles").select("id, slug, name").eq("id", membership.role_id).single(),
-    supabase.from("profiles").select("full_name, email").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
   ])
   if (!clinic || !role) return null
 
@@ -89,6 +90,7 @@ export const getCurrentMembership = cache(async (): Promise<CurrentMembership | 
     userId: user.id,
     fullName: profile?.full_name ?? user.email ?? "",
     email: profile?.email ?? user.email ?? "",
+    avatarUrl: profile?.avatar_url ?? null,
     clinicId: clinic.id,
     clinicName: clinic.name,
     clinicSlug: clinic.slug,

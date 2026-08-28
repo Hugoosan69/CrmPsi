@@ -18,6 +18,7 @@ type Props = {
   clinicName: string
   logoUrl?: string | null
   fullName: string
+  avatarUrl?: string | null
   roleName: string
 }
 
@@ -31,7 +32,7 @@ function currentTitle(pathname: string, sections: NavSection[]) {
 }
 
 export function AppHeader({ sections, clinicName,
-  logoUrl, fullName, roleName }: Props) {
+  logoUrl, fullName, avatarUrl, roleName }: Props) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const title = currentTitle(pathname, sections)
@@ -55,6 +56,7 @@ export function AppHeader({ sections, clinicName,
             clinicName={clinicName}
             logoUrl={logoUrl}
             fullName={fullName}
+            avatarUrl={avatarUrl}
             roleName={roleName}
             collapsed={false}
             variant="mobile"
@@ -72,7 +74,12 @@ export function AppHeader({ sections, clinicName,
       <div className="ml-auto flex items-center gap-1">
         <HeaderMessages />
         <NotificationBell />
-        <UserMenu fullName={fullName} roleName={roleName} clinicName={clinicName} />
+        <UserMenu
+          fullName={fullName}
+          avatarUrl={avatarUrl}
+          roleName={roleName}
+          clinicName={clinicName}
+        />
       </div>
     </header>
   )

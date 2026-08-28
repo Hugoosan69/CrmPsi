@@ -27,6 +27,10 @@ const MODULE_LABELS: Record<string, string> = {
   documents: "Documentos",
   financial: "Financeiro",
   settings: "Configurações",
+  catalog: "Catálogo",
+  professionals: "Profissionais",
+  communication: "Comunicação",
+  integrations: "Integrações",
   users: "Usuários",
   audit: "Auditoria",
 }

@@ -13,11 +13,20 @@ type Props = {
   clinicName: string
   logoUrl?: string | null
   fullName: string
+  avatarUrl?: string | null
   roleName: string
   children: React.ReactNode
 }
 
-export function AppShell({ sections, clinicName, logoUrl, fullName, roleName, children }: Props) {
+export function AppShell({
+  sections,
+  clinicName,
+  logoUrl,
+  fullName,
+  avatarUrl,
+  roleName,
+  children,
+}: Props) {
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
@@ -48,6 +57,7 @@ export function AppShell({ sections, clinicName, logoUrl, fullName, roleName, ch
           clinicName={clinicName}
           logoUrl={logoUrl}
           fullName={fullName}
+          avatarUrl={avatarUrl}
           roleName={roleName}
           collapsed={collapsed}
           onToggleCollapsed={toggleCollapsed}
@@ -59,6 +69,7 @@ export function AppShell({ sections, clinicName, logoUrl, fullName, roleName, ch
           clinicName={clinicName}
           logoUrl={logoUrl}
           fullName={fullName}
+          avatarUrl={avatarUrl}
           roleName={roleName}
         />
         <main className="flex-1 px-4 py-5 lg:px-7 lg:py-6">

@@ -14,7 +14,7 @@ import { RoomsPanel } from "@/features/scheduling/components/rooms-panel"
 import { ScheduleExceptionsPanel } from "@/features/scheduling/components/schedule-exceptions-panel"
 
 export default async function AgendaSettingsPage() {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.AGENDA_CONFIGURE)
   const supabase = await createClient()
 
   const [professionals, rooms, rules, exceptions] = await Promise.all([

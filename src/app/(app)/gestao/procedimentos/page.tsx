@@ -7,7 +7,7 @@ import { ProceduresTable } from "@/features/procedures/components/procedures-tab
 import { CreateProcedureDialog } from "@/features/procedures/components/create-procedure-dialog"
 
 export default async function ProceduresPage() {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
   const supabase = await createClient()
   const procedures = await listProcedures(supabase, membership.clinicId)
 

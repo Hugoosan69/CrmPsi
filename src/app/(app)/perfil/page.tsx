@@ -17,6 +17,7 @@ export default async function PerfilPage() {
         fullName={profile.fullName}
         email={profile.email}
         phone={profile.phone}
+        avatarUrl={profile.avatarUrl}
         roleName={membership.roleName}
         clinicName={membership.clinicName}
       />

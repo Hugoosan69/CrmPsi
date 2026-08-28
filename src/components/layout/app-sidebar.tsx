@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import type { NavSection } from "@/config/navigation"
 import { NAV_ICONS } from "./nav-icons"
+import { UserAvatar } from "@/components/shared/user-avatar"
 
 const SECTIONS_STORAGE_KEY = "csib.sidebar.closed-sections"
 
@@ -20,6 +21,7 @@ type Props = {
   /** Logo configurada pela clínica; ausente cai no SVG embutido. */
   logoUrl?: string | null
   fullName: string
+  avatarUrl?: string | null
   roleName: string
   collapsed: boolean
   onToggleCollapsed?: () => void
@@ -28,18 +30,12 @@ type Props = {
   onNavigate?: () => void
 }
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/)
-  const first = parts[0]?.[0] ?? ""
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : ""
-  return (first + last).toUpperCase()
-}
-
 export function AppSidebar({
   sections,
   clinicName,
   logoUrl,
   fullName,
+  avatarUrl,
   roleName,
   collapsed,
   onToggleCollapsed,
@@ -100,13 +96,35 @@ export function AppSidebar({
   const widthStyle =
     variant === "desktop" ? { width: isCollapsed ? 68 : 248, minWidth: isCollapsed ? 68 : 248 } : undefined
 
+  /**
+   * Recolhida, a barra inteira vira alvo de clique para expandir.
+   *
+   * O botão de alternar é pequeno e fica no rodapé; recolhida, a barra é uma faixa estreita
+   * de ícones e a intenção óbvia de quem clica nela é abri-la. Só vale no sentido de abrir —
+   * transformar a barra aberta num alvo de fechar faria cada clique perdido entre dois itens
+   * recolher a navegação.
+   */
+  const expandOnClick =
+    isCollapsed && onToggleCollapsed
+      ? {
+          onClick: (event: React.MouseEvent<HTMLElement>) => {
+            // Só quando o clique não pegou um link ou botão — senão navegar também expandiria.
+            if ((event.target as HTMLElement).closest("a,button")) return
+            onToggleCollapsed()
+          },
+        }
+      : {}
+
   return (
     <aside
       style={widthStyle}
+      {...expandOnClick}
+      title={isCollapsed && onToggleCollapsed ? "Clique para expandir o menu" : undefined}
       className={cn(
         "flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
         "transition-[width,min-width] duration-200 ease-out",
-        variant === "mobile" && "w-full"
+        variant === "mobile" && "w-full",
+        isCollapsed && onToggleCollapsed && "cursor-e-resize"
       )}
     >
       {/* Brand lockup */}
@@ -216,9 +234,7 @@ export function AppSidebar({
           isCollapsed && "justify-center px-0"
         )}
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.7rem] font-semibold text-secondary-foreground">
-          {initials(fullName)}
-        </div>
+        <UserAvatar src={avatarUrl} name={fullName} />
         {!isCollapsed && (
           <>
             <div className="min-w-0 flex-1 leading-tight">

@@ -41,7 +41,7 @@ export async function createRoomAction(
   _prev: AvailabilityActionState,
   formData: FormData
 ): Promise<AvailabilityActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.AGENDA_CONFIGURE)
 
   const parsed = roomSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
@@ -68,7 +68,7 @@ export async function createRoomAction(
 }
 
 export async function setRoomActiveAction(roomId: string, active: boolean) {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.AGENDA_CONFIGURE)
   const supabase = await createClient()
 
   await updateRoom(supabase, membership.clinicId, roomId, { active })
@@ -92,7 +92,7 @@ export async function createAvailabilityAction(
   _prev: AvailabilityActionState,
   formData: FormData
 ): Promise<AvailabilityActionState> {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.AGENDA_CONFIGURE)
 
   const parsed = availabilitySchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
@@ -121,7 +121,7 @@ export async function createAvailabilityAction(
 }
 
 export async function deleteAvailabilityAction(id: string) {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.AGENDA_CONFIGURE)
   const supabase = await createClient()
 
   await deleteAvailability(supabase, membership.clinicId, id)

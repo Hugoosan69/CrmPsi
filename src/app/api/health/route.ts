@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 
 import { supabaseEnvStatus } from "@/lib/supabase/env"
+import { isStripeTestMode, stripeEnvStatus } from "@/lib/stripe/env"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const env = supabaseEnvStatus()
   const ready = env.url && env.anonKey && env.serviceRoleKey
+  const stripe = stripeEnvStatus()
 
   const h = await headers()
   const host = h.get("x-forwarded-host") ?? h.get("host")
@@ -41,6 +43,14 @@ export async function GET() {
         NEXT_PUBLIC_SUPABASE_ANON_KEY: env.anonKey ? "definida" : "AUSENTE",
         SUPABASE_SERVICE_ROLE_KEY: env.serviceRoleKey ? "definida" : "AUSENTE",
         NEXT_PUBLIC_SITE_URL: siteUrl ?? "(nao definida - deduzida do request)",
+      },
+      // Pagamentos online são opcionais: sua ausência não deixa a sonda vermelha. Aparecem
+      // aqui só como presença — todas as três movem dinheiro ou autenticam quem o move.
+      stripe: {
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: stripe.publishableKey ? "definida" : "AUSENTE",
+        STRIPE_SECRET_KEY: stripe.secretKey ? "definida" : "AUSENTE",
+        STRIPE_WEBHOOK_SECRET: stripe.webhookSecret ? "definida" : "AUSENTE",
+        modo: stripe.secretKey ? (isStripeTestMode() ? "teste" : "PRODUCAO") : "nao configurado",
       },
       // Para onde os links de recuperação de senha vão apontar. Confira que este endereço
       // está na allowlist do Supabase (Authentication > URL Configuration > Redirect URLs),

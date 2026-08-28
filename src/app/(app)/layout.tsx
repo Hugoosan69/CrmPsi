@@ -32,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       clinicName={membership.clinicName}
       logoUrl={branding?.logoUrl}
       fullName={membership.fullName}
+      avatarUrl={membership.avatarUrl}
       roleName={membership.roleName}
     >
       {children}

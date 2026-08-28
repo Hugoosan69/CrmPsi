@@ -1,9 +1,10 @@
 "use client"
 
 import { useActionState } from "react"
-import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
+import { ResetOwnPasswordButton } from "./reset-own-password-button"
+import { AvatarField } from "./avatar-field"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,12 +20,14 @@ export function ProfileForm({
   fullName,
   email,
   phone,
+  avatarUrl,
   roleName,
   clinicName,
 }: {
   fullName: string
   email: string
   phone: string | null
+  avatarUrl: string | null
   roleName: string
   clinicName: string
 }) {
@@ -43,7 +46,11 @@ export function ProfileForm({
         <CardHeader>
           <CardTitle className="text-sm">Seus dados</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="grid gap-4">
+          {/* Fora do <form> dos dados: a foto salva sozinha ao ser escolhida, e um form
+              aninhado no outro nem é HTML válido. */}
+          <AvatarField fullName={fullName} avatarUrl={avatarUrl} />
+
           <form action={profileAction} className="grid gap-4">
             <div className="grid gap-1.5">
               <Label htmlFor="profile-name">Nome completo</Label>
@@ -160,16 +167,13 @@ export function ProfileForm({
               <Button type="submit" disabled={isSavingPassword}>
                 {isSavingPassword ? "Alterando..." : "Alterar senha"}
               </Button>
-              {/* This form requires the current password on purpose (changing it without
-                  proving the old one would let a hijacked session lock the owner out), which
-                  leaves someone who simply does not remember it with no way forward from
-                  here. The recovery flow is that way out. */}
-              <Link
-                href="/recuperar-senha"
-                className="text-[0.8rem] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              >
-                Não lembro a senha atual
-              </Link>
+              {/* Este formulário exige a senha atual de propósito — trocá-la sem provar a
+                  antiga deixaria uma sessão sequestrada trancar o dono fora. Quem não lembra
+                  precisa de outro caminho, e o caminho é o e-mail: um BOTÃO que dispara o
+                  envio, não um link. Navegar para /recuperar-senha abandonava o formulário
+                  preenchido, pedia o e-mail de quem já está identificado, e terminar o fluxo
+                  por lá encerrava a sessão. */}
+              <ResetOwnPasswordButton />
             </div>
           </form>
         </CardContent>

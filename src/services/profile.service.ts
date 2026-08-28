@@ -41,7 +41,7 @@ export async function getOwnProfile(supabase: DB, userId: string): Promise<OwnPr
 export async function updateOwnProfile(
   supabase: DB,
   userId: string,
-  input: { full_name: string; phone: string | null }
+  input: { full_name?: string; phone?: string | null; avatar_url?: string | null }
 ) {
   const { data, error } = await supabase
     .from("profiles")
