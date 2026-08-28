@@ -53,3 +53,19 @@ export function composeWebhookUrls(server: string, path: string) {
     test: `${base}/webhook-test/${name}`,
   }
 }
+
+/**
+ * Converte uma URL completa já gravada para o modo pedido.
+ *
+ * Configurações salvas antes de existirem os campos separados guardam só a URL inteira, e
+ * devolvê-la igual nos dois modos fazia "Testar URL de teste" bater em /webhook/ — o editor
+ * do n8n ficava escutando em /webhook-test/ e nunca recebia nada, o que parece falha de
+ * rede e é só endereço errado.
+ */
+export function switchWebhookMode(url: string, mode: "production" | "test"): string {
+  const value = url.trim()
+  if (!value) return ""
+  return mode === "test"
+    ? value.replace(/\/webhook\//, "/webhook-test/")
+    : value.replace(/\/webhook-test\//, "/webhook/")
+}

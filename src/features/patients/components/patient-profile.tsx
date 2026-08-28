@@ -17,6 +17,10 @@ import { ClinicalInfoCard } from "./clinical-info-card"
 import { PatientTimeline } from "./patient-timeline"
 import { PatientPrescriptionsPanel } from "@/features/prescriptions/components/patient-prescriptions-panel"
 import { PatientDocumentsPanel } from "@/features/documents/components/patient-documents-panel"
+import { PrescriptionBuilder } from "@/features/prescriptions/components/prescription-builder"
+import { DocumentBuilder } from "@/features/documents/components/document-builder"
+import { getProfessionalByUserId } from "@/services/professionals.service"
+import { listDocumentTemplates } from "@/services/documents.service"
 import { PatientFinancialSummary } from "@/features/financial/components/patient-financial-summary"
 import { PatientMessagesPanel } from "@/features/communication/components/patient-messages-panel"
 import { formatDate as formatSaoPauloDate } from "@/utils/datetime"
@@ -66,6 +70,17 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
   const canViewFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_VIEW)
   const canManageFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
   const canMessage = hasPermission(membership, PERMISSIONS.PATIENTS_MANAGE)
+
+  // Emitir receita ou documento fora do atendimento exige duas coisas: a permissão de
+  // emitir e uma ficha de profissional vinculada ao login — um documento clínico precisa
+  // de alguém que o assine, e quem não atende não tem quem assinar por ele.
+  const canIssue = hasPermission(membership, PERMISSIONS.DOCUMENTS_ISSUE)
+  const [issuer, templates] = await Promise.all([
+    canIssue
+      ? getProfessionalByUserId(supabase, membership.clinicId, membership.userId)
+      : Promise.resolve(null),
+    canIssue ? listDocumentTemplates(supabase, membership.clinicId) : Promise.resolve([]),
+  ])
   const age = calculateAge(patient.birth_date)
 
   return (
@@ -135,9 +150,35 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
               <PatientTimeline clinicId={membership.clinicId} patientId={patientId} />
             </TabsContent>
             <TabsContent value="prescricoes" className="mt-4">
+              {/* medicalRecordId nulo de propósito: aqui a receita não nasce de um
+                  atendimento em curso, e amarrá-la a um prontuário antigo daria a entender
+                  que foi emitida naquela consulta. */}
+              {issuer && (
+                <div className="mb-4">
+                  <PrescriptionBuilder
+                    patientId={patientId}
+                    professionalId={issuer.id}
+                    medicalRecordId={null}
+                  />
+                </div>
+              )}
               <PatientPrescriptionsPanel clinicId={membership.clinicId} patientId={patientId} />
             </TabsContent>
             <TabsContent value="documentos" className="mt-4">
+              {issuer && (
+                <div className="mb-4">
+                  <DocumentBuilder
+                    patientId={patientId}
+                    professionalId={issuer.id}
+                    medicalRecordId={null}
+                    templates={templates}
+                    vars={{
+                      paciente: patient.social_name || patient.full_name,
+                      profissional: issuer.full_name,
+                    }}
+                  />
+                </div>
+              )}
               <PatientDocumentsPanel clinicId={membership.clinicId} patientId={patientId} />
             </TabsContent>
           </>

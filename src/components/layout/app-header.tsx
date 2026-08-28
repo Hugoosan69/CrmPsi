@@ -16,6 +16,7 @@ import { NotificationBell } from "@/features/notifications/components/notificati
 type Props = {
   sections: NavSection[]
   clinicName: string
+  logoUrl?: string | null
   fullName: string
   roleName: string
 }
@@ -29,7 +30,8 @@ function currentTitle(pathname: string, sections: NavSection[]) {
   return "CSIB"
 }
 
-export function AppHeader({ sections, clinicName, fullName, roleName }: Props) {
+export function AppHeader({ sections, clinicName,
+  logoUrl, fullName, roleName }: Props) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const title = currentTitle(pathname, sections)
@@ -51,6 +53,7 @@ export function AppHeader({ sections, clinicName, fullName, roleName }: Props) {
           <AppSidebar
             sections={sections}
             clinicName={clinicName}
+            logoUrl={logoUrl}
             fullName={fullName}
             roleName={roleName}
             collapsed={false}

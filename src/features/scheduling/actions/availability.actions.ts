@@ -98,21 +98,23 @@ export async function createAvailabilityAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
 
   const supabase = await createClient()
-  let id: string
   try {
-    id = await createAvailability(supabase, membership.clinicId, parsed.data)
+    const id = await createAvailability(supabase, membership.clinicId, parsed.data)
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "availability.create",
+      entityType: "professional_availability",
+      entityId: id,
+      after: parsed.data,
+    })
   } catch (err) {
+    // Tudo dentro do try de propósito: uma exceção escapando de uma Server Action produz
+    // "An unexpected response was received from the server" — uma mensagem que não diz nada
+    // ao operador e nada ao log. Melhor devolver o motivo real na própria tela.
+    console.error("createAvailabilityAction failed", err)
     return { error: describeDbError(err) }
   }
-
-  await recordAudit({
-    clinicId: membership.clinicId,
-    userId: membership.userId,
-    action: "availability.create",
-    entityType: "professional_availability",
-    entityId: id,
-    after: parsed.data,
-  })
 
   revalidateAgendaConfig()
   return { success: true }
@@ -202,11 +204,18 @@ export async function createOwnAvailabilityAction(
   const membership = await requirePermission(PERMISSIONS.SERVICE_MANAGE)
   const supabase = await createClient()
 
-  const professional = await getProfessionalByUserId(
-    supabase,
-    membership.clinicId,
-    membership.userId
-  )
+  let professional: Awaited<ReturnType<typeof getProfessionalByUserId>>
+  try {
+    professional = await getProfessionalByUserId(
+      supabase,
+      membership.clinicId,
+      membership.userId
+    )
+  } catch (err) {
+    console.error("createOwnAvailabilityAction: leitura do profissional falhou", err)
+    return { error: describeDbError(err) }
+  }
+
   if (!professional) {
     return {
       error:

@@ -11,12 +11,13 @@ const COLLAPSE_STORAGE_KEY = "csib:sidebar-collapsed"
 type Props = {
   sections: NavSection[]
   clinicName: string
+  logoUrl?: string | null
   fullName: string
   roleName: string
   children: React.ReactNode
 }
 
-export function AppShell({ sections, clinicName, fullName, roleName, children }: Props) {
+export function AppShell({ sections, clinicName, logoUrl, fullName, roleName, children }: Props) {
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export function AppShell({ sections, clinicName, fullName, roleName, children }:
         <AppSidebar
           sections={sections}
           clinicName={clinicName}
+          logoUrl={logoUrl}
           fullName={fullName}
           roleName={roleName}
           collapsed={collapsed}
@@ -55,6 +57,7 @@ export function AppShell({ sections, clinicName, fullName, roleName, children }:
         <AppHeader
           sections={sections}
           clinicName={clinicName}
+          logoUrl={logoUrl}
           fullName={fullName}
           roleName={roleName}
         />

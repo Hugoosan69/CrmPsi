@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json, MessageChannel } from "@/types/supabase"
 import { pendingMigrationFor } from "@/lib/db-errors"
-import { composeWebhookUrls } from "@/config/n8n"
+import { composeWebhookUrls, switchWebhookMode } from "@/config/n8n"
 
 type DB = SupabaseClient<Database>
 
@@ -79,7 +79,7 @@ export function n8nWebhookUrl(
   mode: "production" | "test" = "production"
 ): string {
   const urls = composeWebhookUrls(config.baseUrl, config.path)
-  if (!urls) return config.webhookUrl.trim()
+  if (!urls) return switchWebhookMode(config.webhookUrl, mode)
   return mode === "test" ? urls.test : urls.production
 }
 

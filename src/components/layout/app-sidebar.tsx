@@ -1,9 +1,10 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react"
+import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -11,9 +12,13 @@ import { cn } from "@/lib/utils"
 import type { NavSection } from "@/config/navigation"
 import { NAV_ICONS } from "./nav-icons"
 
+const SECTIONS_STORAGE_KEY = "csib.sidebar.closed-sections"
+
 type Props = {
   sections: NavSection[]
   clinicName: string
+  /** Logo configurada pela clínica; ausente cai no SVG embutido. */
+  logoUrl?: string | null
   fullName: string
   roleName: string
   collapsed: boolean
@@ -33,6 +38,7 @@ function initials(name: string) {
 export function AppSidebar({
   sections,
   clinicName,
+  logoUrl,
   fullName,
   roleName,
   collapsed,
@@ -41,6 +47,50 @@ export function AppSidebar({
   onNavigate,
 }: Props) {
   const pathname = usePathname()
+
+  // Guarda as seções FECHADAS, não as abertas: uma seção nova que apareça depois (por
+  // permissão concedida ou feature adicionada) nasce visível, em vez de sumir porque não
+  // estava na lista salva.
+  const [closedSections, setClosedSections] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    // Deferida, pelo mesmo motivo da preferência de recolhimento em app-shell.tsx: só dá
+    // para ler no cliente, então o render do servidor mostra tudo aberto e isto corrige
+    // logo depois, num tique só do navegador.
+    const id = setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(SECTIONS_STORAGE_KEY)
+        if (raw) setClosedSections(new Set(JSON.parse(raw) as string[]))
+      } catch {
+        // Preferência de layout: se o armazenamento falhar, abrir tudo é o padrão seguro.
+      }
+    }, 0)
+    return () => clearTimeout(id)
+  }, [])
+
+  function toggleSection(title: string) {
+    setClosedSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(title)) next.delete(title)
+      else next.add(title)
+      try {
+        window.localStorage.setItem(SECTIONS_STORAGE_KEY, JSON.stringify([...next]))
+      } catch {
+        // Sem persistência a seção ainda recolhe nesta sessão.
+      }
+      return next
+    })
+  }
+
+  /** A seção da página atual nunca fica fechada — senão o item ativo ficaria escondido e
+   *  pareceria que a navegação sumiu. */
+  function isSectionClosed(title: string) {
+    if (!closedSections.has(title)) return false
+    const section = sections.find((s) => s.title === title)
+    return !section?.items.some(
+      (item) => pathname === item.href || pathname.startsWith(item.href + "/")
+    )
+  }
   const isCollapsed = variant === "desktop" && collapsed
 
   // Width is set inline rather than through width utilities on purpose: as a flex item
@@ -66,7 +116,15 @@ export function AppSidebar({
           isCollapsed && "justify-center px-0"
         )}
       >
-        <Image src="/branding/csib-logo.svg" alt="" width={30} height={30} className="shrink-0" />
+        {/* Mesma logo da tela de login: quem trocou a marca em Gestão espera vê-la aqui
+            também. next/image não serve para a URL enviada pelo operador — ela pode apontar
+            para qualquer host, o que exigiria remotePatterns para cada um. */}
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="" className="size-[30px] shrink-0 rounded-md object-contain" />
+        ) : (
+          <Image src="/branding/csib-logo.svg" alt="" width={30} height={30} className="shrink-0" />
+        )}
         {!isCollapsed && (
           <div className="min-w-0 leading-none">
             <p className="font-heading text-[0.98rem] font-semibold">CSIB</p>
@@ -81,13 +139,27 @@ export function AppSidebar({
           .map((section) => (
             <div key={section.title} className="mb-4">
               {!isCollapsed ? (
-                <p className="mb-1 px-2.5 text-[0.66rem] font-semibold tracking-[0.1em] text-muted-foreground/70">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.title)}
+                  aria-expanded={!isSectionClosed(section.title)}
+                  className="mb-1 flex w-full items-center gap-1 rounded-md px-2.5 py-1 text-[0.66rem] font-semibold tracking-[0.1em] text-muted-foreground/70 transition-colors hover:text-sidebar-accent-foreground"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "size-3 shrink-0 transition-transform duration-150",
+                      !isSectionClosed(section.title) && "rotate-90"
+                    )}
+                    aria-hidden
+                  />
                   {section.title.toUpperCase()}
-                </p>
+                </button>
               ) : (
                 <div className="mx-auto mb-2 h-px w-6 bg-sidebar-border" aria-hidden />
               )}
-              <ul className="grid gap-px">
+              {/* Recolhido só esconde os rótulos; nesse modo a lista continua visível,
+                  senão a barra estreita ficaria só de ícones de seta. */}
+              <ul className={cn("grid gap-px", !isCollapsed && isSectionClosed(section.title) && "hidden")}>
                 {section.items.map((item) => {
                   const active = pathname === item.href || pathname.startsWith(item.href + "/")
                   const Icon = NAV_ICONS[item.href]

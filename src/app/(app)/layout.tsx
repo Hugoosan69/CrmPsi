@@ -3,6 +3,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/env"
 import { ConfigurationRequired } from "@/components/shared/configuration-required"
 import { AppShell } from "@/components/layout/app-shell"
 import { NAV_SECTIONS } from "@/config/navigation"
+import { createClient } from "@/lib/supabase/server"
+import { getPublicBranding } from "@/services/clinic-settings.service"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Checked before touching Supabase: without configuration every page below would throw
@@ -12,6 +14,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const membership = await requireMembership()
+
+  // Mesma marca da tela de login. getPublicBranding devolve null em qualquer falha, e a
+  // sidebar cai no SVG embutido — a navegação nunca depende de a logo carregar.
+  const branding = await getPublicBranding(await createClient())
 
   const sections = NAV_SECTIONS.map((section) => ({
     title: section.title,
@@ -24,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppShell
       sections={sections}
       clinicName={membership.clinicName}
+      logoUrl={branding?.logoUrl}
       fullName={membership.fullName}
       roleName={membership.roleName}
     >
