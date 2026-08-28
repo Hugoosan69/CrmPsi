@@ -1,11 +1,12 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { AlertTriangle, GripVertical } from "lucide-react"
+import { AlertTriangle, GripVertical, Sparkles } from "lucide-react"
 
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { MESSAGE_PRESETS, unfilledPlaceholders } from "@/config/message-presets"
 import {
   MESSAGE_VARIABLES,
   VARIABLE_GROUP_LABEL,
@@ -75,6 +76,8 @@ export function MessageComposer({
 
   const unknown = unknownVariables(text)
   const preview = renderTemplate(text, sampleValues())
+  // Trechos [assim] vêm dos modelos prontos e precisam ser trocados por texto de verdade.
+  const pending = unfilledPlaceholders(text)
 
   const grouped = MESSAGE_VARIABLES.reduce<Record<string, MessageVariable[]>>((acc, v) => {
     ;(acc[v.group] ??= []).push(v)
@@ -84,6 +87,32 @@ export function MessageComposer({
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
       <div className="grid gap-4">
+        {/* Começar de uma caixa vazia é onde a maioria desiste. Os modelos são ponto de
+            partida editável, não texto fixo — por isso substituem o conteúdo em vez de
+            enviar direto. */}
+        <details className="rounded-lg border border-border bg-muted/40 px-3.5 py-2.5">
+          <summary className="cursor-pointer text-[0.82rem] font-medium">
+            <Sparkles className="mr-1.5 inline size-3.5 text-muted-foreground" aria-hidden />
+            Usar um modelo pronto
+          </summary>
+          <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+            {MESSAGE_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  setText(preset.body)
+                  requestAnimationFrame(() => ref.current?.focus())
+                }}
+                className="rounded-lg border border-border bg-card px-3 py-2 text-left text-[0.8rem] transition-colors hover:border-ring/40 hover:bg-accent"
+              >
+                <span className="block font-medium">{preset.label}</span>
+                <span className="block text-[0.72rem] text-muted-foreground">{preset.hint}</span>
+              </button>
+            ))}
+          </div>
+        </details>
+
         <div className="grid gap-1.5">
           <Label htmlFor={`composer-${name}`}>{label}</Label>
           <Textarea
@@ -129,6 +158,19 @@ export function MessageComposer({
               {unknown.length === 1 ? "não existe" : "não existem"} — no envio{" "}
               {unknown.length === 1 ? "ela vira" : "elas viram"} texto vazio. Use os blocos ao
               lado.
+            </p>
+          </div>
+        )}
+
+        {pending.length > 0 && (
+          <div
+            className="flex gap-2.5 rounded-lg border border-status-warning/40 bg-status-warning/5 px-3.5 py-3"
+            role="alert"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-warning" aria-hidden />
+            <p className="text-[0.82rem] text-muted-foreground">
+              Falta preencher: {pending.map((p) => `[${p}]`).join(", ")}. Os colchetes vão para
+              o paciente exatamente como estão.
             </p>
           </div>
         )}

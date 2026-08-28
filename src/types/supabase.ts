@@ -603,6 +603,8 @@ export interface Database {
           clinic_id: string
           patient_id: string
           template_id: string | null
+          /** migrations/007 — de qual campanha esta mensagem saiu, se veio de uma. */
+          campaign_id: string | null
           channel: MessageChannel
           type: MessageType
           status: MessageStatus

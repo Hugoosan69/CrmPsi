@@ -387,3 +387,111 @@ export async function saveAutomation(
     .upsert({ ...input, clinic_id: clinicId }, { onConflict: "clinic_id,type" })
   if (error) throw error
 }
+
+// ---------------------------------------------------------------------------
+// Variáveis com dados reais
+// ---------------------------------------------------------------------------
+
+/**
+ * Valores das variáveis de mensagem para um paciente.
+ *
+ * Busca a PRÓXIMA consulta futura, não a mais recente: as variáveis de consulta existem para
+ * lembrete e confirmação, e apontá-las para um atendimento que já passou mandaria o paciente
+ * comparecer a uma data vencida.
+ *
+ * Campos ausentes viram string vazia em vez de "null" ou "undefined" — a frase fica
+ * incompleta, o que é ruim, mas mandar a palavra "null" para o paciente é pior.
+ */
+export async function resolveMessageVariables(
+  supabase: DB,
+  clinicId: string,
+  patientId: string,
+  clinicName: string
+): Promise<Record<string, string>> {
+  const [{ data: patient }, { data: appointments }] = await Promise.all([
+    supabase
+      .from("patients")
+      .select("full_name, social_name, phone, whatsapp, email, birth_date")
+      .eq("id", patientId)
+      .eq("clinic_id", clinicId)
+      .maybeSingle(),
+    supabase
+      .from("appointments")
+      .select("scheduled_at, professionals(full_name), procedures(name)")
+      .eq("patient_id", patientId)
+      .eq("clinic_id", clinicId)
+      .in("status", ["scheduled", "confirmed"])
+      .gte("scheduled_at", new Date().toISOString())
+      .order("scheduled_at", { ascending: true })
+      .limit(1),
+  ])
+
+  const name = patient?.social_name || patient?.full_name || ""
+  const next = appointments?.[0] as
+    | {
+        scheduled_at: string
+        professionals: { full_name: string } | null
+        procedures: { name: string } | null
+      }
+    | undefined
+
+  // Formatado no fuso da clínica, não em UTC: uma consulta às 08:00 em Brasília gravada
+  // como 11:00Z viraria "11:00" na mensagem se formatada crua.
+  const when = next ? new Date(next.scheduled_at) : null
+  const fmt = (opts: Intl.DateTimeFormatOptions) =>
+    when
+      ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", ...opts }).format(when)
+      : ""
+
+  return {
+    paciente: name,
+    primeiro_nome: name.split(" ")[0] ?? "",
+    telefone: patient?.whatsapp || patient?.phone || "",
+    email: patient?.email || "",
+    clinica: clinicName,
+    data: fmt({ day: "2-digit", month: "2-digit", year: "numeric" }),
+    hora: fmt({ hour: "2-digit", minute: "2-digit" }),
+    profissional: next?.professionals?.full_name ?? "",
+    procedimento: next?.procedures?.name ?? "",
+  }
+}
+
+/**
+ * Enfileira uma mensagem para o n8n buscar depois, em vez de enviar agora.
+ *
+ * É o caminho das campanhas agendadas e das automações: o corpo já vai renderizado e o
+ * horário fica em scheduled_at, então a varredura do n8n só precisa ler e mandar. Guardar o
+ * texto final e não o modelo é o que permite auditar meses depois o que a pessoa recebeu.
+ */
+export async function queueMessage(
+  supabase: DB,
+  clinicId: string,
+  input: {
+    patientId: string
+    campaignId: string | null
+    templateId: string | null
+    channel: MessageChannel
+    type: MessageType
+    subject: string | null
+    body: string
+    scheduledAt: string | null
+  }
+) {
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      clinic_id: clinicId,
+      patient_id: input.patientId,
+      campaign_id: input.campaignId,
+      template_id: input.templateId,
+      channel: input.channel,
+      type: input.type,
+      status: "queued",
+      scheduled_at: input.scheduledAt,
+      payload: { subject: input.subject, body: input.body },
+    })
+    .select("id")
+    .single()
+  if (error) throw error
+  return data.id
+}

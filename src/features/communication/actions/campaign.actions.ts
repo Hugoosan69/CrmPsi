@@ -9,6 +9,8 @@ import { campaignSchema, automationSchema } from "@/schemas/campaign.schema"
 import {
   createCampaign,
   listCampaignRecipients,
+  queueMessage,
+  resolveMessageVariables,
   saveAutomation,
   sendMessage,
   setCampaignStatus,
@@ -86,7 +88,7 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
   try {
     const { data: campaign, error } = await supabase
       .from("message_campaigns")
-      .select("id, name, channel, subject, body_template, status")
+      .select("id, name, channel, subject, body_template, status, scheduled_for")
       .eq("id", campaignId)
       .eq("clinic_id", membership.clinicId)
       .maybeSingle()
@@ -108,24 +110,44 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
     let sent = 0
     let failed = 0
     for (const person of recipients) {
-      const body = renderTemplate(campaign.body_template, {
-        paciente: person.full_name,
-        primeiro_nome: person.full_name.split(" ")[0] ?? person.full_name,
-        telefone: person.phone,
-        clinica: membership.clinicName,
-      })
+      // Valores reais do banco, não só o que veio na lista de destinatários: data, hora,
+      // profissional e procedimento saem da próxima consulta da pessoa, e sem isso um
+      // lembrete montado com {{data}} sairia com a frase truncada.
+      const values = await resolveMessageVariables(
+        supabase,
+        membership.clinicId,
+        person.patient_id,
+        membership.clinicName
+      )
+      const body = renderTemplate(campaign.body_template, values)
 
       try {
-        const result = await sendMessage(supabase, membership.clinicId, {
-          patientId: person.patient_id,
-          templateId: null,
-          channel: campaign.channel as MessageChannel,
-          type: "general" as MessageType,
-          subject: campaign.subject,
-          body,
-        })
-        if (result?.status === "sent") sent += 1
-        else failed += 1
+        if (campaign.scheduled_for) {
+          // Agendada: enfileira para o n8n buscar na varredura, em vez de disparar agora.
+          // Enviar no clique anularia o agendamento que o operador configurou.
+          await queueMessage(supabase, membership.clinicId, {
+            patientId: person.patient_id,
+            campaignId: campaign.id,
+            templateId: null,
+            channel: campaign.channel as MessageChannel,
+            type: "general" as MessageType,
+            subject: campaign.subject,
+            body,
+            scheduledAt: campaign.scheduled_for,
+          })
+          sent += 1
+        } else {
+          const result = await sendMessage(supabase, membership.clinicId, {
+            patientId: person.patient_id,
+            templateId: null,
+            channel: campaign.channel as MessageChannel,
+            type: "general" as MessageType,
+            subject: campaign.subject,
+            body,
+          })
+          if (result?.status === "sent") sent += 1
+          else failed += 1
+        }
       } catch (err) {
         console.error("campanha: envio falhou para", person.patient_id, err)
         failed += 1
@@ -149,7 +171,9 @@ export async function dispatchCampaignAction(campaignId: string): Promise<Campai
     revalidateComms()
     return {
       success:
-        failed === 0
+        campaign.scheduled_for
+          ? `${sent} mensagem(ns) na fila para ${new Date(campaign.scheduled_for).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`
+          : failed === 0
           ? `Campanha enviada para ${sent} paciente(s).`
           : `Enviada para ${sent}, com ${failed} falha(s). Veja o histórico de cada paciente.`,
     }

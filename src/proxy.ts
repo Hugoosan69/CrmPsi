@@ -107,7 +107,12 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // /api/health is excluded so the probe answers even when auth is broken — that is the
-  // whole point of having it.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|branding/|api/health).*)"],
+  // /api/health é excluído para a sonda responder mesmo com a autenticação quebrada — é o
+  // propósito dela. /api/integrations/* pelo mesmo motivo, por outra razão: são endpoints
+  // máquina-a-máquina, autenticados por token próprio no cabeçalho. Deixá-los sob o proxy
+  // faz o n8n receber um 307 para a tela de login em vez da fila de mensagens, o que se
+  // parece com endpoint fora do ar.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|branding/|api/health|api/integrations).*)",
+  ],
 }
