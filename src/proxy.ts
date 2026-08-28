@@ -3,11 +3,38 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { isSupabaseConfigured, supabaseEnv } from "@/lib/supabase/env"
 
-// /redefinir-senha is reachable without a session on purpose: Supabase returns the operator
-// with the recovery token in the URL *fragment*, which never reaches the server, so an
-// optimistic redirect to /login here would destroy the token before the browser could read
-// it. The page itself is inert without a valid token.
+// /redefinir-senha is reachable without a session on purpose — the recovery link puts the
+// caller here before any session cookie exists.
 const PUBLIC_PATHS = ["/login", "/recuperar-senha", "/redefinir-senha"]
+
+/**
+ * `@supabase/ssr`'s createServerClient and createBrowserClient both default to
+ * `flowType: 'pkce'` (see node_modules/@supabase/ssr/dist/main/createServerClient.js and createBrowserClient.js). That means a
+ * password-recovery link does NOT land with the token in a URL fragment (the older
+ * "implicit" flow) — it lands with a real `?code=` query parameter, because GoTrue's /verify
+ * redirect encodes a PKCE code differently once a code_challenge was registered for the
+ * request. A query parameter reaches the server, unlike a fragment, but it is not carried
+ * automatically through a redirect: the root page's `redirect("/dashboard")` and this
+ * proxy's own "no session yet" bounce to /login both construct a fresh URL and drop
+ * whatever query string the incoming request had. So a `code` sitting on the wrong path
+ * (wherever Supabase's Site URL happens to point when redirectTo isn't allow-listed) is
+ * silently destroyed before any page runs.
+ *
+ * This app has no other feature that produces a `?code=` parameter (no OAuth, no magic
+ * link) — email/password and this recovery flow are the only auth paths — so a `code` on
+ * any request is unambiguously a Supabase auth callback, and every one of them belongs on
+ * /redefinir-senha. Checked and forwarded here, before the session lookup and before
+ * page.tsx or the public/private gate below ever run, so it wins the race against every
+ * other redirect in the app regardless of what the confirmation link's landing path was.
+ */
+function recoveryCodeRedirect(request: NextRequest): NextResponse | null {
+  const code = request.nextUrl.searchParams.get("code")
+  if (!code || request.nextUrl.pathname === "/redefinir-senha") return null
+
+  const target = new URL("/redefinir-senha", request.url)
+  target.search = request.nextUrl.search
+  return NextResponse.redirect(target)
+}
 
 /**
  * Next.js 16 renamed middleware.ts -> proxy.ts. This only does an optimistic
@@ -30,6 +57,9 @@ export async function proxy(request: NextRequest) {
     )
     return response
   }
+
+  const recoveryRedirect = recoveryCodeRedirect(request)
+  if (recoveryRedirect) return recoveryRedirect
 
   const supabase = createServerClient(supabaseEnv.url, supabaseEnv.anonKey, {
     cookies: {

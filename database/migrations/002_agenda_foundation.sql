@@ -203,22 +203,40 @@ update appointments
 
 -- Only live appointments reserve time. A cancelled or no-show slot is free again,
 -- and a completed one no longer blocks a correction booked over it.
-do $$ begin
-  alter table appointments add constraint appointments_no_professional_overlap
-    exclude using gist (
-      professional_id with =,
-      time_range with &&
-    ) where (status in ('scheduled', 'confirmed'));
-exception when duplicate_object then null;
+--
+-- Checked via pg_constraint rather than caught as `duplicate_object` (SQLSTATE 42710):
+-- an exclusion constraint's backing index shares the constraint's name, so re-running
+-- this after a partial previous attempt fails with 42P07 ("relation ... already exists",
+-- duplicate_table) instead — a different exception class than the one guarding
+-- `create type` above. `pg_constraint` is checked directly instead of trying to catch
+-- every SQLSTATE this could raise; the `drop index if exists` clears an index orphaned
+-- by a run that created the index but failed before the constraint was recorded.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'appointments_no_professional_overlap'
+  ) then
+    drop index if exists appointments_no_professional_overlap;
+    alter table appointments add constraint appointments_no_professional_overlap
+      exclude using gist (
+        professional_id with =,
+        time_range with &&
+      ) where (status in ('scheduled', 'confirmed'));
+  end if;
 end $$;
 
-do $$ begin
-  alter table appointments add constraint appointments_no_room_overlap
-    exclude using gist (
-      room_id with =,
-      time_range with &&
-    ) where (room_id is not null and status in ('scheduled', 'confirmed'));
-exception when duplicate_object then null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'appointments_no_room_overlap'
+  ) then
+    drop index if exists appointments_no_room_overlap;
+    alter table appointments add constraint appointments_no_room_overlap
+      exclude using gist (
+        room_id with =,
+        time_range with &&
+      ) where (room_id is not null and status in ('scheduled', 'confirmed'));
+  end if;
 end $$;
 
 -- ---------------------------------------------------------------------------

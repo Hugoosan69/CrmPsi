@@ -95,7 +95,7 @@ Or paste each file into the Supabase SQL Editor in the same order.
 | Migration | Adds |
 |---|---|
 | `001_payment_gate_and_timer.sql` | `queue_status` gains `payment_pending` / `released`; `queue_entries.financial_transaction_id`, `released_at`, `released_by`; `appointments.checked_in_at`; `service_sessions.total_seconds`, `effective_seconds`; the trigger enforcing payment before the queue |
-| `002_agenda_foundation.sql` | `rooms`, `professional_availability`, `schedule_exceptions`; `appointments.room_id` and a generated `time_range`; GiST exclusion constraints preventing professional and room double-booking; the `appointment_slot_problem`, `professional_free_slots` and `clinic_occupancy` functions |
+| `002_agenda_foundation.sql` | `rooms`, `professional_availability`, `schedule_exceptions`; `appointments.room_id` and a trigger-maintained `time_range` (a GENERATED column would need to be IMMUTABLE, and `timestamptz + interval` is only STABLE — depends on session TimeZone/DST — so Postgres refuses it with 42P07); GiST exclusion constraints preventing professional and room double-booking; the `appointment_slot_problem`, `professional_free_slots` and `clinic_occupancy` functions |
 | `003_branding_and_integrations.sql` | `public_clinic_branding()` — a security-definer read granted to `anon` so the login screen can show the clinic's logo without a session; the public-read `branding` storage bucket with `settings.manage`-gated writes; a `clinic_settings` row per clinic |
 | `004_internal_comms.sql` | `conversations`, `conversation_participants`, `internal_messages`, `notifications`; `is_conversation_participant()`. **Note:** these are the only tables in the schema *not* scoped with `has_clinic_access` — chat is scoped to participation and notifications to `user_id = auth.uid()`, because a direct message must not be readable by every clinic member. Also adds both tables to the realtime publication |
 
@@ -109,7 +109,43 @@ instead, which goes through the Auth Admin API.
 `profiles.id` cascades from `auth.users`, but the clinical tables that reference
 `profiles(id)` — `professionals.user_id`, `patients.created_by`, `appointments.created_by`,
 `financial_transactions.created_by`, `payments.received_by`, `audit_logs.user_id`,
-`queue_entries.released_by` — declare **no** `on delete` action. Deleting an auth user who
-created any clinical record therefore fails with a foreign-key violation rather than
-destroying data. Re-point those references first; `scripts/dev/reset-users-01-create.mjs`
-does exactly that before `reset-users-02-delete-old.mjs` removes the old accounts.
+`queue_entries.released_by`, `queue_transfers.transferred_by`, `files.uploaded_by`,
+`service_session_events.created_by`, and — once 002/004 are applied —
+`schedule_exceptions.created_by` / `conversations.created_by` — declare **no** `on delete`
+action. Deleting an auth user who created any clinical record therefore fails with a
+foreign-key violation rather than destroying data. Re-point those references first;
+`scripts/dev/reset-users-01-create.mjs` does exactly that before
+`reset-users-02-delete-old.mjs` removes the old accounts.
+
+**Never `insert into auth.users` by hand.** That table belongs to GoTrue (the auth
+service), is not a documented write surface, and its column shape and NOT NULL
+constraints drift between Supabase versions without notice. A malformed row there does
+not just fail to insert — once it exists, it silently breaks GoTrue's own queries: a
+prior version of this repo's `create-master-user.sql` did exactly this, and it made
+`/auth/v1/admin/users` return `500 {"msg":"Database error finding users"}` for *every*
+account, not just the broken one, because the admin list endpoint joins across all
+users' `auth.identities` rows. The Admin API (`scripts/dev/reset-users-01-create.mjs`,
+`create-master-01-create.mjs` / `create-master-02-delete-others.mjs`) is the only
+supported way to create or delete a Supabase-authenticated user; `create-master-user.sql`
+is now a **cleanup** script for exactly that failure mode, not a creation path.
+
+To keep exactly one login (a `master` account) and remove every other user:
+
+```bash
+node scripts/dev/create-master-01-create.mjs      # creates the master, re-points every
+                                                   # clinical FK from every other user onto it
+node scripts/dev/create-master-02-delete-others.mjs   # deletes everyone except the master
+```
+
+Both are idempotent and read the current user list from the Admin API rather than a
+hardcoded id list, so they work regardless of which accounts currently exist.
+
+## Email templates
+
+`email-templates/reset-password.html` is a branded, table-based HTML template for
+**Authentication → Email Templates → Reset Password** in the Supabase dashboard — paste
+it into the "Message body" field as-is. Supabase's default template has no styling at
+all. Table layout and inline CSS are deliberate: they are the only subset of HTML/CSS
+that renders consistently across Outlook, Gmail and Apple Mail — flexbox, grid and
+`<style>`-only rules are not reliable in email clients. Uses `{{ .ConfirmationURL }}`,
+the same variable the default template uses.
