@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { normalizeServerUrl, normalizeWebhookPath } from "@/config/n8n"
+
 /**
  * n8n webhook URLs are operator-supplied and the server fetches them, so this is an SSRF
  * surface. Restricting to http/https keeps `file:`, `gopher:` and friends out; the host
@@ -25,13 +27,10 @@ const serverUrl = z
 export const n8nSettingsSchema = z
   .object({
     enabled: z.coerce.boolean(),
-    base_url: z.string().trim().default(""),
-    // O "Path" do nó Webhook no n8n. Sem barras — elas entram na composição.
-    path: z
-      .string()
-      .trim()
-      .default("")
-      .transform((v) => v.replace(/^\/+|\/+$/g, "")),
+    base_url: z.string().trim().default("").transform(normalizeServerUrl),
+    // Aceita desde o nome puro até a URL inteira copiada do editor do n8n — colar a URL
+    // que ele exibe é o gesto natural, e rejeitar isso só produz configuração errada.
+    path: z.string().trim().default("").transform(normalizeWebhookPath),
     webhook_url: z.string().trim().default(""),
     // Empty means "keep what is stored" — the field renders masked, never pre-filled.
     secret: z

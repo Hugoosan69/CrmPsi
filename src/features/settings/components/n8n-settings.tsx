@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { StatusDot } from "@/components/shared/status-dot"
+import { composeWebhookUrls } from "@/config/n8n"
 import type { MessageChannel } from "@/types/supabase"
 import {
   saveN8nAction,
@@ -54,16 +55,9 @@ export function N8nSettings({
   // Prévia ao vivo das URLs. Repete a composição do servidor de propósito: mostrar aqui o
   // que o backend derivaria exige a mesma regra, e escondê-la faria o operador salvar às
   // cegas para descobrir o endereço só no teste.
-  const cleanBase = baseUrl.trim().replace(/\/+$/, "")
-  const cleanPath = path.trim().replace(/^\/+|\/+$/g, "")
-  const composed =
-    cleanBase && cleanPath
-      ? {
-          production: `${cleanBase}/webhook/${cleanPath}`,
-          test: `${cleanBase}/webhook-test/${cleanPath}`,
-        }
-      : null
-  // Testável quando há destino GRAVADO — a prévia acima pode estar adiante do que foi salvo.
+  // Mesma função que o servidor usa para derivar o endereço real — sem isso a prévia
+  // poderia mostrar algo diferente do que seria disparado.
+  const composed = composeWebhookUrls(baseUrl, path)
   const hasTarget = Boolean(webhookUrl) || Boolean(initialBaseUrl && initialPath)
 
   return (

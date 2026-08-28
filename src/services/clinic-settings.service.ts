@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json, MessageChannel } from "@/types/supabase"
 import { pendingMigrationFor } from "@/lib/db-errors"
+import { composeWebhookUrls } from "@/config/n8n"
 
 type DB = SupabaseClient<Database>
 
@@ -77,10 +78,9 @@ export function n8nWebhookUrl(
   config: Pick<N8nIntegration, "baseUrl" | "path" | "webhookUrl">,
   mode: "production" | "test" = "production"
 ): string {
-  const base = config.baseUrl.trim().replace(/\/+$/, "")
-  const path = config.path.trim().replace(/^\/+/, "")
-  if (!base || !path) return config.webhookUrl.trim()
-  return `${base}/${mode === "test" ? "webhook-test" : "webhook"}/${path}`
+  const urls = composeWebhookUrls(config.baseUrl, config.path)
+  if (!urls) return config.webhookUrl.trim()
+  return mode === "test" ? urls.test : urls.production
 }
 
 export async function getClinicSettings(supabase: DB, clinicId: string): Promise<ClinicSettingsShape> {
