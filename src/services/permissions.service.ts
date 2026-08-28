@@ -102,3 +102,77 @@ export async function setRolePermission(
     if (error) throw error
   }
 }
+
+/** Um estado de três valores: sem linha = herda do papel. */
+export type OverrideState = "inherit" | "granted" | "denied"
+
+export type EffectivePermission = {
+  permission_id: string
+  slug: string
+  module: string
+  description: string | null
+  /** O papel do usuário concede esta permissão? */
+  from_role: boolean
+  /** 'granted' | 'denied' | null (= herda) */
+  override: "granted" | "denied" | null
+  /** O que vale de fato, depois de aplicar a precedência. */
+  effective: boolean
+}
+
+/**
+ * O que uma pessoa pode, nesta clínica, já com override aplicado sobre o papel.
+ *
+ * Lê da função SQL em vez de montar a precedência aqui: `has_permission()` decide a
+ * autorização de verdade no banco, e uma segunda implementação em TypeScript divergiria
+ * dela mais cedo ou mais tarde — mostrando na tela algo diferente do que o sistema aplica.
+ */
+export async function listEffectivePermissions(
+  supabase: DB,
+  clinicId: string,
+  userId: string
+): Promise<EffectivePermission[]> {
+  const { data, error } = await supabase.rpc("user_effective_permissions" as never, {
+    p_clinic: clinicId,
+    p_user: userId,
+  } as never)
+  if (error) throw error
+  return (data ?? []) as unknown as EffectivePermission[]
+}
+
+/**
+ * Grava (ou remove) a exceção de uma pessoa para uma permissão.
+ *
+ * "inherit" apaga a linha em vez de gravar um valor: a ausência é o que significa "segue o
+ * papel", então guardar `granted = <o que o papel diz hoje>` congelaria o valor e a pessoa
+ * deixaria de acompanhar mudanças futuras do papel sem que ninguém percebesse.
+ */
+export async function setUserPermissionOverride(
+  clinicId: string,
+  userId: string,
+  permissionId: string,
+  state: OverrideState
+) {
+  const admin = createAdminClient()
+
+  if (state === "inherit") {
+    const { error } = await admin
+      .from("user_permission_overrides")
+      .delete()
+      .eq("clinic_id", clinicId)
+      .eq("user_id", userId)
+      .eq("permission_id", permissionId)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await admin.from("user_permission_overrides").upsert(
+    {
+      clinic_id: clinicId,
+      user_id: userId,
+      permission_id: permissionId,
+      granted: state === "granted",
+    },
+    { onConflict: "clinic_id,user_id,permission_id" }
+  )
+  if (error) throw error
+}

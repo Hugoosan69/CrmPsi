@@ -14,7 +14,12 @@ import {
   updateMembershipRole,
 } from "@/services/users.service"
 import { resetRedirectUrl } from "@/lib/auth/password-reset"
-import { getPermission, setRolePermission } from "@/services/permissions.service"
+import {
+  getPermission,
+  setRolePermission,
+  setUserPermissionOverride,
+  type OverrideState,
+} from "@/services/permissions.service"
 import { recordAudit } from "@/services/audit.service"
 
 export type UserActionState = { error?: string; success?: boolean }
@@ -159,5 +164,56 @@ export async function sendPasswordResetForMemberAction(
     return { error: "Não foi possível enviar o e-mail de redefinição. Tente novamente." }
   }
 
+  return { success: true }
+}
+
+/**
+ * Define a exceção de permissão de uma pessoa (concedida / negada / herda do papel).
+ *
+ * Substitui a edição de papéis nesta tela. Os cinco papéis distribuídos têm clinic_id null
+ * — são compartilhados por todas as clínicas —, então alterá-los mudaria as permissões de
+ * outros tenants; setRolePermission() recusa isso, e como nenhuma clínica tem papel próprio
+ * a tela ficava sem nenhuma ação possível. A exceção por pessoa dá o mesmo resultado
+ * prático ("este financeiro também cadastra profissional") sem tocar em nada compartilhado.
+ */
+export async function setUserPermissionAction(
+  targetUserId: string,
+  permissionId: string,
+  state: OverrideState
+): Promise<UserActionState> {
+  const membership = await requirePermission(PERMISSIONS.USERS_MANAGE)
+  const supabase = await createClient()
+
+  // Tirar users.manage de si mesmo remove o único caminho de volta para esta tela, e não
+  // há recuperação sem SQL. O modelo por pessoa torna isso MAIS fácil de disparar que o
+  // antigo por papel — lá era preciso rebaixar o papel inteiro; aqui basta um clique na
+  // própria linha.
+  if (state === "denied" && targetUserId === membership.userId) {
+    const permission = await getPermission(supabase, permissionId)
+    if (permission?.slug === PERMISSIONS.USERS_MANAGE) {
+      return {
+        error:
+          "Você não pode negar a si mesmo a permissão de gerenciar usuários — isso bloquearia seu acesso a esta tela permanentemente.",
+      }
+    }
+  }
+
+  try {
+    await setUserPermissionOverride(membership.clinicId, targetUserId, permissionId, state)
+
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "permission.user_override",
+      entityType: "profile",
+      entityId: targetUserId,
+      after: { permission_id: permissionId, state },
+    })
+  } catch (err) {
+    console.error("setUserPermissionAction failed", err)
+    return { error: "Não foi possível salvar a permissão." }
+  }
+
+  revalidatePath("/gestao/permissoes")
   return { success: true }
 }

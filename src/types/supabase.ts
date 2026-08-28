@@ -814,6 +814,28 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>
         Relationships: []
       }
+      // migrations/005 — exceção de permissão por pessoa. A ausência de linha
+      // significa "herda do papel", então `granted` nunca é null: os três estados
+      // são linha-com-true, linha-com-false e nenhuma linha.
+      user_permission_overrides: {
+        Row: {
+          id: string
+          clinic_id: string
+          user_id: string
+          permission_id: string
+          granted: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["user_permission_overrides"]["Row"]> & {
+          clinic_id: string
+          user_id: string
+          permission_id: string
+          granted: boolean
+        }
+        Update: Partial<Database["public"]["Tables"]["user_permission_overrides"]["Row"]>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
