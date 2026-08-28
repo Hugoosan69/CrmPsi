@@ -1,6 +1,6 @@
 import "server-only"
 
-import { headers } from "next/headers"
+import { CANONICAL_ORIGIN } from "@/config/site"
 
 /**
  * Absolute URL Supabase should send the operator back to after a recovery link.
@@ -20,11 +20,8 @@ import { headers } from "next/headers"
  * Redirect URLs in the Supabase project.
  */
 export async function resetRedirectUrl() {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL
-  if (configured) return `${configured.replace(/\/$/, "")}/redefinir-senha`
-
-  const h = await headers()
-  const host = h.get("x-forwarded-host") ?? h.get("host")
-  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https")
-  return `${proto}://${host}/redefinir-senha`
+  // Sempre o canônico, nunca deduzido do request. Deduzir parecia flexível e era a origem
+  // do problema: quem entrasse pelo endereço antigo da Vercel recebia um link de volta para
+  // lá, num domínio onde o cookie do PKCE não existe.
+  return `${CANONICAL_ORIGIN}/redefinir-senha`
 }

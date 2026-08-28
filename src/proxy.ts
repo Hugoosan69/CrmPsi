@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { type NextRequest, NextResponse } from "next/server"
 
 import { isSupabaseConfigured, supabaseEnv } from "@/lib/supabase/env"
+import { CANONICAL_HOST, shouldRedirectToCanonical } from "@/config/site"
 
 // /redefinir-senha is reachable without a session on purpose — the recovery link puts the
 // caller here before any session cookie exists.
@@ -48,6 +49,26 @@ function recoveryCodeRedirect(request: NextRequest): NextResponse | null {
  * this file must never be the only gate.
  */
 export async function proxy(request: NextRequest) {
+  // Host canônico ANTES de qualquer outra coisa.
+  //
+  // O link de recuperação pode chegar apontando para o endereço antigo da Vercel — o
+  // Supabase cai no Site URL do projeto quando o redirectTo não está na allowlist. Isso não
+  // é só cosmético: o `code_verifier` do PKCE é um cookie preso ao domínio onde o pedido
+  // nasceu, então abrir o link noutro host faz a troca do código falhar e a tela dizer
+  // "link inválido" para um link válido. E, seguindo a partir dali, toda a navegação fica
+  // no host errado.
+  //
+  // 308 e não 307: preserva o método e sinaliza permanência, então o navegador e os
+  // buscadores param de voltar ao endereço antigo.
+  const requestHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
+  if (shouldRedirectToCanonical(requestHost)) {
+    const target = new URL(request.nextUrl.toString())
+    target.host = CANONICAL_HOST
+    target.port = ""
+    target.protocol = "https:"
+    return NextResponse.redirect(target, 308)
+  }
+
   let response = NextResponse.next({ request })
 
   // The matcher covers essentially every route, so anything thrown here takes the whole
