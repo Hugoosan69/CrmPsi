@@ -8,6 +8,7 @@ import {
   n8nWebhookUrl,
   type N8nIntegration,
 } from "./clinic-settings.service"
+import { getWahaConfig, sendWahaText, type WahaConfig } from "./waha.service"
 
 type DB = SupabaseClient<Database>
 
@@ -96,11 +97,48 @@ class N8nProvider implements MessageProvider {
   }
 }
 
+/**
+ * Envia WhatsApp direto pelo WAHA, sem passar pelo n8n.
+ *
+ * Existe para o envio imediato — o botão "Enviar mensagem" numa ficha — funcionar sem
+ * depender de um workflow externo estar montado e ativo. As mensagens agendadas continuam
+ * indo para a fila que o n8n consulta; são caminhos diferentes porque resolvem problemas
+ * diferentes: aqui a pessoa está olhando a tela e espera resposta imediata.
+ */
+class WahaProvider implements MessageProvider {
+  constructor(private readonly config: WahaConfig) {}
+
+  async send(input: { to: string; channel: MessageChannel; subject: string | null; body: string }) {
+    try {
+      const response = await sendWahaText(this.config, input.to, input.body)
+      return {
+        status: "sent" as const,
+        providerResponse: { provider: "waha", body: response.slice(0, 1000) },
+      }
+    } catch (err) {
+      return {
+        status: "failed" as const,
+        providerResponse: {
+          provider: "waha",
+          error: err instanceof Error ? err.message : String(err),
+        },
+      }
+    }
+  }
+}
+
 function getProvider(
   channel: MessageChannel,
   n8n: N8nIntegration,
-  context: { clinicId: string; type: MessageType; patientId: string }
+  context: { clinicId: string; type: MessageType; patientId: string },
+  waha?: WahaConfig
 ): MessageProvider {
+  // WAHA primeiro e só para WhatsApp: é o caminho mais curto quando o número da clínica já
+  // está pareado, e não depende de o workflow do n8n existir. SMS e e-mail o WAHA não faz.
+  if (waha?.enabled && waha.baseUrl && channel === "whatsapp") {
+    return new WahaProvider(waha)
+  }
+
   // Derivado de servidor + caminho, com a URL completa antiga como fallback — sem isto uma
   // integração salva no formato novo teria webhookUrl vazio e cairia calada no provider de
   // console, ou seja, nenhuma mensagem sairia e nada indicaria o porquê.
@@ -214,12 +252,16 @@ export async function sendMessage(
     return { messageId: message.id, status: "skipped" as const }
   }
 
-  const n8n = await getN8nIntegration(supabase, clinicId)
-  const provider = getProvider(input.channel, n8n, {
-    clinicId,
-    type: input.type,
-    patientId: input.patientId,
-  })
+  const [n8n, waha] = await Promise.all([
+    getN8nIntegration(supabase, clinicId),
+    getWahaConfig(supabase, clinicId),
+  ])
+  const provider = getProvider(
+    input.channel,
+    n8n,
+    { clinicId, type: input.type, patientId: input.patientId },
+    waha
+  )
   const result = await provider.send({ to, channel: input.channel, subject: input.subject, body: input.body })
 
   await supabase
