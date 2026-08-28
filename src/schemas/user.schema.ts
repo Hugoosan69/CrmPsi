@@ -31,6 +31,17 @@ export const updateUserSchema = z.object({
   full_name: z.string().trim().min(2, "Informe o nome completo"),
   role_id: z.string().uuid("Selecione um papel"),
   phone: z.string().trim().max(20).optional().or(z.literal("")),
+  // Vazio significa "não mexer". Só quem tem users.manage chega aqui.
+  email: z.string().trim().email("E-mail inválido").optional().or(z.literal("")),
+})
+
+/** Ficha de profissional criada para um usuário que já existe — nome e e-mail vêm do
+ *  cadastro dele, então só o que é específico da atuação clínica é pedido. */
+export const linkProfessionalSchema = z.object({
+  professional_register: z.string().trim().max(40).optional().or(z.literal("")),
+  specialty_id: z.string().uuid().optional().or(z.literal("")),
+  /** Quando preenchido, vincula uma ficha já existente em vez de criar outra. */
+  existing_professional_id: z.string().uuid().optional().or(z.literal("")),
 })
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>

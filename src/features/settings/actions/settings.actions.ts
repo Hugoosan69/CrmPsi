@@ -9,6 +9,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import { brandingSchema, n8nSettingsSchema } from "@/schemas/settings.schema"
 import {
   getN8nIntegration,
+  n8nWebhookUrl,
   saveN8nIntegration,
   updateClinicBranding,
 } from "@/services/clinic-settings.service"
@@ -124,6 +125,8 @@ export async function saveN8nAction(
   try {
     await saveN8nIntegration(supabase, membership.clinicId, {
       enabled: parsed.data.enabled,
+      baseUrl: parsed.data.base_url,
+      path: parsed.data.path,
       webhookUrl: parsed.data.webhook_url,
       // undefined keeps the stored secret; null clears it deliberately.
       secret: parsed.data.clear_secret ? null : parsed.data.secret,
@@ -143,7 +146,8 @@ export async function saveN8nAction(
     after: {
       integration: "n8n",
       enabled: parsed.data.enabled,
-      webhookUrl: parsed.data.webhook_url,
+      baseUrl: parsed.data.base_url,
+      path: parsed.data.path,
       channels: parsed.data.channels,
       secretChanged: Boolean(parsed.data.secret) || Boolean(parsed.data.clear_secret),
     },
@@ -158,20 +162,23 @@ export async function saveN8nAction(
  * discovering it from a patient who never got a reminder. Reads the stored config instead
  * of trusting the form, so what is tested is what will actually run.
  */
-export async function testN8nAction(): Promise<SettingsActionState> {
+export async function testN8nAction(
+  mode: "production" | "test" = "production"
+): Promise<SettingsActionState> {
   const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
   const supabase = await createClient()
 
   const config = await getN8nIntegration(supabase, membership.clinicId)
-  if (!config.webhookUrl) {
-    return { error: "Informe e salve a URL do webhook antes de testar." }
+  const target = n8nWebhookUrl(config, mode)
+  if (!target) {
+    return { error: "Informe e salve o servidor e o caminho do webhook antes de testar." }
   }
 
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (config.secret) headers["X-CSIB-Token"] = config.secret
 
   try {
-    const response = await fetch(config.webhookUrl, {
+    const response = await fetch(target, {
       method: "POST",
       headers,
       body: JSON.stringify({

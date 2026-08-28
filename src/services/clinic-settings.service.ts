@@ -15,6 +15,12 @@ type DB = SupabaseClient<Database>
  */
 export type N8nIntegration = {
   enabled: boolean
+  /** Servidor n8n, sem caminho — ex.: http://64.181.189.174:5678 */
+  baseUrl: string
+  /** Nome do caminho do webhook no n8n — o "Path" do nó Webhook, ex.: csib */
+  path: string
+  /** URL completa gravada por configurações anteriores, quando base/caminho não existiam.
+   *  Continua sendo respeitada para não quebrar quem já configurou. */
   webhookUrl: string
   /** Sent as `X-CSIB-Token`. Server-side only — never serialised to the browser. */
   secret: string | null
@@ -30,6 +36,8 @@ export type ClinicSettingsShape = {
 
 export const DEFAULT_N8N: N8nIntegration = {
   enabled: false,
+  baseUrl: "",
+  path: "",
   webhookUrl: "",
   secret: null,
   channels: ["whatsapp"],
@@ -46,10 +54,33 @@ function coerceN8n(raw: unknown): N8nIntegration {
 
   return {
     enabled: value.enabled === true,
+    baseUrl: typeof value.baseUrl === "string" ? value.baseUrl : "",
+    path: typeof value.path === "string" ? value.path : "",
     webhookUrl: typeof value.webhookUrl === "string" ? value.webhookUrl : "",
     secret: typeof value.secret === "string" && value.secret ? value.secret : null,
     channels: channels.length > 0 ? channels : DEFAULT_N8N.channels,
   }
+}
+
+/**
+ * URL efetiva do webhook.
+ *
+ * O n8n expõe DOIS endereços para o mesmo nó, diferindo só no prefixo: `/webhook-test/<path>`
+ * só responde enquanto alguém clicou em "Listen for test event" no editor, e `/webhook/<path>`
+ * é o de produção, que só existe depois do workflow estar ativo. Testar contra o de produção
+ * com o workflow inativo devolve 404 e parece erro de configuração — daí os dois modos.
+ *
+ * Quando base e caminho não estão preenchidos, cai na URL completa gravada pelo formato
+ * antigo, para não quebrar configurações existentes.
+ */
+export function n8nWebhookUrl(
+  config: Pick<N8nIntegration, "baseUrl" | "path" | "webhookUrl">,
+  mode: "production" | "test" = "production"
+): string {
+  const base = config.baseUrl.trim().replace(/\/+$/, "")
+  const path = config.path.trim().replace(/^\/+/, "")
+  if (!base || !path) return config.webhookUrl.trim()
+  return `${base}/${mode === "test" ? "webhook-test" : "webhook"}/${path}`
 }
 
 export async function getClinicSettings(supabase: DB, clinicId: string): Promise<ClinicSettingsShape> {
@@ -81,7 +112,14 @@ export async function getN8nIntegration(supabase: DB, clinicId: string): Promise
 export async function saveN8nIntegration(
   supabase: DB,
   clinicId: string,
-  input: { enabled: boolean; webhookUrl: string; secret?: string | null; channels: MessageChannel[] }
+  input: {
+    enabled: boolean
+    baseUrl: string
+    path: string
+    webhookUrl: string
+    secret?: string | null
+    channels: MessageChannel[]
+  }
 ) {
   const current = await getClinicSettings(supabase, clinicId)
   const currentN8n = coerceN8n(current.integrations?.n8n)
@@ -92,6 +130,8 @@ export async function saveN8nIntegration(
       ...current.integrations,
       n8n: {
         enabled: input.enabled,
+        baseUrl: input.baseUrl,
+        path: input.path,
         webhookUrl: input.webhookUrl,
         secret: input.secret === undefined ? currentN8n.secret : input.secret,
         channels: input.channels,

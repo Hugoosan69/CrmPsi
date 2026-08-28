@@ -11,14 +11,30 @@ import { Badge } from "@/components/ui/badge"
 import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import type { Database } from "@/types/supabase"
 import type { ClinicMember } from "@/services/users.service"
+import type { SpecialtyOption } from "@/types/options"
 import { setMembershipActiveAction } from "../actions/user.actions"
 import { MemberRoleSelect } from "./member-role-select"
 import { SendResetButton } from "./send-reset-button"
 import { EditUserDialog } from "./edit-user-dialog"
+import { LinkProfessionalDialog } from "./link-professional-dialog"
 
 type Role = Pick<Database["public"]["Tables"]["roles"]["Row"], "id" | "name">
 
-export function UsersTable({ members, roles }: { members: ClinicMember[]; roles: Role[] }) {
+export function UsersTable({
+  members,
+  roles,
+  specialties = [],
+  unlinkedProfessionals = [],
+  linkedUserIds = [],
+}: {
+  members: ClinicMember[]
+  roles: Role[]
+  specialties?: SpecialtyOption[]
+  unlinkedProfessionals?: { id: string; full_name: string }[]
+  /** Quem já tem ficha — para não oferecer criar outra. */
+  linkedUserIds?: string[]
+}) {
+  const linked = new Set(linkedUserIds)
   if (members.length === 0) {
     return (
       <EmptyState title="Nenhum usuário cadastrado ainda." />
@@ -52,6 +68,13 @@ export function UsersTable({ members, roles }: { members: ClinicMember[]; roles:
             </TableCell>
             <TableCell className="text-right whitespace-nowrap">
               <EditUserDialog member={member} roles={roles} />
+              {member.active && !linked.has(member.userId) && (
+                <LinkProfessionalDialog
+                  member={member}
+                  specialties={specialties}
+                  unlinked={unlinkedProfessionals}
+                />
+              )}
               {/* Only for members who can still sign in — a recovery link is useless to a
                   deactivated account, which the session layer refuses regardless. */}
               {member.active && (

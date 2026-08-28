@@ -14,10 +14,25 @@ const webhookUrl = z
     message: "A URL precisa usar http:// ou https://",
   })
 
+/** Servidor n8n: host com esquema e porta, sem caminho. */
+const serverUrl = z
+  .string()
+  .trim()
+  .refine((v) => /^https?:\/\/[^/\s]+$/i.test(v.replace(/\/+$/, "")), {
+    message: "Informe só o servidor, ex.: http://64.181.189.174:5678 (sem /webhook)",
+  })
+
 export const n8nSettingsSchema = z
   .object({
     enabled: z.coerce.boolean(),
-    webhook_url: z.string().trim(),
+    base_url: z.string().trim().default(""),
+    // O "Path" do nó Webhook no n8n. Sem barras — elas entram na composição.
+    path: z
+      .string()
+      .trim()
+      .default("")
+      .transform((v) => v.replace(/^\/+|\/+$/g, "")),
+    webhook_url: z.string().trim().default(""),
     // Empty means "keep what is stored" — the field renders masked, never pre-filled.
     secret: z
       .string()
@@ -29,10 +44,19 @@ export const n8nSettingsSchema = z
       .array(z.enum(["whatsapp", "sms", "email"]))
       .min(1, "Selecione ao menos um canal"),
   })
-  .refine((v) => !v.enabled || webhookUrl.safeParse(v.webhook_url).success, {
-    message: "Informe uma URL de webhook válida para ativar a integração",
-    path: ["webhook_url"],
-  })
+  // Ativar exige um destino utilizável: servidor + caminho (formato novo) OU a URL
+  // completa gravada pelo formato antigo. Sem isso a integração ficaria "ligada"
+  // apontando para lugar nenhum, e as mensagens falhariam em silêncio.
+  .refine(
+    (v) =>
+      !v.enabled ||
+      (serverUrl.safeParse(v.base_url).success && v.path.length > 0) ||
+      webhookUrl.safeParse(v.webhook_url).success,
+    {
+      message: "Informe o servidor n8n e o caminho do webhook para ativar a integração",
+      path: ["base_url"],
+    }
+  )
 
 export const brandingSchema = z.object({
   logo_url: z

@@ -3,7 +3,11 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json, MessageChannel, MessageType } from "@/types/supabase"
-import { getN8nIntegration, type N8nIntegration } from "./clinic-settings.service"
+import {
+  getN8nIntegration,
+  n8nWebhookUrl,
+  type N8nIntegration,
+} from "./clinic-settings.service"
 
 type DB = SupabaseClient<Database>
 
@@ -97,8 +101,12 @@ function getProvider(
   n8n: N8nIntegration,
   context: { clinicId: string; type: MessageType; patientId: string }
 ): MessageProvider {
-  if (n8n.enabled && n8n.webhookUrl && n8n.channels.includes(channel)) {
-    return new N8nProvider({ webhookUrl: n8n.webhookUrl, secret: n8n.secret }, context)
+  // Derivado de servidor + caminho, com a URL completa antiga como fallback — sem isto uma
+  // integração salva no formato novo teria webhookUrl vazio e cairia calada no provider de
+  // console, ou seja, nenhuma mensagem sairia e nada indicaria o porquê.
+  const target = n8nWebhookUrl(n8n)
+  if (n8n.enabled && target && n8n.channels.includes(channel)) {
+    return new N8nProvider({ webhookUrl: target, secret: n8n.secret }, context)
   }
   // Console remains the fallback for channels the clinic has not routed to n8n, so an
   // unconfigured channel is visibly simulated rather than silently dropped.

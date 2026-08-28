@@ -5,12 +5,19 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
-import { createUserSchema, updateUserSchema } from "@/schemas/user.schema"
+import {
+  createUserSchema,
+  linkProfessionalSchema,
+  updateUserSchema,
+} from "@/schemas/user.schema"
 import {
   createStaffUser,
   getMemberEmailForClinic,
   sendPasswordResetEmail,
+  createProfessionalForUser,
+  linkProfessionalToUser,
   setMembershipActive,
+  updateMemberEmail,
   updateMemberProfile,
   updateMembershipRole,
 } from "@/services/users.service"
@@ -100,6 +107,7 @@ export async function updateUserAction(
     full_name: formData.get("full_name"),
     role_id: formData.get("role_id"),
     phone: formData.get("phone") ?? "",
+    email: formData.get("email") ?? "",
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
@@ -111,6 +119,10 @@ export async function updateUserAction(
       roleId: parsed.data.role_id,
       phone: parsed.data.phone || null,
     })
+
+    if (parsed.data.email) {
+      await updateMemberEmail(membership.clinicId, membershipId, parsed.data.email)
+    }
 
     await recordAudit({
       clinicId: membership.clinicId,
@@ -286,5 +298,64 @@ export async function setUserPermissionAction(
   }
 
   revalidatePath("/gestao/permissoes")
+  return { success: true }
+}
+
+/**
+ * Dá ficha de profissional a um usuário que já existe.
+ *
+ * Dois caminhos, porque as duas situações aparecem na prática: vincular uma ficha que já foi
+ * cadastrada antes de a pessoa ter login (o campo de seleção), ou criar uma nova pedindo só
+ * registro e especialidade — nome e e-mail saem do cadastro do usuário, já que é a mesma
+ * pessoa e redigitar é o que produz nomes divergentes entre a tabela de usuários e a agenda.
+ */
+export async function linkProfessionalAction(
+  targetUserId: string,
+  _prev: UserActionState,
+  formData: FormData
+): Promise<UserActionState> {
+  const membership = await requirePermission(PERMISSIONS.USERS_MANAGE)
+
+  const parsed = linkProfessionalSchema.safeParse({
+    professional_register: formData.get("professional_register") ?? "",
+    specialty_id: formData.get("specialty_id") ?? "",
+    existing_professional_id: formData.get("existing_professional_id") ?? "",
+  })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
+  }
+
+  try {
+    const supabase = await createClient()
+
+    if (parsed.data.existing_professional_id) {
+      await linkProfessionalToUser(
+        supabase,
+        membership.clinicId,
+        parsed.data.existing_professional_id,
+        targetUserId
+      )
+    } else {
+      await createProfessionalForUser(membership.clinicId, targetUserId, {
+        register: parsed.data.professional_register || null,
+        specialtyId: parsed.data.specialty_id || null,
+      })
+    }
+
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "professional.link",
+      entityType: "profile",
+      entityId: targetUserId,
+      after: parsed.data,
+    })
+  } catch (err) {
+    console.error("linkProfessionalAction failed", err)
+    return { error: "Não foi possível vincular a ficha de profissional." }
+  }
+
+  revalidatePath("/gestao/usuarios")
+  revalidatePath("/gestao/profissionais")
   return { success: true }
 }

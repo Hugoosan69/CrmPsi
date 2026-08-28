@@ -1,7 +1,12 @@
 import { requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
-import { listClinicMembers, listRoles } from "@/services/users.service"
+import {
+  listClinicMembers,
+  listLinkedProfessionalUserIds,
+  listRoles,
+  listUnlinkedProfessionals,
+} from "@/services/users.service"
 import { listSpecialties } from "@/services/professionals.service"
 import { PageHeader } from "@/components/shared/page-header"
 import { UsersTable } from "@/features/users/components/users-table"
@@ -12,10 +17,12 @@ export default async function UsersPage() {
   const supabase = await createClient()
   // Especialidades vêm junto porque criar um usuário pode criar a ficha de profissional
   // na mesma ação — sem elas o formulário não teria como classificar quem atende.
-  const [members, roles, specialties] = await Promise.all([
+  const [members, roles, specialties, unlinked, linkedIds] = await Promise.all([
     listClinicMembers(supabase, membership.clinicId),
     listRoles(supabase, membership.clinicId),
     listSpecialties(supabase, membership.clinicId),
+    listUnlinkedProfessionals(supabase, membership.clinicId),
+    listLinkedProfessionalUserIds(supabase, membership.clinicId),
   ])
 
   return (
@@ -25,7 +32,13 @@ export default async function UsersPage() {
         description="Acesso ao sistema e papel de cada pessoa."
         actions={<InviteUserDialog roles={roles} specialties={specialties} />}
       />
-      <UsersTable members={members} roles={roles} />
+      <UsersTable
+        members={members}
+        roles={roles}
+        specialties={specialties}
+        unlinkedProfessionals={unlinked}
+        linkedUserIds={[...linkedIds]}
+      />
     </div>
   )
 }

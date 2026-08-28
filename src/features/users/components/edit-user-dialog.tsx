@@ -99,10 +99,17 @@ export function EditUserDialog({ member, roles }: { member: ClinicMember; roles:
             </div>
 
             <div className="grid gap-1.5">
-              <Label>E-mail</Label>
-              <Input value={member.email} disabled readOnly />
+              <Label htmlFor={`edit-email-${member.membershipId}`}>E-mail de acesso</Label>
+              <Input
+                id={`edit-email-${member.membershipId}`}
+                name="email"
+                type="email"
+                defaultValue={member.email}
+              />
               <p className="text-[0.75rem] text-muted-foreground">
-                Trocar o e-mail exige reconfirmar o endereço — não é feito por aqui.
+                O endereço novo já entra confirmado — a pessoa passa a entrar com ele
+                imediatamente. Não é enviado e-mail de confirmação, justamente para o acesso
+                não depender do SMTP estar entregando.
               </p>
             </div>
 

@@ -37,6 +37,8 @@ export default async function ConfiguracoesPage() {
           {/* The stored token never crosses to the client — only whether one exists. */}
           <N8nSettings
             enabled={n8n.enabled}
+            baseUrl={n8n.baseUrl}
+            path={n8n.path}
             webhookUrl={n8n.webhookUrl}
             hasSecret={Boolean(n8n.secret)}
             channels={n8n.channels}

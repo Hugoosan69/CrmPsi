@@ -251,3 +251,128 @@ export async function sendPasswordResetEmail(email: string, redirectTo: string) 
   const { error } = await admin.auth.resetPasswordForEmail(email, { redirectTo })
   if (error) throw error
 }
+
+/**
+ * Ficha de profissional de um membro, se existir. A tela de usuários precisa distinguir três
+ * situações: sem ficha, com ficha vinculada, e — o caso que gerava confusão — ficha existindo
+ * com o mesmo nome mas sem `user_id`, criada antes de a pessoa ter login.
+ */
+export async function getProfessionalForUser(supabase: DB, clinicId: string, userId: string) {
+  const { data, error } = await supabase
+    .from("professionals")
+    .select("id, full_name, professional_register, specialty_id, active")
+    .eq("clinic_id", clinicId)
+    .eq("user_id", userId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/** Fichas ainda sem login vinculado — candidatas a serem ligadas a um usuário existente. */
+export async function listUnlinkedProfessionals(supabase: DB, clinicId: string) {
+  const { data, error } = await supabase
+    .from("professionals")
+    .select("id, full_name")
+    .eq("clinic_id", clinicId)
+    .is("user_id", null)
+    .eq("active", true)
+    .order("full_name")
+  if (error) throw error
+  return data
+}
+
+/**
+ * Cria a ficha de profissional para um usuário que já existe.
+ *
+ * Nome e e-mail vêm do cadastro do usuário em vez de serem redigitados: são a mesma pessoa,
+ * e pedir de novo é o que produz dois nomes diferentes para o mesmo indivíduo entre a tabela
+ * de usuários e a agenda.
+ */
+export async function createProfessionalForUser(
+  clinicId: string,
+  userId: string,
+  input: { register: string | null; specialtyId: string | null }
+) {
+  const admin = createAdminClient()
+
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", userId)
+    .maybeSingle()
+  if (profileError) throw profileError
+  if (!profile) throw new Error("Usuário não encontrado.")
+
+  const { data, error } = await admin
+    .from("professionals")
+    .insert({
+      clinic_id: clinicId,
+      user_id: userId,
+      full_name: profile.full_name,
+      email: profile.email,
+      professional_register: input.register,
+      specialty_id: input.specialtyId,
+    })
+    .select("id")
+    .single()
+  if (error) throw error
+  return data.id
+}
+
+/**
+ * Troca o e-mail de login de um membro.
+ *
+ * Feito pelo Admin API com `email_confirm: true`, ou seja, o endereço novo já entra
+ * confirmado. A alternativa — mandar confirmação para o endereço novo — depende do SMTP do
+ * projeto estar entregando, e enquanto não estiver a pessoa ficaria sem conseguir entrar por
+ * nenhum dos dois endereços. Quem faz isso já tem users.manage, então a confiança é a mesma
+ * que a de trocar o papel de alguém.
+ */
+export async function updateMemberEmail(
+  clinicId: string,
+  membershipId: string,
+  newEmail: string
+) {
+  const admin = createAdminClient()
+
+  const { data: membership, error: readError } = await admin
+    .from("clinic_memberships")
+    .select("user_id")
+    .eq("id", membershipId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!membership) throw new Error("Usuário não encontrado nesta clínica.")
+
+  const { error: authError } = await admin.auth.admin.updateUserById(membership.user_id, {
+    email: newEmail,
+    email_confirm: true,
+  })
+  if (authError) throw authError
+
+  // profiles.email é uma cópia usada pelas telas; sem atualizar aqui a pessoa apareceria
+  // com o endereço antigo em toda a gestão.
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({ email: newEmail })
+    .eq("id", membership.user_id)
+  if (profileError) throw profileError
+
+  await admin
+    .from("professionals")
+    .update({ email: newEmail })
+    .eq("user_id", membership.user_id)
+    .eq("clinic_id", clinicId)
+}
+
+/** user_ids que já possuem ficha de profissional — a tabela usa isto para só oferecer
+ *  "tornar profissional" a quem ainda não tem, em vez de deixar duplicar. */
+export async function listLinkedProfessionalUserIds(supabase: DB, clinicId: string) {
+  const { data, error } = await supabase
+    .from("professionals")
+    .select("user_id")
+    .eq("clinic_id", clinicId)
+    .not("user_id", "is", null)
+  if (error) throw error
+  return new Set((data ?? []).map((r) => r.user_id as string))
+}
