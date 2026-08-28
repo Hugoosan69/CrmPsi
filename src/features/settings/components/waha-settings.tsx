@@ -14,6 +14,7 @@ import { StatusDot } from "@/components/shared/status-dot"
 import type { WahaStatus } from "@/services/waha.service"
 import {
   logoutWahaAction,
+  refreshWahaQrAction,
   saveWahaAction,
   startWahaAction,
   type WahaActionState,
@@ -37,26 +38,31 @@ export function WahaSettings({
   session,
   hasApiKey,
   status,
+  initialQr,
 }: {
   enabled: boolean
   baseUrl: string
   session: string
   hasApiKey: boolean
   status: WahaStatus
+  /** data:image/png;base64,... já resolvido no servidor. */
+  initialQr: string | null
 }) {
   const [state, formAction, isPending] = useActionState(saveWahaAction, initialState)
   const [isEnabled, setIsEnabled] = useState(enabled)
   const [isWorking, startWork] = useTransition()
-  // Muda a cada recarga para o navegador não reaproveitar o QR anterior, que expira em segundos.
-  const [qrNonce, setQrNonce] = useState(0)
+  const [qr, setQr] = useState(initialQr)
+  const [isRefreshing, startRefresh] = useTransition()
 
   const waitingQr = status.status === "SCAN_QR_CODE"
   const info = status.status ? STATUS_TEXT[status.status] : null
 
   useEffect(() => {
     if (!waitingQr) return
-    // O WAHA rotaciona o código; sem recarregar, o operador miraria um QR já vencido.
-    const id = setInterval(() => setQrNonce((n) => n + 1), 20_000)
+    // O WAHA rotaciona o código; sem buscar de novo, o operador miraria um QR já vencido.
+    const id = setInterval(() => {
+      void refreshWahaQrAction().then((r) => setQr(r.dataUri))
+    }, 20_000)
     return () => clearInterval(id)
   }, [waitingQr])
 
@@ -108,22 +114,36 @@ export function WahaSettings({
             <p className="-mt-1 max-w-sm text-center text-[0.78rem] text-muted-foreground">
               No celular: Configurações → Aparelhos conectados → Conectar um aparelho.
             </p>
-            {/* next/image não serve: a imagem vem da nossa própria rota, muda a cada
-                segundos e não deve ser otimizada nem cacheada. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/waha/qr?v=${qrNonce}`}
-              alt="QR code para conectar o WhatsApp"
-              className="size-56 rounded-lg bg-white p-2"
-            />
+            {/* next/image não serve para um data URI que muda a cada segundos e não deve
+                ser otimizado nem cacheado. */}
+            {qr ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qr}
+                alt="QR code para conectar o WhatsApp"
+                className="size-56 rounded-lg bg-white p-2"
+              />
+            ) : (
+              <div className="flex size-56 items-center justify-center rounded-lg border border-dashed border-border text-center text-[0.78rem] text-muted-foreground">
+                QR ainda não disponível.
+                <br />
+                Aguarde alguns segundos.
+              </div>
+            )}
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setQrNonce((n) => n + 1)}
+              disabled={isRefreshing}
+              onClick={() =>
+                startRefresh(async () => {
+                  const r = await refreshWahaQrAction()
+                  setQr(r.dataUri)
+                })
+              }
               aria-label="Gerar novo QR code"
             >
               <RefreshCw className="size-3.5" />
-              Atualizar QR
+              {isRefreshing ? "Buscando..." : "Atualizar QR"}
             </Button>
           </div>
         )}
@@ -141,7 +161,10 @@ export function WahaSettings({
             </Label>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/* items-start é necessário: sem ele cada célula estica até a altura da linha e
+              distribui o conteúdo, então um campo COM texto de ajuda e outro SEM ficam com
+              os inputs em alturas diferentes — 27px de diferença, medido. */}
+          <div className="grid items-start gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="waha-url">Servidor WAHA</Label>
               <Input

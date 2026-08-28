@@ -2,7 +2,7 @@ import { requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { getClinicBranding, getN8nIntegration } from "@/services/clinic-settings.service"
-import { getWahaConfig, getWahaStatus } from "@/services/waha.service"
+import { fetchWahaQrDataUri, getWahaConfig, getWahaStatus } from "@/services/waha.service"
 import { PageHeader } from "@/components/shared/page-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BrandingSettings } from "@/features/settings/components/branding-settings"
@@ -23,6 +23,10 @@ export default async function ConfiguracoesPage() {
   // sistema (o dono desvincula o aparelho, a VPS reinicia), então guardá-lo mostraria uma
   // conexão que já caiu.
   const wahaStatus = await getWahaStatus(waha)
+  // Buscado já na renderização quando há QR para ler: assim o código aparece junto com a
+  // página, sem um segundo salto que deixaria a área piscando vazia.
+  const wahaQr =
+    wahaStatus.status === "SCAN_QR_CODE" ? await fetchWahaQrDataUri(waha) : null
 
   return (
     <div className="grid animate-fade-in-up gap-6">
@@ -50,6 +54,7 @@ export default async function ConfiguracoesPage() {
             session={waha.session}
             hasApiKey={Boolean(waha.apiKey)}
             status={wahaStatus}
+            initialQr={wahaQr}
           />
         </TabsContent>
 

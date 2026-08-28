@@ -148,7 +148,7 @@ function AutomationCard({
       </div>
 
       {enabled && (
-        <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid items-start gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="grid gap-1.5">
             <Label htmlFor={`when-${config.type}`}>Quando</Label>
             <Select

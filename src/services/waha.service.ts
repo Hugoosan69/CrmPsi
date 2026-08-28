@@ -192,14 +192,40 @@ export async function logoutWahaSession(config: WahaConfig) {
   if (!response.ok) throw new Error(`Falha ao desconectar: ${await response.text()}`)
 }
 
-/** QR em PNG, buscado pelo servidor para a chave de API não sair daqui. */
-export async function fetchWahaQr(config: WahaConfig): Promise<ArrayBuffer | null> {
-  const response = await fetch(
-    `${config.baseUrl}/api/${encodeURIComponent(config.session)}/auth/qr?format=image`,
-    { headers: { ...headers(config), Accept: "image/png" }, cache: "no-store", signal: AbortSignal.timeout(15_000) }
-  )
-  if (!response.ok) return null
-  return response.arrayBuffer()
+/**
+ * QR já embutido como data URI.
+ *
+ * Devolvido em base64 e não como URL de imagem por dois motivos. O navegador do operador
+ * pode não alcançar a VPS do WAHA — ela costuma estar numa rede interna, e um `<img>`
+ * apontando direto para lá mostraria imagem quebrada. E a chave de API precisa ficar no
+ * servidor: quem busca é o servidor, o cliente recebe só os pixels.
+ *
+ * `format=image` é o único que devolve imagem; `format=raw` devolve o texto do QR, que
+ * exigiria uma biblioteca de renderização no cliente para nada.
+ */
+export async function fetchWahaQrDataUri(config: WahaConfig): Promise<string | null> {
+  if (!config.baseUrl) return null
+
+  try {
+    const response = await fetch(
+      `${config.baseUrl}/api/${encodeURIComponent(config.session)}/auth/qr?format=image`,
+      {
+        headers: { ...headers(config), Accept: "image/png" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      }
+    )
+    // Sem QR normalmente significa sessão já conectada ou ainda subindo — não é erro, e a
+    // tela distingue os dois pelo status.
+    if (!response.ok) return null
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+    const type = response.headers.get("content-type") ?? "image/png"
+    return `data:${type};base64,${buffer.toString("base64")}`
+  } catch (err) {
+    console.error("waha: QR falhou", err)
+    return null
+  }
 }
 
 /**

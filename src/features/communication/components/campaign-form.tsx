@@ -44,7 +44,9 @@ export function CampaignForm({ patients }: { patients: PatientOption[] }) {
 
   return (
     <form action={formAction} className="grid gap-6" key={state.success ?? "form"}>
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* items-start: sem ele o campo com texto de ajuda ("Nome da campanha") e o sem
+          ("Canal") ficam com os inputs em alturas diferentes. */}
+      <div className="grid items-start gap-4 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="campaign-name">Nome da campanha</Label>
           <Input

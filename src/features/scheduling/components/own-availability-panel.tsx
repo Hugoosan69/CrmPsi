@@ -80,7 +80,7 @@ export function OwnAvailabilityPanel({
 
       <form
         action={formAction}
-        className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5"
+        className="grid items-start gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5"
       >
         <div className="grid gap-1.5">
           <Label htmlFor="own-weekday">Dia</Label>

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
 import {
+  fetchWahaQrDataUri,
   getWahaConfig,
   logoutWahaSession,
   saveWahaConfig,
@@ -105,4 +106,20 @@ export async function logoutWahaAction(): Promise<WahaActionState> {
 
   revalidateSettings()
   return { success: "Número desconectado. Para reconectar, leia um novo QR code." }
+}
+
+/**
+ * QR novo, em base64.
+ *
+ * Server Action em vez de rota HTTP: o WAHA rotaciona o código a cada poucos segundos, e a
+ * tela precisa buscar um novo sem recarregar. Como Server Action, a permissão é verificada
+ * do mesmo jeito que no resto do sistema e não sobra um endpoint público a mais para
+ * proteger — a rota anterior exigia raciocinar sobre o matcher do proxy para não expor o
+ * pareamento a quem não tem sessão.
+ */
+export async function refreshWahaQrAction(): Promise<{ dataUri: string | null }> {
+  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const supabase = await createClient()
+  const config = await getWahaConfig(supabase, membership.clinicId)
+  return { dataUri: await fetchWahaQrDataUri(config) }
 }
