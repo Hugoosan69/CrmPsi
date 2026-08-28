@@ -118,3 +118,40 @@ export async function setMembershipActive(supabase: DB, membershipId: string, ac
     .eq("id", membershipId)
   if (error) throw error
 }
+
+/**
+ * Email of one member, resolved through this clinic's membership.
+ *
+ * The lookup is by membership id and re-filtered by clinic, so a caller cannot name an
+ * arbitrary address: an admin of clinic A must not be able to trigger a password reset for
+ * someone in clinic B, and the email must never be taken from client input. Returns null
+ * when the membership does not belong to the clinic.
+ */
+export async function getMemberEmailForClinic(
+  supabase: DB,
+  clinicId: string,
+  membershipId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("clinic_memberships")
+    .select("profiles(email)")
+    .eq("id", membershipId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle()
+  if (error) throw error
+
+  const profile = data?.profiles as { email: string } | null | undefined
+  return profile?.email ?? null
+}
+
+/**
+ * Sends the standard recovery email to a member. Deliberately the *same* mechanism the
+ * operator's own "esqueci minha senha" uses rather than setting a password directly:
+ * an admin should never come to hold another person's password, and the recovery link
+ * expires and is single-use on its own.
+ */
+export async function sendPasswordResetEmail(email: string, redirectTo: string) {
+  const admin = createAdminClient()
+  const { error } = await admin.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) throw error
+}

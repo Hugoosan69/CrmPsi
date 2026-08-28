@@ -8,9 +8,12 @@ import { PERMISSIONS } from "@/config/permissions"
 import { inviteUserSchema } from "@/schemas/user.schema"
 import {
   createStaffUser,
+  getMemberEmailForClinic,
+  sendPasswordResetEmail,
   setMembershipActive,
   updateMembershipRole,
 } from "@/services/users.service"
+import { resetRedirectUrl } from "@/lib/auth/password-reset"
 import { getPermission, setRolePermission } from "@/services/permissions.service"
 import { recordAudit } from "@/services/audit.service"
 
@@ -113,4 +116,48 @@ export async function setRolePermissionAction(roleId: string, permissionId: stri
   })
 
   revalidatePath("/gestao/permissoes")
+}
+
+/**
+ * Sends a member the standard password-recovery email.
+ *
+ * The address is resolved from the membership row *scoped to the caller's clinic* rather
+ * than accepted as an argument — otherwise an admin could aim a recovery link at any
+ * address in the system, which is an account-takeover primitive, not a support tool.
+ * A membership from another clinic simply reads as not found.
+ *
+ * Unlike the anonymous form on /recuperar-senha, this one reports failure honestly: the
+ * caller already knows the account exists (it is in their own members table), so there is
+ * no enumeration to protect against, and an admin needs to know whether the mail went out.
+ */
+export async function sendPasswordResetForMemberAction(
+  membershipId: string
+): Promise<UserActionState> {
+  const membership = await requirePermission(PERMISSIONS.USERS_MANAGE)
+  const supabase = await createClient()
+
+  try {
+    const email = await getMemberEmailForClinic(supabase, membership.clinicId, membershipId)
+    if (!email) {
+      return { error: "Usuário não encontrado nesta clínica." }
+    }
+
+    await sendPasswordResetEmail(email, await resetRedirectUrl())
+
+    // Recorded because "who asked for a reset on whose account, and when" is exactly the
+    // trail an investigation needs. The link itself is never logged.
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "user.password_reset_sent",
+      entityType: "clinic_membership",
+      entityId: membershipId,
+      after: { email },
+    })
+  } catch (err) {
+    console.error("sendPasswordResetForMemberAction failed", err)
+    return { error: "Não foi possível enviar o e-mail de redefinição. Tente novamente." }
+  }
+
+  return { success: true }
 }

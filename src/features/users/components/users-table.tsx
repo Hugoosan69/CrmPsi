@@ -13,6 +13,7 @@ import type { Database } from "@/types/supabase"
 import type { ClinicMember } from "@/services/users.service"
 import { setMembershipActiveAction } from "../actions/user.actions"
 import { MemberRoleSelect } from "./member-role-select"
+import { SendResetButton } from "./send-reset-button"
 
 type Role = Pick<Database["public"]["Tables"]["roles"]["Row"], "id" | "name">
 
@@ -49,6 +50,15 @@ export function UsersTable({ members, roles }: { members: ClinicMember[]; roles:
               <MemberRoleSelect membershipId={member.membershipId} roleId={member.roleId} roles={roles} />
             </TableCell>
             <TableCell className="text-right">
+              {/* Only for members who can still sign in — a recovery link is useless to a
+                  deactivated account, which the session layer refuses regardless. */}
+              {member.active && (
+                <SendResetButton
+                  membershipId={member.membershipId}
+                  memberName={member.fullName}
+                  memberEmail={member.email}
+                />
+              )}
               <ToggleActiveButton
                 active={member.active}
                 deactivateLabel="Inativar"

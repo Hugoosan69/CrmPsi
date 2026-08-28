@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -155,10 +156,20 @@ export function ProfileForm({
               </p>
             )}
 
-            <div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <Button type="submit" disabled={isSavingPassword}>
                 {isSavingPassword ? "Alterando..." : "Alterar senha"}
               </Button>
+              {/* This form requires the current password on purpose (changing it without
+                  proving the old one would let a hijacked session lock the owner out), which
+                  leaves someone who simply does not remember it with no way forward from
+                  here. The recovery flow is that way out. */}
+              <Link
+                href="/recuperar-senha"
+                className="text-[0.8rem] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                Não lembro a senha atual
+              </Link>
             </div>
           </form>
         </CardContent>
