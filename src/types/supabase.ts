@@ -814,6 +814,57 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>
         Relationships: []
       }
+      // migrations/007 — campanhas (disparo para um público, opcionalmente agendado)
+      // e automações (regra recorrente a partir de um evento).
+      message_campaigns: {
+        Row: {
+          id: string
+          clinic_id: string
+          name: string
+          channel: MessageChannel
+          subject: string | null
+          body_template: string
+          audience: "active" | "inactive" | "all" | "single"
+          patient_id: string | null
+          scheduled_for: string | null
+          status: "draft" | "scheduled" | "sending" | "sent" | "cancelled" | "failed"
+          recipients_count: number
+          sent_count: number
+          failed_count: number
+          started_at: string | null
+          finished_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["message_campaigns"]["Row"]> & {
+          clinic_id: string
+          name: string
+          body_template: string
+        }
+        Update: Partial<Database["public"]["Tables"]["message_campaigns"]["Row"]>
+        Relationships: []
+      }
+      message_automations: {
+        Row: {
+          id: string
+          clinic_id: string
+          type: MessageType
+          enabled: boolean
+          channel: MessageChannel
+          template_id: string | null
+          offset_minutes: number
+          send_at_time: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Database["public"]["Tables"]["message_automations"]["Row"]> & {
+          clinic_id: string
+          type: MessageType
+        }
+        Update: Partial<Database["public"]["Tables"]["message_automations"]["Row"]>
+        Relationships: []
+      }
       // migrations/005 — exceção de permissão por pessoa. A ausência de linha
       // significa "herda do papel", então `granted` nunca é null: os três estados
       // são linha-com-true, linha-com-false e nenhuma linha.

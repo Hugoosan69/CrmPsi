@@ -233,3 +233,157 @@ export async function sendMessage(
 
   return { messageId: message.id, status: result.status }
 }
+
+// ---------------------------------------------------------------------------
+// Campanhas e automações (migrations/007)
+// ---------------------------------------------------------------------------
+
+export type CampaignAudience = "active" | "inactive" | "all" | "single"
+export type CampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "sending"
+  | "sent"
+  | "cancelled"
+  | "failed"
+
+export type Campaign = {
+  id: string
+  name: string
+  channel: MessageChannel
+  subject: string | null
+  body_template: string
+  audience: CampaignAudience
+  patient_id: string | null
+  scheduled_for: string | null
+  status: CampaignStatus
+  recipients_count: number
+  sent_count: number
+  failed_count: number
+  created_at: string
+}
+
+export async function listCampaigns(supabase: DB, clinicId: string): Promise<Campaign[]> {
+  const { data, error } = await supabase
+    .from("message_campaigns")
+    .select(
+      "id, name, channel, subject, body_template, audience, patient_id, scheduled_for, status, recipients_count, sent_count, failed_count, created_at"
+    )
+    .eq("clinic_id", clinicId)
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  return (data ?? []) as Campaign[]
+}
+
+export async function createCampaign(
+  supabase: DB,
+  clinicId: string,
+  userId: string,
+  input: {
+    name: string
+    channel: MessageChannel
+    subject: string | null
+    body_template: string
+    audience: CampaignAudience
+    patient_id: string | null
+    scheduled_for: string | null
+  }
+) {
+  const { data, error } = await supabase
+    .from("message_campaigns")
+    .insert({
+      ...input,
+      clinic_id: clinicId,
+      created_by: userId,
+      // Sem data marcada a campanha nasce rascunho, para o operador revisar e disparar;
+      // com data, já entra na fila. Disparar no momento do cadastro seria irreversível.
+      status: input.scheduled_for ? "scheduled" : "draft",
+    })
+    .select("id")
+    .single()
+  if (error) throw error
+  return data.id
+}
+
+/** Quantas pessoas a campanha atinge, pela mesma definição que o disparo vai usar. */
+export async function countCampaignRecipients(supabase: DB, campaignId: string) {
+  const { data, error } = await supabase.rpc("campaign_recipients" as never, {
+    p_campaign: campaignId,
+  } as never)
+  if (error) throw error
+  return ((data ?? []) as unknown[]).length
+}
+
+export type CampaignRecipient = {
+  patient_id: string
+  full_name: string
+  phone: string | null
+  email: string | null
+}
+
+export async function listCampaignRecipients(
+  supabase: DB,
+  campaignId: string
+): Promise<CampaignRecipient[]> {
+  const { data, error } = await supabase.rpc("campaign_recipients" as never, {
+    p_campaign: campaignId,
+  } as never)
+  if (error) throw error
+  return (data ?? []) as unknown as CampaignRecipient[]
+}
+
+export async function setCampaignStatus(
+  supabase: DB,
+  clinicId: string,
+  campaignId: string,
+  status: CampaignStatus,
+  extra: Partial<Pick<Campaign, "recipients_count" | "sent_count" | "failed_count">> = {}
+) {
+  const { error } = await supabase
+    .from("message_campaigns")
+    .update({ status, ...extra })
+    .eq("id", campaignId)
+    .eq("clinic_id", clinicId)
+  if (error) throw error
+}
+
+export type Automation = {
+  id: string
+  type: MessageType
+  enabled: boolean
+  channel: MessageChannel
+  template_id: string | null
+  offset_minutes: number
+  send_at_time: string | null
+}
+
+export async function listAutomations(supabase: DB, clinicId: string): Promise<Automation[]> {
+  const { data, error } = await supabase
+    .from("message_automations")
+    .select("id, type, enabled, channel, template_id, offset_minutes, send_at_time")
+    .eq("clinic_id", clinicId)
+  if (error) throw error
+  return (data ?? []) as Automation[]
+}
+
+/**
+ * Grava a automação de um tipo. Upsert por (clinic_id, type) porque o schema permite
+ * exatamente uma por tipo — duas regras de aniversário mandariam a mensagem duas vezes.
+ */
+export async function saveAutomation(
+  supabase: DB,
+  clinicId: string,
+  input: {
+    type: MessageType
+    enabled: boolean
+    channel: MessageChannel
+    template_id: string | null
+    offset_minutes: number
+    send_at_time: string | null
+  }
+) {
+  const { error } = await supabase
+    .from("message_automations")
+    .upsert({ ...input, clinic_id: clinicId }, { onConflict: "clinic_id,type" })
+  if (error) throw error
+}

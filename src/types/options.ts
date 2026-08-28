@@ -16,3 +16,8 @@ export type ProcedureOption = Pick<
 >
 
 export type SpecialtyOption = Pick<Database["public"]["Tables"]["specialties"]["Row"], "id" | "name">
+
+export type PatientOption = Pick<
+  Database["public"]["Tables"]["patients"]["Row"],
+  "id" | "full_name" | "social_name"
+>
