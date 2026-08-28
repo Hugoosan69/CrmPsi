@@ -8,6 +8,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import {
   fetchWahaQrDataUri,
   getWahaConfig,
+  requestWahaPairingCode,
   logoutWahaSession,
   saveWahaConfig,
   startWahaSession,
@@ -122,4 +123,51 @@ export async function refreshWahaQrAction(): Promise<{ dataUri: string | null }>
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
   return { dataUri: await fetchWahaQrDataUri(config) }
+}
+
+/**
+ * Código de pareamento, alternativa ao QR.
+ *
+ * Dispara uma notificação real no WhatsApp do número informado, então exige o número
+ * explicitamente em vez de deduzir de algum cadastro — mandar um pedido de vínculo para o
+ * telefone errado é constrangedor e não tem desfazer.
+ */
+export async function requestPairingCodeAction(
+  _prev: WahaActionState & { code?: string },
+  formData: FormData
+): Promise<WahaActionState & { code?: string }> {
+  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const phone = String(formData.get("phone") ?? "").trim()
+
+  if (phone.replace(/\D/g, "").length < 10) {
+    return { error: "Informe o número com DDD, ex.: (61) 99869-4211" }
+  }
+
+  const supabase = await createClient()
+  const config = await getWahaConfig(supabase, membership.clinicId)
+  if (!config.baseUrl) return { error: "Configure e salve o servidor WAHA antes." }
+
+  try {
+    const code = await requestWahaPairingCode(config, phone)
+
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "settings.integration_update",
+      entityType: "clinic_settings",
+      entityId: membership.clinicId,
+      // O código não entra na trilha — ele vincula um aparelho.
+      after: { integration: "waha", action: "pairing_code_requested" },
+    })
+
+    return { code, success: "Código gerado. Digite-o no WhatsApp em até alguns minutos." }
+  } catch (err) {
+    console.error("requestPairingCodeAction failed", err)
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Não foi possível gerar o código. A sessão precisa estar aguardando pareamento.",
+    }
+  }
 }

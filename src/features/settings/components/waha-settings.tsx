@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState, useEffect, useState, useTransition } from "react"
-import { RefreshCw, Smartphone } from "lucide-react"
+import { KeyRound, QrCode, RefreshCw, Smartphone } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -11,10 +11,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { StatusDot } from "@/components/shared/status-dot"
+import { cn } from "@/lib/utils"
 import type { WahaStatus } from "@/services/waha.service"
 import {
   logoutWahaAction,
   refreshWahaQrAction,
+  requestPairingCodeAction,
   saveWahaAction,
   startWahaAction,
   type WahaActionState,
@@ -53,6 +55,10 @@ export function WahaSettings({
   const [isWorking, startWork] = useTransition()
   const [qr, setQr] = useState(initialQr)
   const [isRefreshing, startRefresh] = useTransition()
+  // Dois caminhos para o mesmo pareamento. O código evita apontar a câmera para a tela, o
+  // que é justamente o caso quando o celular da clínica está na mão de quem está no sistema.
+  const [mode, setMode] = useState<"qr" | "code">("qr")
+  const [codeState, codeAction, isRequestingCode] = useActionState(requestPairingCodeAction, {})
 
   const waitingQr = status.status === "SCAN_QR_CODE"
   const info = status.status ? STATUS_TEXT[status.status] : null
@@ -112,11 +118,42 @@ export function WahaSettings({
           <div className="grid justify-items-center gap-3 rounded-xl border border-border bg-muted/40 p-5">
             <p className="text-[0.85rem] font-medium">Leia com o WhatsApp da clínica</p>
             <p className="-mt-1 max-w-sm text-center text-[0.78rem] text-muted-foreground">
-              No celular: Configurações → Aparelhos conectados → Conectar um aparelho.
+              Escolha ler o QR code ou receber um código para digitar no WhatsApp.
             </p>
+            <div className="inline-flex rounded-lg border border-border bg-card p-0.5" role="group">
+              <button
+                type="button"
+                onClick={() => setMode("qr")}
+                aria-pressed={mode === "qr"}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[0.8rem] font-medium transition-colors",
+                  mode === "qr"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <QrCode className="size-3.5" />
+                QR code
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("code")}
+                aria-pressed={mode === "code"}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[0.8rem] font-medium transition-colors",
+                  mode === "code"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <KeyRound className="size-3.5" />
+                Código
+              </button>
+            </div>
+
             {/* next/image não serve para um data URI que muda a cada segundos e não deve
                 ser otimizado nem cacheado. */}
-            {qr ? (
+            {mode === "qr" && (qr ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={qr}
@@ -129,7 +166,50 @@ export function WahaSettings({
                 <br />
                 Aguarde alguns segundos.
               </div>
+            ))}
+
+            {mode === "code" && (
+              <form action={codeAction} className="grid w-full max-w-sm justify-items-center gap-3">
+                <div className="grid w-full gap-1.5">
+                  <Label htmlFor="waha-phone">Número da clínica</Label>
+                  <Input
+                    id="waha-phone"
+                    name="phone"
+                    placeholder="(61) 99869-4211"
+                    inputMode="tel"
+                    autoComplete="off"
+                  />
+                  <p className="text-[0.72rem] text-muted-foreground">
+                    Com DDD. O código chega no WhatsApp deste número.
+                  </p>
+                </div>
+
+                <Button type="submit" variant="outline" size="sm" disabled={isRequestingCode}>
+                  {isRequestingCode ? "Gerando..." : "Gerar código"}
+                </Button>
+
+                {codeState.code && (
+                  <div className="grid w-full justify-items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-4">
+                    <p className="text-[0.72rem] text-muted-foreground uppercase">Seu código</p>
+                    <p className="font-mono text-2xl font-bold tracking-[0.2em] select-all">
+                      {codeState.code}
+                    </p>
+                    <p className="mt-1 text-center text-[0.75rem] text-muted-foreground">
+                      No celular: Aparelhos conectados → Conectar um aparelho → Conectar com
+                      número de telefone.
+                    </p>
+                  </div>
+                )}
+
+                {codeState.error && (
+                  <p className="text-center text-[0.82rem] text-destructive" role="alert">
+                    {codeState.error}
+                  </p>
+                )}
+              </form>
             )}
+
+            {mode === "qr" && (
             <Button
               variant="outline"
               size="sm"
@@ -145,6 +225,7 @@ export function WahaSettings({
               <RefreshCw className="size-3.5" />
               {isRefreshing ? "Buscando..." : "Atualizar QR"}
             </Button>
+            )}
           </div>
         )}
 

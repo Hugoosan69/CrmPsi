@@ -255,3 +255,64 @@ export async function sendWahaText(config: WahaConfig, phone: string, text: stri
   if (!response.ok) throw new Error(`WAHA ${response.status}: ${body.slice(0, 300)}`)
   return body
 }
+
+/**
+ * Normaliza um telefone para o formato internacional que o WhatsApp espera: só dígitos, com
+ * DDI, sem símbolos. Um número brasileiro digitado como "(61) 99869-4211" precisa virar
+ * "5561998694211".
+ */
+export function toInternational(phone: string): string {
+  const digits = phone.replace(/\D/g, "")
+  // 10 (fixo) ou 11 (celular) dígitos = número nacional sem DDI.
+  return digits.length <= 11 ? `55${digits}` : digits
+}
+
+/**
+ * Pede o código de pareamento, alternativa ao QR.
+ *
+ * Com `method` ausente o WAHA faz o "web pairing": devolve um código curto que a pessoa
+ * digita no próprio WhatsApp (Aparelhos conectados › Conectar com número de telefone). É
+ * mais prático que o QR quando o celular está na mão de quem está mexendo no sistema — não
+ * exige apontar a câmera para outra tela.
+ *
+ * O formato da resposta NÃO está documentado no OpenAPI da instância, e não foi verificado
+ * contra o servidor porque pedir um código dispara uma notificação real no WhatsApp do
+ * número informado. Por isso a leitura aceita as formas plausíveis em vez de assumir uma:
+ * se vier algo inesperado, o texto cru é devolvido para a tela mostrar em vez de falhar.
+ */
+export async function requestWahaPairingCode(
+  config: WahaConfig,
+  phone: string
+): Promise<string> {
+  const response = await fetch(
+    `${config.baseUrl}/api/${encodeURIComponent(config.session)}/auth/request-code`,
+    {
+      method: "POST",
+      headers: headers(config),
+      // `method` omitido de propósito: preenchê-lo com sms/voice pede o código de
+      // REGISTRO de uma conta nova, que é outro fluxo — aqui a conta já existe e só está
+      // sendo vinculada a este aparelho.
+      body: JSON.stringify({ phoneNumber: toInternational(phone) }),
+      signal: AbortSignal.timeout(20_000),
+    }
+  )
+
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(`WAHA ${response.status}: ${text.slice(0, 300)}`)
+  }
+
+  try {
+    const data = JSON.parse(text) as Record<string, unknown>
+    const code =
+      data.code ??
+      (data.data as Record<string, unknown> | undefined)?.code ??
+      data.pairingCode ??
+      data.value
+    if (typeof code === "string" && code) return code
+  } catch {
+    // Resposta em texto puro: devolvida como veio.
+  }
+
+  return text.trim().slice(0, 40)
+}
