@@ -8,17 +8,21 @@ import { isSupabaseConfigured, supabaseEnv } from "@/lib/supabase/env"
 const PUBLIC_PATHS = ["/login", "/recuperar-senha", "/redefinir-senha"]
 
 /**
- * `@supabase/ssr`'s createServerClient and createBrowserClient both default to
- * `flowType: 'pkce'` (see node_modules/@supabase/ssr/dist/main/createServerClient.js and createBrowserClient.js). That means a
- * password-recovery link does NOT land with the token in a URL fragment (the older
- * "implicit" flow) — it lands with a real `?code=` query parameter, because GoTrue's /verify
- * redirect encodes a PKCE code differently once a code_challenge was registered for the
- * request. A query parameter reaches the server, unlike a fragment, but it is not carried
- * automatically through a redirect: the root page's `redirect("/dashboard")` and this
- * proxy's own "no session yet" bounce to /login both construct a fresh URL and drop
- * whatever query string the incoming request had. So a `code` sitting on the wrong path
- * (wherever Supabase's Site URL happens to point when redirectTo isn't allow-listed) is
- * silently destroyed before any page runs.
+ * Supabase can return a recovery callback in either of two shapes, and which one depends on
+ * the project's own configuration, not on what this app requests:
+ *
+ *   - implicit: `#access_token=…&type=recovery` — a fragment, never sent to the server.
+ *     This is what the CSIB project actually sends today, verified against a real email.
+ *   - PKCE: `?code=…` — a real query parameter, which does reach the server.
+ *
+ * The fragment is handled entirely in the browser by /redefinir-senha, which reads it
+ * directly (see new-password-form.tsx for why the automatic path cannot be used).
+ *
+ * The `?code=` case is what this function exists for. A query parameter survives to the
+ * server but is NOT carried through a redirect: the root page's `redirect("/dashboard")`
+ * and this proxy's own "no session yet" bounce to /login both construct a fresh URL and
+ * drop the incoming query string. So a `code` landing on the wrong path — wherever Site URL
+ * points when redirectTo isn't allow-listed — would be destroyed before any page ran.
  *
  * This app has no other feature that produces a `?code=` parameter (no OAuth, no magic
  * link) — email/password and this recovery flow are the only auth paths — so a `code` on

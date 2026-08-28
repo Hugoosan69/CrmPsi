@@ -7,19 +7,28 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { PasswordField } from "@/components/ui/password-field"
-import { createClient } from "@/lib/supabase/client"
+import { createAuthCallbackClient, createClient } from "@/lib/supabase/client"
 import { newPasswordSchema } from "@/schemas/auth.schema"
 
 type Phase = "checking" | "ready" | "invalid" | "done"
 
 /**
- * Recovery has to be handled in the browser.
+ * Recovery has to be handled in the browser, and the URL has to be read by hand.
  *
- * Supabase's recovery link returns the operator with the token in the URL *fragment*
- * (`#access_token=…&type=recovery`), and a fragment is never sent to the server — a Server
- * Component literally cannot see it. The browser client consumes the fragment on load
- * (detectSessionInUrl) and writes the session to cookies; only then is `updateUser` allowed
- * to set a new password.
+ * Two separate reasons, both learned the hard way:
+ *
+ * 1. The token arrives in the URL *fragment* (`#access_token=…&type=recovery`), which is
+ *    never sent to the server — a Server Component literally cannot see it.
+ *
+ * 2. The automatic path (`detectSessionInUrl`) does NOT work here. `createBrowserClient`
+ *    defaults to `flowType: 'pkce'`, and GoTrueClient throws "Not a valid PKCE flow url."
+ *    the moment a PKCE-configured client meets an implicit-grant fragment. The error is
+ *    swallowed internally, so the only symptom is `getSession()` returning null and this
+ *    screen reporting a perfectly valid link as expired.
+ *
+ * Which shape Supabase sends — `#access_token=…` (implicit) or `?code=…` (PKCE) — is a
+ * property of the project's configuration, not of what this client requests. So both are
+ * handled explicitly instead of betting on one.
  */
 export function NewPasswordForm() {
   const router = useRouter()
@@ -28,23 +37,52 @@ export function NewPasswordForm() {
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
-    const supabase = createClient()
+    let cancelled = false
+    const supabase = createAuthCallbackClient()
 
-    // onAuthStateChange fires PASSWORD_RECOVERY once the fragment has been parsed, which is
-    // more reliable than racing getSession() against that parsing.
-    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) setPhase("ready")
-      else if (event === "INITIAL_SESSION") setPhase("invalid")
+    async function consumeCallback() {
+      const hash = new URLSearchParams(window.location.hash.slice(1))
+      const query = new URLSearchParams(window.location.search)
+
+      // An expired or already-used link comes back as an error instead of a token.
+      if (hash.get("error") || query.get("error")) return false
+
+      const accessToken = hash.get("access_token")
+      const refreshToken = hash.get("refresh_token")
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+        return !error
+      }
+
+      const code = query.get("code")
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        return !error
+      }
+
+      // No callback in the URL — but the session may already be established, which is what
+      // happens when this effect re-runs (React Strict Mode does so in development) after a
+      // previous pass consumed and cleared the token.
+      const { data } = await supabase.auth.getSession()
+      return Boolean(data.session)
+    }
+
+    void consumeCallback().then((ok) => {
+      if (cancelled) return
+      setPhase(ok ? "ready" : "invalid")
+      if (ok) {
+        // Clear the credential out of the address bar once it has been exchanged: it stays
+        // in history, gets copied with the URL and leaks through the referrer otherwise.
+        window.history.replaceState(null, "", window.location.pathname)
+      }
     })
 
-    // Fallback for the case where the event already fired before this effect ran.
-    void supabase.auth.getSession().then(({ data }) => {
-      setPhase((current) =>
-        current === "checking" ? (data.session ? "ready" : "invalid") : current
-      )
-    })
-
-    return () => subscription.subscription.unsubscribe()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   function submit(formData: FormData) {
