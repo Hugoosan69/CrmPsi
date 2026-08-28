@@ -12,12 +12,14 @@ import { getProfessionalByUserId, listProfessionals } from "@/services/professio
 import { listProcedures } from "@/services/procedures.service"
 import {
   listAvailabilityIfAvailable,
+  listRoomsIfAvailable,
   listScheduleExceptionsIfAvailable,
 } from "@/services/availability.service"
 import { AppointmentsList } from "@/features/scheduling/components/appointments-list"
 import { AgendaViewNav } from "@/features/scheduling/components/agenda-view-nav"
 import { parseView, type AgendaView } from "@/config/agenda"
 import { WeekCalendar } from "@/features/scheduling/components/agenda-calendar"
+import { OwnAvailabilityPanel } from "@/features/scheduling/components/own-availability-panel"
 import { addDays, startOfWeek, todaySaoPauloDate } from "@/utils/datetime"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
@@ -25,7 +27,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 
 /** The professional's own week is the useful default — a single day of one person's
  *  agenda is what the fila already shows better. */
-const VIEWS: AgendaView[] = ["semana", "lista"]
+const VIEWS: AgendaView[] = ["semana", "lista", "horarios"]
 
 export default async function ProfissionalAgendaPage({
   searchParams,
@@ -55,7 +57,7 @@ export default async function ProfissionalAgendaPage({
     )
   }
 
-  const [rawAppointments, professionals, procedures, rules, exceptions] = await Promise.all([
+  const [rawAppointments, professionals, procedures, rules, rooms, exceptions] = await Promise.all([
     view === "semana"
       ? listAppointmentsForRange(
           supabase,
@@ -70,6 +72,7 @@ export default async function ProfissionalAgendaPage({
     listProfessionals(supabase, membership.clinicId),
     listProcedures(supabase, membership.clinicId),
     listAvailabilityIfAvailable(supabase, membership.clinicId, professional.id),
+    listRoomsIfAvailable(supabase, membership.clinicId),
     listScheduleExceptionsIfAvailable(supabase, membership.clinicId, {
       from: view === "semana" ? weekStart : date,
       to: view === "semana" ? addDays(weekStart, 6) : date,
@@ -93,7 +96,9 @@ export default async function ProfissionalAgendaPage({
 
       <AgendaViewNav view={view} date={date} views={VIEWS} />
 
-      {view === "semana" ? (
+      {view === "horarios" ? (
+        <OwnAvailabilityPanel rules={rules} rooms={rooms} />
+      ) : view === "semana" ? (
         <WeekCalendar
           weekStart={weekStart}
           today={today}

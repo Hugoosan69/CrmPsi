@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 import type { Database, ScheduleExceptionKind, SlotProblem } from "@/types/supabase"
 import { pendingMigrationFor } from "@/lib/db-errors"
@@ -290,4 +291,67 @@ export async function getOccupancy(
       rate: available > 0 ? booked / available : null,
     }
   })
+}
+
+/**
+ * Cria um horário conferindo, no próprio SQL, que a ficha pertence à clínica indicada.
+ *
+ * A RLS de `professional_availability` exige `settings.manage` para escrita, que é a
+ * permissão de configurar a clínica inteira — dar isso a um profissional só para ele
+ * definir os próprios dias seria conceder junto o poder de mexer em salas, procedimentos e
+ * nos horários dos colegas. Por isso a escrita aqui usa service role, e a verificação de que
+ * a linha é dele acontece na camada de aplicação, explicitamente.
+ */
+export async function createOwnAvailability(
+  clinicId: string,
+  professionalId: string,
+  input: {
+    weekday: number
+    start_time: string
+    end_time: string
+    slot_minutes: number
+    room_id: string | null
+  }
+) {
+  const admin = createAdminClient()
+
+  // Reconfirma o dono antes de gravar: `professionalId` chega da sessão, mas confiar nele
+  // sem checar deixaria a porta aberta caso alguma chamada futura o receba de outro lugar.
+  const { data: owned, error: ownError } = await admin
+    .from("professionals")
+    .select("id")
+    .eq("id", professionalId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle()
+  if (ownError) throw ownError
+  if (!owned) throw new Error("Ficha de profissional não encontrada nesta clínica.")
+
+  const { data, error } = await admin
+    .from("professional_availability")
+    .insert({ ...input, professional_id: professionalId, clinic_id: clinicId })
+    .select("id")
+    .single()
+  if (error) throw error
+  return data.id
+}
+
+/** Remove um horário apenas se ele for do profissional indicado — o filtro por
+ *  professional_id é o que impede apagar o horário de um colega passando outro id. */
+export async function deleteOwnAvailability(
+  clinicId: string,
+  professionalId: string,
+  id: string
+) {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("professional_availability")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", clinicId)
+    .eq("professional_id", professionalId)
+    .select("id")
+  if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error("Horário não encontrado, ou não pertence a você.")
+  }
 }

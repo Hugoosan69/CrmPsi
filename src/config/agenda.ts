@@ -80,7 +80,9 @@ export function isVacatedStatus(status: AppointmentStatus) {
 }
 
 /** Which calendar an agenda screen is showing. */
-export type AgendaView = "lista" | "dia" | "semana"
+// "horarios" não é uma visualização do calendário e sim a configuração dos próprios
+// dias de atendimento — fica no mesmo seletor porque é onde o profissional procura.
+export type AgendaView = "lista" | "dia" | "semana" | "horarios"
 
 /**
  * Narrows an arbitrary `?vista=` value to a view the screen actually offers.

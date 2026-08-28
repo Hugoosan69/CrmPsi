@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { CalendarDays, Columns3, List } from "lucide-react"
+import { CalendarDays, Clock, Columns3, List } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,7 @@ const VIEW_META: Record<AgendaView, { label: string; icon: typeof List }> = {
   lista: { label: "Lista", icon: List },
   dia: { label: "Dia", icon: Columns3 },
   semana: { label: "Semana", icon: CalendarDays },
+  horarios: { label: "Meus horários", icon: Clock },
 }
 
 /**
