@@ -14,6 +14,7 @@ import type { ClinicMember } from "@/services/users.service"
 import { setMembershipActiveAction } from "../actions/user.actions"
 import { MemberRoleSelect } from "./member-role-select"
 import { SendResetButton } from "./send-reset-button"
+import { EditUserDialog } from "./edit-user-dialog"
 
 type Role = Pick<Database["public"]["Tables"]["roles"]["Row"], "id" | "name">
 
@@ -49,7 +50,8 @@ export function UsersTable({ members, roles }: { members: ClinicMember[]; roles:
             <TableCell>
               <MemberRoleSelect membershipId={member.membershipId} roleId={member.roleId} roles={roles} />
             </TableCell>
-            <TableCell className="text-right">
+            <TableCell className="text-right whitespace-nowrap">
+              <EditUserDialog member={member} roles={roles} />
               {/* Only for members who can still sign in — a recovery link is useless to a
                   deactivated account, which the session layer refuses regardless. */}
               {member.active && (

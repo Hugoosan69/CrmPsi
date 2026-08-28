@@ -5,12 +5,13 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
-import { inviteUserSchema } from "@/schemas/user.schema"
+import { createUserSchema, updateUserSchema } from "@/schemas/user.schema"
 import {
   createStaffUser,
   getMemberEmailForClinic,
   sendPasswordResetEmail,
   setMembershipActive,
+  updateMemberProfile,
   updateMembershipRole,
 } from "@/services/users.service"
 import { resetRedirectUrl } from "@/lib/auth/password-reset"
@@ -30,7 +31,16 @@ export async function inviteUserAction(
 ): Promise<UserActionState> {
   const membership = await requirePermission(PERMISSIONS.USERS_MANAGE)
 
-  const parsed = inviteUserSchema.safeParse(Object.fromEntries(formData))
+  const parsed = createUserSchema.safeParse({
+    full_name: formData.get("full_name"),
+    email: formData.get("email"),
+    role_id: formData.get("role_id"),
+    access_mode: formData.get("access_mode") ?? "invite",
+    password: formData.get("password") ?? undefined,
+    is_professional: formData.get("is_professional") === "on",
+    professional_register: formData.get("professional_register") ?? "",
+    specialty_id: formData.get("specialty_id") ?? "",
+  })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
   }
@@ -40,6 +50,14 @@ export async function inviteUserAction(
       fullName: parsed.data.full_name,
       email: parsed.data.email,
       roleId: parsed.data.role_id,
+      accessMode: parsed.data.access_mode,
+      password: parsed.data.password,
+      professional: parsed.data.is_professional
+        ? {
+            register: parsed.data.professional_register || null,
+            specialtyId: parsed.data.specialty_id || null,
+          }
+        : null,
     })
 
     await recordAudit({
@@ -48,14 +66,67 @@ export async function inviteUserAction(
       action: "user.invite",
       entityType: "clinic_membership",
       entityId: newUserId,
-      after: { email: parsed.data.email, role_id: parsed.data.role_id },
+      // A senha nunca entra na trilha, só o modo escolhido.
+      after: {
+        email: parsed.data.email,
+        role_id: parsed.data.role_id,
+        access_mode: parsed.data.access_mode,
+        professional: parsed.data.is_professional,
+      },
     })
   } catch (err) {
     console.error("inviteUserAction failed", err)
-    return { error: "Não foi possível convidar este usuário. Verifique se o e-mail já está em uso." }
+    return { error: "Não foi possível criar este usuário. Verifique se o e-mail já está em uso." }
   }
 
   revalidatePath("/gestao/usuarios")
+  revalidatePath("/gestao/profissionais")
+  return { success: true }
+}
+
+/**
+ * Edição pela gestão. Existia só a troca de papel na tabela — nome e telefone só davam para
+ * mudar pelo próprio dono em Meu perfil, o que deixa a gestão sem como corrigir um cadastro
+ * errado sem pedir para a pessoa entrar.
+ */
+export async function updateUserAction(
+  membershipId: string,
+  _prev: UserActionState,
+  formData: FormData
+): Promise<UserActionState> {
+  const membership = await requirePermission(PERMISSIONS.USERS_MANAGE)
+
+  const parsed = updateUserSchema.safeParse({
+    full_name: formData.get("full_name"),
+    role_id: formData.get("role_id"),
+    phone: formData.get("phone") ?? "",
+  })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
+  }
+
+  try {
+    await updateMemberProfile(membership.clinicId, membershipId, {
+      fullName: parsed.data.full_name,
+      roleId: parsed.data.role_id,
+      phone: parsed.data.phone || null,
+    })
+
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "user.update",
+      entityType: "clinic_membership",
+      entityId: membershipId,
+      after: parsed.data,
+    })
+  } catch (err) {
+    console.error("updateUserAction failed", err)
+    return { error: "Não foi possível salvar as alterações." }
+  }
+
+  revalidatePath("/gestao/usuarios")
+  revalidatePath("/gestao/profissionais")
   return { success: true }
 }
 

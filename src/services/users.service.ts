@@ -75,19 +75,41 @@ export type CreateStaffUserInput = {
  * profiles/clinic_memberships writes for a new user aren't something the acting admin's
  * own RLS-scoped session can do for someone who isn't a member yet.
  */
-export async function createStaffUser(clinicId: string, input: CreateStaffUserInput) {
+export async function createStaffUser(
+  clinicId: string,
+  input: CreateStaffUserInput & {
+    /** "invite" manda o link por e-mail; "password" já define a senha e libera o acesso. */
+    accessMode?: "invite" | "password"
+    password?: string
+    professional?: { register: string | null; specialtyId: string | null } | null
+  }
+) {
   const admin = createAdminClient()
 
-  const { data: created, error: createError } = await admin.auth.admin.inviteUserByEmail(
-    input.email,
-    { data: { full_name: input.fullName } }
-  )
-  if (createError || !created.user) {
-    throw createError ?? new Error("Falha ao convidar usuário")
+  // Os dois caminhos existem porque dependem de coisas diferentes: o convite depende do SMTP
+  // do projeto estar entregando, e quando não está a pessoa fica sem acesso nenhum e sem
+  // sinal de erro. Definir a senha na hora não depende de e-mail.
+  let userId: string
+  if (input.accessMode === "password") {
+    if (!input.password) throw new Error("Senha obrigatória para este modo de acesso.")
+    const { data, error } = await admin.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true, // sem isto o login é recusado com "Email not confirmed"
+      user_metadata: { full_name: input.fullName },
+    })
+    if (error || !data.user) throw error ?? new Error("Falha ao criar usuário")
+    userId = data.user.id
+  } else {
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(input.email, {
+      data: { full_name: input.fullName },
+    })
+    if (error || !data.user) throw error ?? new Error("Falha ao convidar usuário")
+    userId = data.user.id
   }
 
   const { error: profileError } = await admin.from("profiles").upsert({
-    id: created.user.id,
+    id: userId,
     full_name: input.fullName,
     email: input.email,
   })
@@ -95,12 +117,86 @@ export async function createStaffUser(clinicId: string, input: CreateStaffUserIn
 
   const { error: membershipError } = await admin.from("clinic_memberships").insert({
     clinic_id: clinicId,
-    user_id: created.user.id,
+    user_id: userId,
     role_id: input.roleId,
   })
   if (membershipError) throw membershipError
 
-  return created.user.id
+  // Ficha de profissional criada JÁ vinculada ao login. Antes as duas coisas eram cadastros
+  // separados: dava para ter um usuário com papel "profissional" que não existia em
+  // `professionals`, e portanto não tinha fila, agenda nem horários — o vínculo era manual
+  // e ninguém era obrigado a fazê-lo.
+  if (input.professional) {
+    const { error: profError } = await admin.from("professionals").insert({
+      clinic_id: clinicId,
+      user_id: userId,
+      full_name: input.fullName,
+      email: input.email,
+      professional_register: input.professional.register,
+      specialty_id: input.professional.specialtyId,
+    })
+    if (profError) throw profError
+  }
+
+  return userId
+}
+
+/**
+ * Vincula uma ficha de profissional já existente a um login, ou cria a ficha se não houver.
+ * Usado quando o profissional foi cadastrado antes de ter acesso ao sistema.
+ */
+export async function linkProfessionalToUser(
+  supabase: DB,
+  clinicId: string,
+  professionalId: string,
+  userId: string | null
+) {
+  const { error } = await supabase
+    .from("professionals")
+    .update({ user_id: userId })
+    .eq("id", professionalId)
+    .eq("clinic_id", clinicId)
+  if (error) throw error
+}
+
+export async function updateMemberProfile(
+  clinicId: string,
+  membershipId: string,
+  input: { fullName: string; roleId: string; phone: string | null }
+) {
+  const admin = createAdminClient()
+
+  const { data: membership, error: readError } = await admin
+    .from("clinic_memberships")
+    .select("user_id")
+    .eq("id", membershipId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!membership) throw new Error("Usuário não encontrado nesta clínica.")
+
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({ full_name: input.fullName, phone: input.phone })
+    .eq("id", membership.user_id)
+  if (profileError) throw profileError
+
+  const { error: roleError } = await admin
+    .from("clinic_memberships")
+    .update({ role_id: input.roleId })
+    .eq("id", membershipId)
+    .eq("clinic_id", clinicId)
+  if (roleError) throw roleError
+
+  // O nome aparece na agenda e na fila pela ficha de profissional, não pelo profile, então
+  // sem isto a pessoa ficaria com dois nomes diferentes dependendo da tela.
+  await admin
+    .from("professionals")
+    .update({ full_name: input.fullName })
+    .eq("user_id", membership.user_id)
+    .eq("clinic_id", clinicId)
+
+  return membership.user_id
 }
 
 export async function updateMembershipRole(supabase: DB, membershipId: string, roleId: string) {

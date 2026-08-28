@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     // Separate design/handoff project with its own package.json and tsconfig —
     // kept in-tree as reference material, not compiled or linted by the CSIB app.
     "crm-psi/**",
+    // Git worktrees criados por agentes em background. Cada um tem seu próprio .next,
+    // e o ".next/**" acima só casa na raiz — sem esta linha o build de um worktree
+    // adiciona ~18 mil avisos ao lint deste projeto e o torna inútil.
+    ".claude/**",
   ]),
 ]);
 
