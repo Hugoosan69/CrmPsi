@@ -7,6 +7,7 @@ import type { Database, ScheduleExceptionKind, SlotProblem } from "@/types/supab
 import { pendingMigrationFor } from "@/lib/db-errors"
 import type { AvailabilityRule, Room, ScheduleException } from "@/config/agenda"
 import { CLINIC_UTC_OFFSET } from "@/utils/datetime"
+import { fetchPage } from "@/lib/paginated-query"
 
 type DB = SupabaseClient<Database>
 
@@ -16,13 +17,22 @@ export type { AvailabilityRule, Room, ScheduleException } from "@/config/agenda"
 // Rooms
 // ---------------------------------------------------------------------------
 
-export async function listRooms(supabase: DB, clinicId: string, opts: { activeOnly?: boolean } = {}) {
-  let query = supabase.from("rooms").select("*").eq("clinic_id", clinicId).order("name")
-  if (opts.activeOnly) query = query.eq("active", true)
-
-  const { data, error } = await query
-  if (error) throw error
-  return data
+export async function listRooms(
+  supabase: DB,
+  clinicId: string,
+  opts: { activeOnly?: boolean; offset?: number; rangeEnd?: number } = {}
+) {
+  // Recorte só quando pedido: esta função também alimenta o seletor de salas da aba de
+  // horários, que precisa de todas.
+  return fetchPage(() => {
+    let query = supabase
+      .from("rooms")
+      .select("*", { count: "exact" })
+      .eq("clinic_id", clinicId)
+      .order("name")
+    if (opts.activeOnly) query = query.eq("active", true)
+    return query
+  }, opts)
 }
 
 /**
@@ -33,7 +43,7 @@ export async function listRooms(supabase: DB, clinicId: string, opts: { activeOn
  */
 export async function listRoomsIfAvailable(supabase: DB, clinicId: string): Promise<Room[]> {
   try {
-    return await listRooms(supabase, clinicId, { activeOnly: true })
+    return (await listRooms(supabase, clinicId, { activeOnly: true })).rows
   } catch (err) {
     if (pendingMigrationFor(err)) return []
     throw err
@@ -118,11 +128,13 @@ export async function listScheduleExceptionsIfAvailable(
   try {
     // The window is a clinic-local date range; compare against timestamptz with the
     // clinic offset made explicit, as everywhere else.
-    return await listScheduleExceptions(supabase, clinicId, {
-      ...opts,
-      from: opts.from ? `${opts.from}T00:00:00${CLINIC_UTC_OFFSET}` : undefined,
-      to: opts.to ? `${opts.to}T23:59:59.999${CLINIC_UTC_OFFSET}` : undefined,
-    })
+    return (
+      await listScheduleExceptions(supabase, clinicId, {
+        ...opts,
+        from: opts.from ? `${opts.from}T00:00:00${CLINIC_UTC_OFFSET}` : undefined,
+        to: opts.to ? `${opts.to}T23:59:59.999${CLINIC_UTC_OFFSET}` : undefined,
+      })
+    ).rows
   } catch (err) {
     if (pendingMigrationFor(err)) return []
     throw err
@@ -168,21 +180,29 @@ export async function deleteAvailability(supabase: DB, clinicId: string, id: str
 export async function listScheduleExceptions(
   supabase: DB,
   clinicId: string,
-  opts: { from?: string; to?: string; professionalId?: string } = {}
+  opts: {
+    from?: string
+    to?: string
+    professionalId?: string
+    offset?: number
+    rangeEnd?: number
+  } = {}
 ) {
-  let query = supabase
-    .from("schedule_exceptions")
-    .select("*")
-    .eq("clinic_id", clinicId)
-    .order("starts_at", { ascending: false })
+  // Recorte só quando pedido. Esta função também é a fonte da checagem de conflito de
+  // agenda: um recorte padrão faria a checagem ignorar bloqueios fora da primeira página e
+  // aceitar agendamento em cima de férias — falha silenciosa e cara.
+  return fetchPage(() => {
+    let query = supabase
+      .from("schedule_exceptions")
+      .select("*", { count: "exact" })
+      .eq("clinic_id", clinicId)
+      .order("starts_at", { ascending: false })
 
-  if (opts.from) query = query.gte("ends_at", opts.from)
-  if (opts.to) query = query.lte("starts_at", opts.to)
-  if (opts.professionalId) query = query.eq("professional_id", opts.professionalId)
-
-  const { data, error } = await query
-  if (error) throw error
-  return data
+    if (opts.from) query = query.gte("ends_at", opts.from)
+    if (opts.to) query = query.lte("starts_at", opts.to)
+    if (opts.professionalId) query = query.eq("professional_id", opts.professionalId)
+    return query
+  }, opts)
 }
 
 export async function createScheduleException(

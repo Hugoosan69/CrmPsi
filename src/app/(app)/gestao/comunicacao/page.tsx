@@ -9,7 +9,9 @@ import {
 import { listPatients } from "@/services/patients.service"
 import { TriangleAlert } from "lucide-react"
 
+import { parsePagination } from "@/config/pagination"
 import { PageHeader } from "@/components/shared/page-header"
+import { PaginationBar } from "@/components/shared/pagination-bar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MessageTemplatesTable } from "@/features/communication/components/message-templates-table"
 import { CreateMessageTemplateDialog } from "@/features/communication/components/create-message-template-dialog"
@@ -17,17 +19,33 @@ import { CampaignForm } from "@/features/communication/components/campaign-form"
 import { CampaignsTable } from "@/features/communication/components/campaigns-table"
 import { AutomationsPanel } from "@/features/communication/components/automations-panel"
 
-export default async function ComunicacaoPage() {
+export default async function ComunicacaoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pagina?: string; por?: string }>
+}) {
   const membership = await requirePermission(PERMISSIONS.COMMUNICATION_MANAGE)
   const supabase = await createClient()
+
+  const { pagina, por } = await searchParams
+  const { page, pageSize, offset, rangeEnd } = parsePagination({ page: pagina, pageSize: por })
 
   // Campanhas e automações vêm de migrations/007; se ela ainda não rodou, a tela mostra o
   // que existe em vez de quebrar inteira — a aba de modelos continua útil sozinha.
   const [templates, campaigns, automations, patients] = await Promise.all([
     listMessageTemplates(supabase, membership.clinicId),
-    listCampaigns(supabase, membership.clinicId).catch(() => []),
+    listCampaigns(supabase, membership.clinicId, { offset, rangeEnd }).catch(() => ({
+      rows: [],
+      total: 0,
+    })),
     listAutomations(supabase, membership.clinicId).catch(() => []),
-    listPatients(supabase, membership.clinicId).catch(() => []),
+    // O seletor de público precisa da lista inteira, não de uma página: quem monta uma
+    // campanha para "um paciente só" tem de encontrar qualquer um deles. Antes vinha
+    // cortada em 50 sem avisar, o que tornava metade do cadastro inalcançável aqui.
+    listPatients(supabase, membership.clinicId, { rangeEnd: 4999 }).catch(() => ({
+      rows: [],
+      total: 0,
+    })),
   ])
 
   return (
@@ -59,14 +77,14 @@ export default async function ComunicacaoPage() {
       <Tabs defaultValue="nova">
         <TabsList>
           <TabsTrigger value="nova">Nova campanha</TabsTrigger>
-          <TabsTrigger value="campanhas">Campanhas ({campaigns.length})</TabsTrigger>
+          <TabsTrigger value="campanhas">Campanhas ({campaigns.total})</TabsTrigger>
           <TabsTrigger value="automacoes">Automações</TabsTrigger>
           <TabsTrigger value="modelos">Modelos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="nova" className="mt-5">
           <CampaignForm
-            patients={patients.map((p) => ({
+            patients={patients.rows.map((p) => ({
               id: p.id,
               full_name: p.full_name,
               social_name: p.social_name,
@@ -75,7 +93,15 @@ export default async function ComunicacaoPage() {
         </TabsContent>
 
         <TabsContent value="campanhas" className="mt-5">
-          <CampaignsTable campaigns={campaigns} />
+          <div className="grid gap-3">
+            <CampaignsTable campaigns={campaigns.rows} />
+            <PaginationBar
+              total={campaigns.total}
+              page={page}
+              pageSize={pageSize}
+              label="campanhas"
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="automacoes" className="mt-5">

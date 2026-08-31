@@ -16,7 +16,9 @@ export default async function PermissionsPage({
   const { usuario } = await searchParams
   const supabase = await createClient()
 
-  const members = await listClinicMembers(supabase, membership.clinicId)
+  // Sem paginar: aqui a lista de membros é o SELETOR de quem terá as permissões editadas,
+  // não a lista principal da tela. Paginar o seletor esconderia pessoas de quem procura uma.
+  const { rows: members } = await listClinicMembers(supabase, membership.clinicId)
 
   // A seleção vive na URL, então a tela é linkável e sobrevive a um refresh. Um id que não
   // pertence a esta clínica é ignorado em vez de consultado — a lista de membros já está

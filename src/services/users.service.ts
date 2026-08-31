@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/types/supabase"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { fetchPage } from "@/lib/paginated-query"
 
 type DB = SupabaseClient<Database>
 
@@ -28,13 +29,24 @@ export async function listRoles(supabase: DB, clinicId: string) {
   return data
 }
 
-export async function listClinicMembers(supabase: DB, clinicId: string): Promise<ClinicMember[]> {
-  const { data: memberships, error } = await supabase
-    .from("clinic_memberships")
-    .select("id, user_id, role_id, active")
-    .eq("clinic_id", clinicId)
-  if (error) throw error
-  if (!memberships || memberships.length === 0) return []
+export async function listClinicMembers(
+  supabase: DB,
+  clinicId: string,
+  opts: { offset?: number; rangeEnd?: number } = {}
+): Promise<{ rows: ClinicMember[]; total: number }> {
+  // Ordenado por criação para a paginação ser estável: sem ordem explícita o Postgres pode
+  // devolver as linhas em ordens diferentes entre uma página e outra, e um mesmo usuário
+  // apareceria duas vezes ou nenhuma.
+  const { rows: memberships, total } = await fetchPage(
+    () =>
+      supabase
+        .from("clinic_memberships")
+        .select("id, user_id, role_id, active", { count: "exact" })
+        .eq("clinic_id", clinicId)
+        .order("created_at", { ascending: true }),
+    opts
+  )
+  if (memberships.length === 0) return { rows: [], total }
 
   const userIds = memberships.map((m) => m.user_id)
   const roleIds = [...new Set(memberships.map((m) => m.role_id))]
@@ -47,7 +59,7 @@ export async function listClinicMembers(supabase: DB, clinicId: string): Promise
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]))
   const roleById = new Map((roles ?? []).map((r) => [r.id, r]))
 
-  return memberships.map((m) => {
+  const rows = memberships.map((m) => {
     const profile = profileById.get(m.user_id)
     const role = roleById.get(m.role_id)
     return {
@@ -61,6 +73,8 @@ export async function listClinicMembers(supabase: DB, clinicId: string): Promise
       active: m.active,
     }
   })
+
+  return { rows, total }
 }
 
 export type CreateStaffUserInput = {

@@ -9,6 +9,7 @@ import {
   type N8nIntegration,
 } from "./clinic-settings.service"
 import { getWahaConfig, sendWahaText, type WahaConfig } from "./waha.service"
+import { fetchPage } from "@/lib/paginated-query"
 
 type DB = SupabaseClient<Database>
 
@@ -160,6 +161,13 @@ function contactFor(
   return patient.email
 }
 
+/**
+ * Modelos de mensagem, todos.
+ *
+ * Sem paginar de propósito: além de virarem tabela na tela de comunicação, são o seletor do
+ * painel de automações e do envio avulso na ficha do paciente. Uma clínica tem dezenas, não
+ * milhares — paginar aqui esconderia opções de quem está escolhendo uma.
+ */
 export async function listMessageTemplates(supabase: DB, clinicId: string) {
   const { data, error } = await supabase
     .from("message_templates")
@@ -305,16 +313,24 @@ export type Campaign = {
   created_at: string
 }
 
-export async function listCampaigns(supabase: DB, clinicId: string): Promise<Campaign[]> {
-  const { data, error } = await supabase
-    .from("message_campaigns")
-    .select(
-      "id, name, channel, subject, body_template, audience, patient_id, scheduled_for, status, recipients_count, sent_count, failed_count, created_at"
-    )
-    .eq("clinic_id", clinicId)
-    .order("created_at", { ascending: false })
-  if (error) throw error
-  return (data ?? []) as Campaign[]
+export async function listCampaigns(
+  supabase: DB,
+  clinicId: string,
+  opts: { offset?: number; rangeEnd?: number } = {}
+): Promise<{ rows: Campaign[]; total: number }> {
+  const { rows, total } = await fetchPage(
+    () =>
+      supabase
+        .from("message_campaigns")
+        .select(
+          "id, name, channel, subject, body_template, audience, patient_id, scheduled_for, status, recipients_count, sent_count, failed_count, created_at",
+          { count: "exact" }
+        )
+        .eq("clinic_id", clinicId)
+        .order("created_at", { ascending: false }),
+    opts
+  )
+  return { rows: rows as Campaign[], total }
 }
 
 export async function createCampaign(

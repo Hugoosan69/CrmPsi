@@ -63,8 +63,11 @@ export async function globalSearchAction(rawQuery: string): Promise<SearchResult
 
   const [patients, professionals, procedures] = await Promise.all([
     canSeePatients
-      ? listPatients(supabase, membership.clinicId, { search: query }).catch(() => [])
-      : Promise.resolve([]),
+      ? // A paleta mostra seis; buscar mais seria trabalho jogado fora a cada tecla.
+        listPatients(supabase, membership.clinicId, { search: query, rangeEnd: 5 }).catch(
+          () => ({ rows: [], total: 0 })
+        )
+      : Promise.resolve({ rows: [], total: 0 }),
     listProfessionals(supabase, membership.clinicId).catch(() => []),
     canManageCatalog
       ? listProcedures(supabase, membership.clinicId).catch(() => [])
@@ -85,7 +88,7 @@ export async function globalSearchAction(rawQuery: string): Promise<SearchResult
   )
 
   return {
-    patients: patients.slice(0, 6).map((p) => ({
+    patients: patients.rows.map((p) => ({
       id: p.id,
       label: p.social_name || p.full_name,
       detail: [p.cpf, p.phone].filter(Boolean).join(" · ") || null,

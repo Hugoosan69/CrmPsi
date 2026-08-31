@@ -18,8 +18,13 @@ export async function searchPatientsAction(query: string) {
   if (!query || query.trim().length < 2) return []
 
   const supabase = await createClient()
-  const patients = await listPatients(supabase, membership.clinicId, { search: query })
-  return patients.map((p) => ({
+  // Vinte é o teto de um seletor: quem digitou duas letras vai refinar a busca, não rolar
+  // uma lista. Explícito aqui em vez de herdado de um limite escondido no serviço.
+  const patients = await listPatients(supabase, membership.clinicId, {
+    search: query,
+    rangeEnd: 19,
+  })
+  return patients.rows.map((p) => ({
     id: p.id,
     label: p.social_name || p.full_name,
     detail: [p.cpf, p.phone].filter(Boolean).join(" · "),

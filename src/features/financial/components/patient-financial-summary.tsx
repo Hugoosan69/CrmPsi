@@ -13,9 +13,17 @@ export async function PatientFinancialSummary({
 }) {
   const supabase = await createClient()
   const [transactions, paymentMethods] = await Promise.all([
+    // Histórico de um paciente só, inteiro: é o que a ficha promete mostrar, e o volume é
+    // naturalmente limitado pelo número de atendimentos de uma pessoa.
     listTransactions(supabase, clinicId, { patientId }),
     listPaymentMethods(supabase, clinicId),
   ])
 
-  return <TransactionsTable transactions={transactions} paymentMethods={paymentMethods} canManage={canManage} />
+  return (
+    <TransactionsTable
+      transactions={transactions.rows}
+      paymentMethods={paymentMethods}
+      canManage={canManage}
+    />
+  )
 }

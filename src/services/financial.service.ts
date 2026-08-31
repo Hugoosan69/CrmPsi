@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, FinancialTransactionStatus, FinancialTransactionType } from "@/types/supabase"
+import { fetchPage } from "@/lib/paginated-query"
 
 type DB = SupabaseClient<Database>
 
@@ -31,24 +32,42 @@ export type TransactionView = Database["public"]["Tables"]["financial_transactio
   patientName: string | null
 }
 
+/**
+ * Página de lançamentos, com o total.
+ *
+ * O teto de 200 registros de antes escondia o histórico: a clínica com um ano de movimento
+ * via a lista parar num ponto arbitrário, e um relatório informal de "quanto entrou" saía
+ * errado sem nada indicar que faltava linha.
+ */
 export async function listTransactions(
   supabase: DB,
   clinicId: string,
-  opts: { type?: FinancialTransactionType; status?: FinancialTransactionStatus; patientId?: string } = {}
-): Promise<TransactionView[]> {
-  let query = supabase
-    .from("financial_transactions")
-    .select("*")
-    .eq("clinic_id", clinicId)
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false })
+  opts: {
+    type?: FinancialTransactionType
+    status?: FinancialTransactionStatus
+    /** Vários status de uma vez — "contas pendentes" é pendente OU atrasado. */
+    statuses?: FinancialTransactionStatus[]
+    patientId?: string
+    offset?: number
+    rangeEnd?: number
+  } = {}
+): Promise<{ rows: TransactionView[]; total: number }> {
+  const construir = () => {
+    let query = supabase
+      .from("financial_transactions")
+      .select("*", { count: "exact" })
+      .eq("clinic_id", clinicId)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false })
 
-  if (opts.type) query = query.eq("type", opts.type)
-  if (opts.status) query = query.eq("status", opts.status)
-  if (opts.patientId) query = query.eq("patient_id", opts.patientId)
+    if (opts.type) query = query.eq("type", opts.type)
+    if (opts.status) query = query.eq("status", opts.status)
+    if (opts.statuses?.length) query = query.in("status", opts.statuses)
+    if (opts.patientId) query = query.eq("patient_id", opts.patientId)
+    return query
+  }
 
-  const { data, error } = await query.limit(200)
-  if (error) throw error
+  const { rows: data, total } = await fetchPage(construir, opts)
 
   const patientIds = [...new Set((data ?? []).map((t) => t.patient_id).filter(Boolean))] as string[]
   const patientById = new Map<string, string>()
@@ -60,7 +79,13 @@ export async function listTransactions(
     for (const p of patients ?? []) patientById.set(p.id, p.social_name || p.full_name)
   }
 
-  return (data ?? []).map((t) => ({ ...t, patientName: t.patient_id ? patientById.get(t.patient_id) ?? null : null }))
+  return {
+    rows: (data ?? []).map((t) => ({
+      ...t,
+      patientName: t.patient_id ? patientById.get(t.patient_id) ?? null : null,
+    })),
+    total,
+  }
 }
 
 export async function getTransactionByAppointment(supabase: DB, clinicId: string, appointmentId: string) {
@@ -143,4 +168,32 @@ export async function registerPayment(
       .eq("id", input.transactionId)
     if (statusError) throw statusError
   }
+}
+
+/**
+ * Só a contagem, sem trazer linha alguma.
+ *
+ * Alimenta o número na aba "Contas pendentes", que precisa refletir o total e não a página
+ * aberta — quem vê "Contas pendentes (25)" com 25 por página não aprendeu nada. `head: true`
+ * faz o PostgREST devolver a contagem no cabeçalho e nenhum corpo.
+ */
+export async function countTransactions(
+  supabase: DB,
+  clinicId: string,
+  opts: {
+    type?: FinancialTransactionType
+    statuses?: FinancialTransactionStatus[]
+  } = {}
+): Promise<number> {
+  let query = supabase
+    .from("financial_transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("clinic_id", clinicId)
+
+  if (opts.type) query = query.eq("type", opts.type)
+  if (opts.statuses?.length) query = query.in("status", opts.statuses)
+
+  const { count, error } = await query
+  if (error) throw error
+  return count ?? 0
 }

@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/types/supabase"
+import { fetchPage } from "@/lib/paginated-query"
 
 type DB = SupabaseClient<Database>
 
@@ -19,32 +20,52 @@ export type PatientInput = {
   notes?: string | null
 }
 
+/**
+ * Página de pacientes, com o total para a barra de navegação.
+ *
+ * Antes devolvia no máximo 50 linhas, sem dizer que havia mais. A recepção que buscasse por
+ * um sobrenome comum via a lista parar no meio do alfabeto e não tinha como saber se o
+ * paciente não existia ou só não tinha cabido. `count: "exact"` custa uma contagem no banco,
+ * e é ela que permite dizer "26–50 de 812" em vez de mentir por omissão.
+ */
 export async function listPatients(
   supabase: DB,
   clinicId: string,
-  opts: { search?: string; activeOnly?: boolean } = {}
-) {
-  let query = supabase
-    .from("patients")
-    .select("*")
-    .eq("clinic_id", clinicId)
-    .order("full_name")
+  opts: {
+    search?: string
+    activeOnly?: boolean
+    offset?: number
+    rangeEnd?: number
+  } = {}
+): Promise<{ rows: Database["public"]["Tables"]["patients"]["Row"][]; total: number }> {
+  // Função, não consulta pronta: o construtor do supabase-js muta a si mesmo, então guardar
+  // "a versão sem faixa" numa variável não guarda nada. Ver lib/paginated-query.
+  const construir = () => {
+    let query = supabase
+      .from("patients")
+      .select("*", { count: "exact" })
+      .eq("clinic_id", clinicId)
+      .order("full_name")
 
-  if (opts.activeOnly ?? true) {
-    query = query.eq("active", true)
+    if (opts.activeOnly ?? true) {
+      query = query.eq("active", true)
+    }
+
+    const search = opts.search?.trim()
+    if (search) {
+      const digits = search.replace(/\D/g, "")
+      const orFilters = [
+        `full_name.ilike.%${search}%`,
+        `phone.ilike.%${search}%`,
+        `whatsapp.ilike.%${search}%`,
+      ]
+      if (digits) orFilters.push(`cpf.ilike.%${digits}%`)
+      query = query.or(orFilters.join(","))
+    }
+    return query
   }
 
-  const search = opts.search?.trim()
-  if (search) {
-    const digits = search.replace(/\D/g, "")
-    const orFilters = [`full_name.ilike.%${search}%`, `phone.ilike.%${search}%`, `whatsapp.ilike.%${search}%`]
-    if (digits) orFilters.push(`cpf.ilike.%${digits}%`)
-    query = query.or(orFilters.join(","))
-  }
-
-  const { data, error } = await query.limit(50)
-  if (error) throw error
-  return data
+  return fetchPage(construir, opts)
 }
 
 export async function getPatient(supabase: DB, clinicId: string, patientId: string) {

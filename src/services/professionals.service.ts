@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/types/supabase"
+import { fetchPage } from "@/lib/paginated-query"
 
 type DB = SupabaseClient<Database>
 
@@ -35,6 +36,26 @@ export async function getProfessionalByUserId(supabase: DB, clinicId: string, us
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+/** Uma página da equipe, com o total. A função sem sufixo continua servindo os seletores. */
+export async function listProfessionalsPage(
+  supabase: DB,
+  clinicId: string,
+  opts: { offset?: number; rangeEnd?: number } = {}
+): Promise<{
+  rows: Database["public"]["Tables"]["professionals"]["Row"][]
+  total: number
+}> {
+  return fetchPage(
+    () =>
+      supabase
+        .from("professionals")
+        .select("*", { count: "exact" })
+        .eq("clinic_id", clinicId)
+        .order("full_name"),
+    opts
+  )
 }
 
 export async function listProfessionals(supabase: DB, clinicId: string) {
@@ -94,15 +115,19 @@ export type Specialty = {
  */
 export async function listAllSpecialties(
   supabase: DB,
-  clinicId: string
-): Promise<Specialty[]> {
-  const { data, error } = await supabase
-    .from("specialties")
-    .select("id, name, description, active")
-    .eq("clinic_id", clinicId)
-    .order("name")
-  if (error) throw error
-  return data as Specialty[]
+  clinicId: string,
+  opts: { offset?: number; rangeEnd?: number } = {}
+): Promise<{ rows: Specialty[]; total: number }> {
+  const { rows, total } = await fetchPage(
+    () =>
+      supabase
+        .from("specialties")
+        .select("id, name, description, active", { count: "exact" })
+        .eq("clinic_id", clinicId)
+        .order("name"),
+    opts
+  )
+  return { rows: rows as Specialty[], total }
 }
 
 export async function createSpecialty(

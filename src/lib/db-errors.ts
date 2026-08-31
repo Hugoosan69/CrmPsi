@@ -141,3 +141,16 @@ export async function withDbError<T>(fn: () => Promise<T>): Promise<T> {
     throw new Error(describeDbError(err))
   }
 }
+
+/**
+ * "Pedi a página 99, mas só existem 7."
+ *
+ * O PostgREST responde 416/PGRST103 quando o deslocamento passa do fim da tabela, e isso é
+ * alcançável sem ninguém mexer na URL: basta estar na última página e alguém apagar o
+ * registro que a sustentava. Sem tratamento, a lista inteira quebra em vez de mostrar que a
+ * página deixou de existir.
+ */
+export function isRangeOverflow(err: unknown): boolean {
+  const e = asPostgrestError(err)
+  return typeof e?.code === "string" && e.code === "PGRST103"
+}
