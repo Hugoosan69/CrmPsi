@@ -405,10 +405,17 @@ export async function listPendingCalls(
     // Um aviso vale só para a chamada que o precedeu. Comparar em vez de limpar as colunas
     // faz um paciente rechamado voltar a aparecer como não avisado por qualquer caminho que
     // ponha a entrada em `called`, inclusive um que não passe por callQueueEntry.
+    //
+    // Comparação por instante, não por texto. Os dois carimbos chegam em formatos
+    // diferentes — o PostgREST devolve `+00:00` e `new Date().toISOString()` grava `Z` — e
+    // comparar as strings dá resultado errado sempre que os fusos diferem: uma chamada em
+    // `2026-09-01T01:00:00+03:00` é anterior a um aviso em `2026-08-31T22:30:00Z`, mas
+    // alfabeticamente parece posterior.
     const avisado =
       entry.call_acknowledged_at !== null &&
       entry.called_at !== null &&
-      entry.call_acknowledged_at >= entry.called_at
+      new Date(entry.call_acknowledged_at).getTime() >=
+        new Date(entry.called_at).getTime()
 
     return {
       id: entry.id,
