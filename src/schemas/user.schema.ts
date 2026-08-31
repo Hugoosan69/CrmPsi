@@ -44,6 +44,24 @@ export const linkProfessionalSchema = z.object({
   existing_professional_id: z.string().uuid().optional().or(z.literal("")),
 })
 
+/**
+ * Login criado para uma ficha de profissional que já existe.
+ *
+ * Não pede nome: ele vem da ficha, e deixar digitar de novo abriria espaço para o login e o
+ * cadastro clínico divergirem em quem é a mesma pessoa.
+ */
+export const createUserForProfessionalSchema = z
+  .object({
+    email: z.string().trim().email("E-mail inválido"),
+    role_id: z.string().uuid("Selecione um papel"),
+    access_mode: z.enum(["invite", "password"]),
+    password: z.string().optional(),
+  })
+  .refine((v) => v.access_mode !== "password" || (v.password?.length ?? 0) >= 8, {
+    message: "A senha precisa ter ao menos 8 caracteres",
+    path: ["password"],
+  })
+
 export type UpdateUserInput = z.infer<typeof updateUserSchema>
 
 // Nome antigo mantido enquanto houver import remanescente.

@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { hasPermission, requireMembership } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
-import { NAV_SECTIONS } from "@/config/navigation"
+import { NAV_SECTIONS, navItemVisible } from "@/config/navigation"
 import { listPatients } from "@/services/patients.service"
 import { listProfessionals } from "@/services/professionals.service"
 import { listProcedures } from "@/services/procedures.service"
@@ -74,7 +74,7 @@ export async function globalSearchAction(rawQuery: string): Promise<SearchResult
   // Screens the user can actually reach, so the palette doubles as navigation.
   const pages: SearchHit[] = NAV_SECTIONS.flatMap((section) =>
     section.items
-      .filter((item) => item.permission === null || hasPermission(membership, item.permission))
+      .filter((item) => navItemVisible(item, (slug) => hasPermission(membership, slug)))
       .filter((item) => matches(item.label, needle) || matches(section.title, needle))
       .map((item) => ({
         id: item.href,

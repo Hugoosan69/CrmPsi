@@ -1,5 +1,4 @@
 import {
-  CalendarCog,
   CalendarDays,
   LayoutDashboard,
   ListOrdered,
@@ -25,7 +24,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/recepcao/financeiro": Wallet,
   "/profissional/agenda": CalendarDays,
   "/profissional/fila": ListOrdered,
-  "/gestao/agenda": CalendarCog,
   "/gestao/financeiro": Wallet,
   "/gestao/profissionais": UsersRound,
   "/gestao/comunicacao": MessageSquare,

@@ -376,3 +376,87 @@ export async function listLinkedProfessionalUserIds(supabase: DB, clinicId: stri
   if (error) throw error
   return new Set((data ?? []).map((r) => r.user_id as string))
 }
+
+/**
+ * Cria o login de alguém que já tem ficha de profissional.
+ *
+ * O caminho inverso — criar o usuário e a ficha na mesma ação — já existia em
+ * `createStaffUser`. Este faltava, e é o mais comum na prática: a clínica cadastra o
+ * profissional para poder agendar com ele no mesmo dia, e o acesso ao sistema vem depois,
+ * quando ele precisa abrir prontuário. Sem isto era preciso ir a Gestão › Usuários, criar
+ * um usuário do zero e depois vincular a ficha — três telas para uma coisa só, com o risco
+ * de acabar com cadastro duplicado.
+ *
+ * A ficha é reaproveitada, nunca recriada: é ela que carrega agenda, fila, horários e
+ * histórico de atendimento.
+ */
+export async function createUserForProfessional(
+  clinicId: string,
+  professionalId: string,
+  input: {
+    email: string
+    roleId: string
+    accessMode: "invite" | "password"
+    password?: string
+  }
+) {
+  const admin = createAdminClient()
+
+  // Lida antes de tocar em auth: o nome do login vem da ficha, e uma ficha de outra clínica
+  // ou já vinculada precisa parar aqui, não depois de o usuário existir.
+  const { data: professional, error: readError } = await admin
+    .from("professionals")
+    .select("id, full_name, user_id")
+    .eq("id", professionalId)
+    .eq("clinic_id", clinicId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!professional) throw new Error("Profissional não encontrado nesta clínica.")
+  if (professional.user_id) {
+    throw new Error("Este profissional já tem acesso ao sistema.")
+  }
+
+  let userId: string
+  if (input.accessMode === "password") {
+    if (!input.password) throw new Error("Senha obrigatória para este modo de acesso.")
+    const { data, error } = await admin.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true, // sem isto o login é recusado com "Email not confirmed"
+      user_metadata: { full_name: professional.full_name },
+    })
+    if (error || !data.user) throw error ?? new Error("Falha ao criar usuário")
+    userId = data.user.id
+  } else {
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(input.email, {
+      data: { full_name: professional.full_name },
+    })
+    if (error || !data.user) throw error ?? new Error("Falha ao convidar usuário")
+    userId = data.user.id
+  }
+
+  const { error: profileError } = await admin.from("profiles").upsert({
+    id: userId,
+    full_name: professional.full_name,
+    email: input.email,
+  })
+  if (profileError) throw profileError
+
+  const { error: membershipError } = await admin.from("clinic_memberships").insert({
+    clinic_id: clinicId,
+    user_id: userId,
+    role_id: input.roleId,
+  })
+  if (membershipError) throw membershipError
+
+  // O vínculo é o ponto de toda a operação. Se ele falhar, o que sobra é um usuário sem
+  // ficha e uma ficha sem usuário — exatamente o estado que este fluxo existe para evitar.
+  const { error: linkError } = await admin
+    .from("professionals")
+    .update({ user_id: userId, email: input.email })
+    .eq("id", professionalId)
+    .eq("clinic_id", clinicId)
+  if (linkError) throw linkError
+
+  return userId
+}

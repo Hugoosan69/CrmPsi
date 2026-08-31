@@ -2,7 +2,7 @@ import { requireMembership, hasPermission } from "@/lib/auth/session"
 import { isSupabaseConfigured } from "@/lib/supabase/env"
 import { ConfigurationRequired } from "@/components/shared/configuration-required"
 import { AppShell } from "@/components/layout/app-shell"
-import { NAV_SECTIONS } from "@/config/navigation"
+import { NAV_SECTIONS, navItemVisible } from "@/config/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getPublicBranding } from "@/services/clinic-settings.service"
 
@@ -21,8 +21,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const sections = NAV_SECTIONS.map((section) => ({
     title: section.title,
-    items: section.items.filter(
-      (item) => item.permission === null || hasPermission(membership, item.permission)
+    items: section.items.filter((item) =>
+      navItemVisible(item, (slug) => hasPermission(membership, slug))
     ),
   }))
 

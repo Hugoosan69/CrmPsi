@@ -10,8 +10,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import type { Database } from "@/types/supabase"
+import type { RoleOption } from "@/types/options"
 import { setProfessionalActiveAction } from "../actions/professional.actions"
 import { EditProfessionalDialog } from "./edit-professional-dialog"
+import { CreateUserForProfessionalDialog } from "./create-user-for-professional-dialog"
 
 type Professional = Database["public"]["Tables"]["professionals"]["Row"]
 type Specialty = Pick<Database["public"]["Tables"]["specialties"]["Row"], "id" | "name">
@@ -19,9 +21,18 @@ type Specialty = Pick<Database["public"]["Tables"]["specialties"]["Row"], "id" |
 export function ProfessionalsTable({
   professionals,
   specialties,
+  roles,
+  canManageUsers,
 }: {
   professionals: Professional[]
   specialties: Specialty[]
+  roles: RoleOption[]
+  /**
+   * Criar login é `users.manage`, não `professionals.manage`. Cuidar da equipe clínica não
+   * é o mesmo que decidir quem entra no sistema — quem só tem esta tela vê a coluna de
+   * acesso, para saber quem já entra, mas não o botão. A Server Action confere de novo.
+   */
+  canManageUsers: boolean
 }) {
   const specialtyName = new Map(specialties.map((s) => [s.id, s.name]))
 
@@ -39,6 +50,7 @@ export function ProfessionalsTable({
           <TableHead>Especialidade</TableHead>
           <TableHead>Registro</TableHead>
           <TableHead>Contato</TableHead>
+          <TableHead>Acesso</TableHead>
           <TableHead className="w-1" />
         </TableRow>
       </TableHeader>
@@ -59,6 +71,15 @@ export function ProfessionalsTable({
             </TableCell>
             <TableCell>{professional.professional_register || "—"}</TableCell>
             <TableCell>{professional.phone || professional.email || "—"}</TableCell>
+            <TableCell>
+              {professional.user_id ? (
+                <Badge variant="secondary">Tem login</Badge>
+              ) : canManageUsers ? (
+                <CreateUserForProfessionalDialog professional={professional} roles={roles} />
+              ) : (
+                <span className="text-muted-foreground">Sem login</span>
+              )}
+            </TableCell>
             <TableCell className="flex justify-end gap-1 text-right">
               <EditProfessionalDialog professional={professional} specialties={specialties} />
               <ToggleActiveButton

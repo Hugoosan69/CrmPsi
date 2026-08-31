@@ -29,7 +29,7 @@ export async function listRooms(supabase: DB, clinicId: string, opts: { activeOn
  * Rooms for screens where they are an optional enhancement (the agenda form) rather than
  * the subject. Returns an empty list when migrations/002 has not been applied yet, so the
  * room field simply doesn't appear instead of taking the agenda down — the dashboard and
- * /gestao/agenda are where the pending migration is reported.
+ * Gestão > Profissionais are where the pending migration is reported.
  */
 export async function listRoomsIfAvailable(supabase: DB, clinicId: string): Promise<Room[]> {
   try {
@@ -94,7 +94,7 @@ export async function listAvailability(supabase: DB, clinicId: string, professio
 /**
  * Availability and blocks for the calendar views, where they are background context. Same
  * tolerance as listRoomsIfAvailable: before migrations/002 the calendar draws without the
- * availability band instead of taking the agenda down. The dashboard and /gestao/agenda
+ * availability band instead of taking the agenda down. The dashboard and Gestão > Profissionais
  * are where the pending migration gets reported.
  */
 export async function listAvailabilityIfAvailable(

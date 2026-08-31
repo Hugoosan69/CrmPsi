@@ -123,3 +123,21 @@ export async function requirePermission(slug: string): Promise<CurrentMembership
   }
   return membership
 }
+
+/**
+ * Libera a tela para quem tiver QUALQUER uma das permissões — para páginas que reúnem
+ * assuntos de donos diferentes.
+ *
+ * O caso é a tela de profissionais, que passou a abrigar também a configuração da agenda:
+ * quem cuida da equipe tem `professionals.manage` e quem define horários tem
+ * `agenda.configure`, e exigir as duas tiraria acesso de quem tinha uma. Cada aba continua
+ * conferindo a sua, e as Server Actions por trás delas também — esta função só decide se a
+ * pessoa vê a página.
+ */
+export async function requireAnyPermission(slugs: string[]): Promise<CurrentMembership> {
+  const membership = await requireMembership()
+  if (!slugs.some((slug) => hasPermission(membership, slug))) {
+    redirect("/dashboard?error=forbidden")
+  }
+  return membership
+}

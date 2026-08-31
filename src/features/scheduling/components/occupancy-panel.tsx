@@ -80,7 +80,7 @@ export function OccupancyPanel({
             variant="outline"
             size="sm"
             className="mt-3"
-            render={<Link href="/gestao/agenda">Definir horários</Link>}
+            render={<Link href="/gestao/profissionais?aba=horarios">Definir horários</Link>}
           />
         </div>
       ) : (
@@ -146,7 +146,7 @@ export function OccupancyPanel({
               {unconfigured.map((r) => nameById.get(r.professionalId) ?? "—").join(", ")}
             </span>
             .{" "}
-            <Link href="/gestao/agenda" className="underline underline-offset-2 hover:text-foreground">
+            <Link href="/gestao/profissionais?aba=horarios" className="underline underline-offset-2 hover:text-foreground">
               Configurar
             </Link>
           </p>

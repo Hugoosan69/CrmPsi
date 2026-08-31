@@ -27,7 +27,7 @@ import { describeDbError } from "@/lib/db-errors"
 export type AvailabilityActionState = { error?: string; success?: boolean }
 
 function revalidateAgendaConfig() {
-  revalidatePath("/gestao/agenda")
+  revalidatePath("/gestao/profissionais")
   revalidatePath("/recepcao/agenda")
   revalidatePath("/profissional/agenda")
   revalidatePath("/dashboard")
@@ -250,7 +250,7 @@ export async function createOwnAvailabilityAction(
   }
 
   revalidatePath("/profissional/agenda")
-  revalidatePath("/gestao/agenda")
+  revalidatePath("/gestao/profissionais")
   return { success: true }
 }
 
@@ -268,5 +268,5 @@ export async function deleteOwnAvailabilityAction(id: string) {
   await deleteOwnAvailability(membership.clinicId, professional.id, id)
 
   revalidatePath("/profissional/agenda")
-  revalidatePath("/gestao/agenda")
+  revalidatePath("/gestao/profissionais")
 }

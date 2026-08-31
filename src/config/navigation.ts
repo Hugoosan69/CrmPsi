@@ -3,13 +3,37 @@ import { PERMISSIONS } from "./permissions"
 export type NavItem = {
   href: string
   label: string
-  /** null = visible to anyone with an active membership (e.g. "Painel"). */
-  permission: string | null
+  /**
+   * null = visible to anyone with an active membership (e.g. "Painel").
+   *
+   * Uma lista significa "qualquer uma destas serve", e existe porque Profissionais reúne
+   * dois assuntos: a equipe (`professionals.manage`) e a configuração da agenda dela
+   * (`agenda.configure`). Exigir só a primeira deixaria quem tem apenas a segunda sem
+   * nenhum caminho no menu — a tela existe para essa pessoa, com as abas dela.
+   */
+  permission: string | string[] | null
 }
 
 export type NavSection = {
   title: string
   items: NavItem[]
+}
+
+/**
+ * Um item aparece? Módulo neutro de propósito: recebe a consulta de permissão em vez de
+ * importar a sessão, para poder ser usado tanto pelo layout quanto pela busca.
+ *
+ * Existe centralizado porque estava duplicado nos dois lugares, e a duplicação já cobrou o
+ * preço: ao passar `permission` a aceitar lista, um dos dois filtros deixou de compilar e o
+ * outro teria continuado errado em silêncio se compilasse.
+ */
+export function navItemVisible(
+  item: NavItem,
+  has: (slug: string) => boolean
+): boolean {
+  if (item.permission === null) return true
+  const exigidas = Array.isArray(item.permission) ? item.permission : [item.permission]
+  return exigidas.some(has)
 }
 
 /**
@@ -42,8 +66,11 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Gestão",
     items: [
       { href: "/gestao/financeiro", label: "Financeiro", permission: PERMISSIONS.FINANCIAL_VIEW },
-      { href: "/gestao/agenda", label: "Configuração da agenda", permission: PERMISSIONS.AGENDA_CONFIGURE },
-      { href: "/gestao/profissionais", label: "Profissionais", permission: PERMISSIONS.PROFESSIONALS_MANAGE },
+      {
+        href: "/gestao/profissionais",
+        label: "Profissionais",
+        permission: [PERMISSIONS.PROFESSIONALS_MANAGE, PERMISSIONS.AGENDA_CONFIGURE],
+      },
       { href: "/gestao/comunicacao", label: "Comunicação", permission: PERMISSIONS.COMMUNICATION_MANAGE },
       { href: "/gestao/procedimentos", label: "Procedimentos", permission: PERMISSIONS.CATALOG_MANAGE },
       { href: "/gestao/usuarios", label: "Usuários", permission: PERMISSIONS.USERS_MANAGE },
