@@ -339,6 +339,10 @@ export interface Database {
           financial_transaction_id: string | null
           released_at: string | null
           released_by: string | null
+          /** migrations/011 — "avisei o paciente", compartilhado no balcão. Só vale para a
+           *  chamada em curso: compare com called_at. */
+          call_acknowledged_at: string | null
+          call_acknowledged_by: string | null
           created_at: string
           updated_at: string
         }

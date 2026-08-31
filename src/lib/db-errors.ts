@@ -76,6 +76,14 @@ const MIGRATION_SIGNATURES: { code: string; test: (message: string) => boolean; 
     test: (m) => m.includes("is_conversation_participant"),
     migration: "004_internal_comms.sql",
   },
+  {
+    // Coluna ausente (42703). O aviso de chamada roda em TODA tela do balcão; sem esta
+    // assinatura ele passaria a lançar erro no lugar de simplesmente não mostrar quem já
+    // avisou, e derrubaria o alerta inteiro só porque a migração não rodou ainda.
+    code: "42703",
+    test: (m) => m.includes("call_acknowledged"),
+    migration: "011_call_acknowledgement.sql",
+  },
 ]
 
 function asPostgrestError(err: unknown): MaybePostgrestError | null {

@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, FinancialTransactionStatus, QueueEntryType } from "@/types/supabase"
+import { pendingMigrationFor } from "@/lib/db-errors"
 
 type DB = SupabaseClient<Database>
 type QueueEntryRow = Database["public"]["Tables"]["queue_entries"]["Row"]
@@ -292,20 +293,64 @@ export type PendingCall = {
   professionalName: string | null
   roomName: string | null
   calledAt: string | null
+  /** Quem do balcão já avisou o paciente, se alguém avisou. */
+  acknowledgedBy: string | null
+  acknowledgedAt: string | null
+}
+
+type CalledEntry = {
+  id: string
+  patient_id: string
+  professional_id: string | null
+  appointment_id: string | null
+  called_at: string | null
+  call_acknowledged_at: string | null
+  call_acknowledged_by: string | null
+}
+
+const COLUNAS_BASE = "id, patient_id, professional_id, appointment_id, called_at"
+const COLUNAS_AVISO = "call_acknowledged_at, call_acknowledged_by"
+
+/**
+ * Lê as entradas chamadas, com ou sem as colunas de migrations/011.
+ *
+ * A segunda tentativa existe para o alerta não morrer entre o deploy do código e a aplicação
+ * da migração. Este aviso roda em toda tela do balcão e é o que faz o paciente ser chamado —
+ * derrubá-lo porque uma coluna de conveniência ainda não existe seria trocar o essencial
+ * pelo acessório. Sem as colunas, ninguém aparece como "já avisado", e é tudo que se perde.
+ */
+async function fetchCalledEntries(supabase: DB, clinicId: string): Promise<CalledEntry[]> {
+  const consulta = (colunas: string) =>
+    supabase
+      .from("queue_entries")
+      .select(colunas)
+      .eq("clinic_id", clinicId)
+      .eq("status", "called")
+      .order("called_at", { ascending: true })
+
+  const { data, error } = await consulta(`${COLUNAS_BASE}, ${COLUNAS_AVISO}`)
+  if (!error) return (data ?? []) as unknown as CalledEntry[]
+
+  if (pendingMigrationFor(error) !== "011_call_acknowledgement.sql") throw error
+
+  const { data: semAviso, error: erroBase } = await consulta(COLUNAS_BASE)
+  if (erroBase) throw erroBase
+  return ((semAviso ?? []) as unknown as Omit<
+    CalledEntry,
+    "call_acknowledged_at" | "call_acknowledged_by"
+  >[]).map((e) => ({
+    ...e,
+    call_acknowledged_at: null,
+    call_acknowledged_by: null,
+  }))
 }
 
 export async function listPendingCalls(
   supabase: DB,
   clinicId: string
 ): Promise<PendingCall[]> {
-  const { data: entries, error } = await supabase
-    .from("queue_entries")
-    .select("id, patient_id, professional_id, appointment_id, called_at")
-    .eq("clinic_id", clinicId)
-    .eq("status", "called")
-    .order("called_at", { ascending: true })
-  if (error) throw error
-  if (!entries || entries.length === 0) return []
+  const entries = await fetchCalledEntries(supabase, clinicId)
+  if (entries.length === 0) return []
 
   const patientIds = [...new Set(entries.map((e) => e.patient_id))]
   const professionalIds = [
@@ -315,7 +360,17 @@ export async function listPendingCalls(
     ...new Set(entries.map((e) => e.appointment_id).filter(Boolean)),
   ] as string[]
 
-  const [{ data: patients }, { data: professionals }, { data: appointments }] = await Promise.all([
+  // Quem avisou, para o cartão poder dizer "Ana já avisou" em vez de simplesmente sumir.
+  const acknowledgerIds = [
+    ...new Set(entries.map((e) => e.call_acknowledged_by).filter(Boolean)),
+  ] as string[]
+
+  const [
+    { data: patients },
+    { data: professionals },
+    { data: appointments },
+    { data: acknowledgers },
+  ] = await Promise.all([
     supabase.from("patients").select("id, full_name, social_name").in("id", patientIds),
     professionalIds.length > 0
       ? supabase.from("professionals").select("id, full_name").in("id", professionalIds)
@@ -323,6 +378,9 @@ export async function listPendingCalls(
     appointmentIds.length > 0
       ? supabase.from("appointments").select("id, room_id").in("id", appointmentIds)
       : Promise.resolve({ data: [] as { id: string; room_id: string | null }[] }),
+    acknowledgerIds.length > 0
+      ? supabase.from("profiles").select("id, full_name").in("id", acknowledgerIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
   ])
 
   const roomIds = [
@@ -338,10 +396,20 @@ export async function listPendingCalls(
     (appointments ?? []).map((a) => [a.id, a.room_id])
   )
   const roomNameById = new Map((rooms ?? []).map((r) => [r.id, r.name]))
+  const acknowledgerById = new Map((acknowledgers ?? []).map((p) => [p.id, p.full_name]))
 
   return entries.map((entry) => {
     const patient = patientById.get(entry.patient_id)
     const roomId = entry.appointment_id ? roomByAppointment.get(entry.appointment_id) : null
+
+    // Um aviso vale só para a chamada que o precedeu. Comparar em vez de limpar as colunas
+    // faz um paciente rechamado voltar a aparecer como não avisado por qualquer caminho que
+    // ponha a entrada em `called`, inclusive um que não passe por callQueueEntry.
+    const avisado =
+      entry.call_acknowledged_at !== null &&
+      entry.called_at !== null &&
+      entry.call_acknowledged_at >= entry.called_at
+
     return {
       id: entry.id,
       patientName: patient?.social_name || patient?.full_name || "—",
@@ -350,6 +418,43 @@ export async function listPendingCalls(
         : null,
       roomName: roomId ? roomNameById.get(roomId) ?? null : null,
       calledAt: entry.called_at,
+      acknowledgedAt: avisado ? entry.call_acknowledged_at : null,
+      acknowledgedBy: avisado
+        ? (entry.call_acknowledged_by
+            ? acknowledgerById.get(entry.call_acknowledged_by) ?? null
+            : null)
+        : null,
     }
   })
+}
+
+/**
+ * Marca que o balcão avisou o paciente.
+ *
+ * Compartilhado de propósito: era estado local do navegador, e com duas pessoas no balcão
+ * uma não via que a outra já tinha chamado o paciente — as duas iam avisar, ou nenhuma iria
+ * por supor que a outra foi.
+ *
+ * Só sobre uma entrada em `called`. Sem esse filtro, uma tela parada com o cartão aberto
+ * marcaria como avisada uma chamada que já terminou — ou, pior, a chamada seguinte da mesma
+ * pessoa, que ninguém avisou.
+ */
+export async function acknowledgeCall(
+  supabase: DB,
+  clinicId: string,
+  queueEntryId: string,
+  userId: string
+) {
+  const { error } = await supabase
+    .from("queue_entries")
+    .update({
+      call_acknowledged_at: new Date().toISOString(),
+      call_acknowledged_by: userId,
+    })
+    .eq("clinic_id", clinicId)
+    .eq("id", queueEntryId)
+    .eq("status", "called")
+  // Aqui o erro sobe: quem clicou precisa saber que não foi registrado. Diferente da
+  // leitura, onde o silêncio custa menos que derrubar o alerta.
+  if (error) throw error
 }

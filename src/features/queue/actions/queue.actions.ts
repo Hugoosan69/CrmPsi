@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
 import {
+  acknowledgeCall,
   addWalkInToQueue,
   cancelQueueEntry,
   callQueueEntry,
@@ -330,4 +331,27 @@ export async function transferQueueEntryAction(
   })
 
   revalidateQueue()
+}
+
+/**
+ * Registra que o balcão avisou o paciente — compartilhado entre quem está lá.
+ *
+ * Devolve estado em vez de lançar: um erro aqui aparece dentro do cartão, sem tirar da tela a
+ * chamada que ainda precisa ser atendida.
+ */
+export async function acknowledgeCallAction(
+  queueEntryId: string
+): Promise<{ error?: string }> {
+  const membership = await requirePermission(PERMISSIONS.QUEUE_MANAGE)
+  const supabase = await createClient()
+
+  try {
+    await acknowledgeCall(supabase, membership.clinicId, queueEntryId, membership.userId)
+  } catch (err) {
+    console.error("acknowledgeCallAction failed", err)
+    return { error: describeDbError(err) }
+  }
+
+  revalidateQueue()
+  return {}
 }

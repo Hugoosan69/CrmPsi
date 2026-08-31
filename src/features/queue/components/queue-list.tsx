@@ -80,11 +80,11 @@ export function QueueList({ paymentMethods }: { paymentMethods: PaymentMethod[] 
     )
   }
 
-  const chamados = data.filter((e) => e.status === "called")
-
   return (
     <div className="grid gap-6">
-      {chamados.length > 0 && <CallingNow entries={chamados} />}
+      {/* Busca as chamadas por conta própria, na mesma chave do avisador — e devolve null
+          quando não há nenhuma. */}
+      <CallingNow />
       {gateBoard}
       <QueueTable data={data} isPending={isPending} startTransition={startTransition} invalidate={invalidate} />
     </div>

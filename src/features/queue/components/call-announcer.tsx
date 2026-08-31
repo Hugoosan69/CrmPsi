@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { BellRing, Check, VolumeX } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { prepararToque, tocarChamada, toqueDisponivel } from "@/lib/call-chime"
-import { pendingCallsAction } from "../actions/queue.actions"
+import { acknowledgeCallAction, pendingCallsAction } from "../actions/queue.actions"
 
 /**
  * Avisa a recepção quando um profissional chama um paciente.
@@ -21,6 +21,10 @@ import { pendingCallsAction } from "../actions/queue.actions"
  * cartão no canto (o som pode estar bloqueado ou o volume baixo), notificação no sino
  * (registro que sobrevive a fechar o cartão) e destaque na fila (para quem chegar depois).
  *
+ * O "avisei o paciente" é gravado no banco, não no navegador: com duas pessoas no balcão, uma
+ * precisa ver que a outra já chamou o paciente — senão as duas vão avisar, ou nenhuma vai por
+ * supor que a outra foi.
+ *
  * Consulta em intervalo, não Realtime. Migração 004 publica as tabelas para replicação, mas
  * uma clínica com replicação desligada no projeto continuaria sem aviso nenhum — e este é
  * exatamente o recurso que não pode depender de configuração de infraestrutura. Cinco
@@ -29,6 +33,8 @@ import { pendingCallsAction } from "../actions/queue.actions"
 const INTERVALO_MS = 5000
 
 export function CallAnnouncer() {
+  const queryClient = useQueryClient()
+  const [, startTransition] = useTransition()
   const { data } = useQuery({
     queryKey: ["queue", "chamadas"],
     queryFn: () => pendingCallsAction(),
@@ -40,12 +46,32 @@ export function CallAnnouncer() {
   // Ids já anunciados. Guardados em ref porque a lista só existe para decidir se o som toca
   // — não deve provocar renderização, e um estado aqui causaria laço com o efeito.
   const anunciados = useRef<Set<string> | null>(null)
-  const [dispensados, setDispensados] = useState<string[]>([])
+  // Otimista: esconde o cartão no clique, sem esperar a próxima consulta. Quem manda é o
+  // banco; isto só cobre os segundos entre o clique e a resposta.
+  const [otimistas, setOtimistas] = useState<string[]>([])
+  const [erro, setErro] = useState<string | null>(null)
   const [semSom, setSemSom] = useState(false)
 
   useEffect(() => prepararToque(), [])
 
-  const chamadas = (data ?? []).filter((c) => !dispensados.includes(c.id))
+  const chamadas = (data ?? []).filter(
+    (c) => !c.acknowledgedAt && !otimistas.includes(c.id)
+  )
+
+  function avisei(id: string) {
+    setOtimistas((anteriores) => [...anteriores, id])
+    setErro(null)
+    startTransition(async () => {
+      const resultado = await acknowledgeCallAction(id)
+      if (resultado.error) {
+        // Falhou: o cartão volta, senão o paciente fica esperando sem ninguém saber.
+        setOtimistas((anteriores) => anteriores.filter((x) => x !== id))
+        setErro(resultado.error)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ["queue"] })
+    })
+  }
 
   useEffect(() => {
     const atuais = new Set((data ?? []).map((c) => c.id))
@@ -67,8 +93,9 @@ export function CallAnnouncer() {
 
     tocarChamada()
     setSemSom(!toqueDisponivel())
-    // Uma chamada nova reabre o cartão de quem tinha sido dispensado antes.
-    setDispensados((anteriores) => anteriores.filter((id) => atuais.has(id) && !novas.includes(id)))
+    // Ids que saíram da lista deixam de ser otimistas — o mesmo paciente chamado de novo
+    // precisa reaparecer.
+    setOtimistas((anteriores) => anteriores.filter((id) => atuais.has(id) && !novas.includes(id)))
   }, [data])
 
   if (chamadas.length === 0) return null
@@ -85,6 +112,12 @@ export function CallAnnouncer() {
         <div className="pointer-events-auto flex w-full items-center gap-2 rounded-lg border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-[0.72rem] text-status-warning">
           <VolumeX className="size-3.5 shrink-0" aria-hidden />
           <span>Som bloqueado pelo navegador. Clique em qualquer lugar para liberar.</span>
+        </div>
+      )}
+
+      {erro && (
+        <div className="pointer-events-auto flex w-full items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-[0.72rem] text-destructive">
+          {erro}
         </div>
       )}
 
@@ -131,7 +164,7 @@ export function CallAnnouncer() {
             <Button
               size="sm"
               className="h-7 px-2.5 text-[0.75rem]"
-              onClick={() => setDispensados((anteriores) => [...anteriores, chamada.id])}
+              onClick={() => avisei(chamada.id)}
             >
               <Check className="size-3.5" />
               Avisei o paciente
