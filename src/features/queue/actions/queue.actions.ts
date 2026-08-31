@@ -11,6 +11,7 @@ import {
   callQueueEntry,
   getQueueEntry,
   listActiveQueue,
+  listPendingCalls,
   releaseQueueEntryToQueue,
   transferQueueEntry,
 } from "@/services/queue.service"
@@ -21,7 +22,11 @@ import {
   getServiceSessionForQueueEntry,
 } from "@/services/service.service"
 import { recordAudit } from "@/services/audit.service"
-import { notify, profileIdsForProfessionals } from "@/services/notifications.service"
+import {
+  frontDeskProfileIds,
+  notify,
+  profileIdsForProfessionals,
+} from "@/services/notifications.service"
 import { getPatient } from "@/services/patients.service"
 import { describeDbError, withDbError } from "@/lib/db-errors"
 import type { QueueEntryType } from "@/types/supabase"
@@ -188,7 +193,58 @@ export async function callQueueEntryAction(queueEntryId: string) {
     entityId: queueEntryId,
   })
 
+  // Quem precisa saber é o balcão, que é quem fala com o paciente na sala de espera. O
+  // profissional aperta "chamar" no consultório e não tem como avisar ninguém dali.
+  //
+  // Endereçado por função e não por papel — ver frontDeskProfileIds. `exceptUserId` cobre o
+  // caso em que a própria recepção chamou o paciente pela tela da fila: aí ela já sabe, e um
+  // aviso sobre a própria ação só ensina a ignorar avisos.
+  try {
+    // Lido DEPOIS da chamada e pela mesma consulta que alimenta o aviso na tela, para que o
+    // texto da notificação e o do pop-up nunca contem histórias diferentes.
+    const [recipients, calls] = await Promise.all([
+      frontDeskProfileIds(supabase, membership.clinicId),
+      listPendingCalls(supabase, membership.clinicId),
+    ])
+    const call = calls.find((c) => c.id === queueEntryId)
+
+    const destino = call?.roomName
+      ? `Sala ${call.roomName}`
+      : call?.professionalName
+        ? call.professionalName
+        : "o atendimento"
+
+    await notify({
+      clinicId: membership.clinicId,
+      userIds: recipients,
+      exceptUserId: membership.userId,
+      kind: "queue",
+      title: `Chamar ${call?.patientName ?? "paciente"} na recepção`,
+      body: `Avise o paciente para se dirigir a ${destino}.`,
+      href: "/recepcao/fila",
+      entityType: "queue_entry",
+      entityId: queueEntryId,
+    })
+  } catch (err) {
+    // Um aviso não desfaz uma chamada que já aconteceu.
+    console.error("aviso de chamada falhou", err)
+  }
+
   revalidateQueue()
+}
+
+/**
+ * Chamadas em aberto, para o aviso que roda em qualquer tela.
+ *
+ * Separada de `getQueueSnapshotAction` de propósito: aquela devolve a fila inteira e é
+ * consultada de 5 em 5 segundos pela tela da fila. Esta é consultada pelo aviso, que está
+ * montado em TODAS as telas de quem opera a fila — carregar a fila completa a cada poucos
+ * segundos, em toda navegação, sairia caro pelo que se usa.
+ */
+export async function pendingCallsAction() {
+  const membership = await requirePermission(PERMISSIONS.QUEUE_MANAGE)
+  const supabase = await createClient()
+  return withDbError(() => listPendingCalls(supabase, membership.clinicId))
 }
 
 export async function cancelQueueEntryAction(queueEntryId: string) {

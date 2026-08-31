@@ -182,3 +182,30 @@ export async function profileIdsWithPermission(
 
   return [...new Set((memberships ?? []).map((m) => m.user_id))]
 }
+
+/**
+ * Quem está no balcão da recepção.
+ *
+ * "Recepção" não é um papel neste modelo — é uma função, e `queue.manage` sozinha não a
+ * identifica: o profissional TAMBÉM opera a fila (é ele quem chama o paciente). Endereçar o
+ * aviso de chamada por `queue.manage` faria cada médico ouvir o toque quando um colega
+ * chamasse alguém, o que é exatamente o ruído que faz as pessoas ignorarem alertas.
+ *
+ * O que separa o balcão da equipe clínica é o caixa: quem atende no balcão opera a fila E
+ * recebe o pagamento. Proprietário, administrador e recepcionista têm as duas; o
+ * profissional tem só a fila, e o papel financeiro só o caixa.
+ *
+ * A interseção é feita sobre as duas listas justamente para respeitar exceção por pessoa —
+ * quem recebeu ou perdeu uma das duas permissões individualmente entra ou sai do aviso junto.
+ */
+export async function frontDeskProfileIds(
+  supabase: DB,
+  clinicId: string
+): Promise<string[]> {
+  const [naFila, noCaixa] = await Promise.all([
+    profileIdsWithPermission(supabase, clinicId, "queue.manage"),
+    profileIdsWithPermission(supabase, clinicId, "financial.manage"),
+  ])
+  const caixa = new Set(noCaixa)
+  return naFila.filter((id) => caixa.has(id))
+}

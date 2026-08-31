@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import type { NavSection } from "@/config/navigation"
 import { AppHeader } from "./app-header"
 import { AppSidebar } from "./app-sidebar"
+import { CallAnnouncer } from "@/features/queue/components/call-announcer"
 
 const COLLAPSE_STORAGE_KEY = "csib:sidebar-collapsed"
 
@@ -15,6 +16,8 @@ type Props = {
   fullName: string
   avatarUrl?: string | null
   roleName: string
+  /** Só o balcão recebe o aviso de chamada — e só aí ele é consultado. */
+  isFrontDesk?: boolean
   children: React.ReactNode
 }
 
@@ -25,6 +28,7 @@ export function AppShell({
   fullName,
   avatarUrl,
   roleName,
+  isFrontDesk = false,
   children,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false)
@@ -72,6 +76,9 @@ export function AppShell({
           avatarUrl={avatarUrl}
           roleName={roleName}
         />
+        {/* Fora do <main>, e fixo: o aviso precisa sobreviver à troca de página, porque a
+            chamada chega quando a recepcionista está em qualquer outra tela. */}
+        {isFrontDesk && <CallAnnouncer />}
         <main className="flex-1 px-4 py-5 lg:px-7 lg:py-6">
           {/* Capped measure: on ultrawide monitors an uncapped table stretches to
               unreadable line lengths, while the clinic's laptops still fill the width. */}

@@ -273,3 +273,83 @@ export async function transferQueueEntry(
   })
   if (transferError) throw transferError
 }
+
+/**
+ * Chamadas em aberto — quem foi chamado e ainda não entrou no consultório.
+ *
+ * Consulta própria, enxuta, em vez de reaproveitar `listActiveQueue`: o aviso de chamada
+ * precisa estar em pé em QUALQUER tela do sistema (a recepcionista raramente está com a
+ * fila aberta quando o profissional chama), e fazer isso consultando a fila inteira a cada
+ * poucos segundos, de todas as telas, sairia caro pelo que se usa.
+ *
+ * A sala vem do agendamento, quando há um. Encaixe não tem agendamento e portanto não tem
+ * sala — nesse caso o que orienta o paciente é o nome de quem chamou, que é a informação
+ * que sempre existe.
+ */
+export type PendingCall = {
+  id: string
+  patientName: string
+  professionalName: string | null
+  roomName: string | null
+  calledAt: string | null
+}
+
+export async function listPendingCalls(
+  supabase: DB,
+  clinicId: string
+): Promise<PendingCall[]> {
+  const { data: entries, error } = await supabase
+    .from("queue_entries")
+    .select("id, patient_id, professional_id, appointment_id, called_at")
+    .eq("clinic_id", clinicId)
+    .eq("status", "called")
+    .order("called_at", { ascending: true })
+  if (error) throw error
+  if (!entries || entries.length === 0) return []
+
+  const patientIds = [...new Set(entries.map((e) => e.patient_id))]
+  const professionalIds = [
+    ...new Set(entries.map((e) => e.professional_id).filter(Boolean)),
+  ] as string[]
+  const appointmentIds = [
+    ...new Set(entries.map((e) => e.appointment_id).filter(Boolean)),
+  ] as string[]
+
+  const [{ data: patients }, { data: professionals }, { data: appointments }] = await Promise.all([
+    supabase.from("patients").select("id, full_name, social_name").in("id", patientIds),
+    professionalIds.length > 0
+      ? supabase.from("professionals").select("id, full_name").in("id", professionalIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    appointmentIds.length > 0
+      ? supabase.from("appointments").select("id, room_id").in("id", appointmentIds)
+      : Promise.resolve({ data: [] as { id: string; room_id: string | null }[] }),
+  ])
+
+  const roomIds = [
+    ...new Set((appointments ?? []).map((a) => a.room_id).filter(Boolean)),
+  ] as string[]
+  const { data: rooms } = roomIds.length > 0
+    ? await supabase.from("rooms").select("id, name").in("id", roomIds)
+    : { data: [] as { id: string; name: string }[] }
+
+  const patientById = new Map((patients ?? []).map((p) => [p.id, p]))
+  const professionalById = new Map((professionals ?? []).map((p) => [p.id, p.full_name]))
+  const roomByAppointment = new Map(
+    (appointments ?? []).map((a) => [a.id, a.room_id])
+  )
+  const roomNameById = new Map((rooms ?? []).map((r) => [r.id, r.name]))
+
+  return entries.map((entry) => {
+    const patient = patientById.get(entry.patient_id)
+    const roomId = entry.appointment_id ? roomByAppointment.get(entry.appointment_id) : null
+    return {
+      id: entry.id,
+      patientName: patient?.social_name || patient?.full_name || "—",
+      professionalName: entry.professional_id
+        ? professionalById.get(entry.professional_id) ?? null
+        : null,
+      roomName: roomId ? roomNameById.get(roomId) ?? null : null,
+      calledAt: entry.called_at,
+    }
+  })
+}

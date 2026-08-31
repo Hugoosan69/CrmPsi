@@ -20,6 +20,7 @@ import type { QueueEntryView } from "@/services/queue.service"
 import { callQueueEntryAction, cancelQueueEntryAction, getQueueSnapshotAction } from "../actions/queue.actions"
 import { PaymentGateBoard } from "./payment-gate-board"
 import { QueueStatusBadge } from "./queue-status-badge"
+import { CallingNow } from "./calling-now"
 
 const ENTRY_TYPE_LABEL: Record<string, string> = {
   scheduled: "Agendado",
@@ -79,8 +80,11 @@ export function QueueList({ paymentMethods }: { paymentMethods: PaymentMethod[] 
     )
   }
 
+  const chamados = data.filter((e) => e.status === "called")
+
   return (
     <div className="grid gap-6">
+      {chamados.length > 0 && <CallingNow entries={chamados} />}
       {gateBoard}
       <QueueTable data={data} isPending={isPending} startTransition={startTransition} invalidate={invalidate} />
     </div>
