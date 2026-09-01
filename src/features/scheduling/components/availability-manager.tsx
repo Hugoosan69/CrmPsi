@@ -28,6 +28,9 @@ type ProfessionalOption = { id: string; full_name: string }
 
 const initialState: AvailabilityActionState = {}
 
+/** Valor do filtro que mostra a equipe inteira. Não colide com um uuid de profissional. */
+const TODOS = "todos"
+
 /** "08:00:00" from Postgres, "08:00" in an <input type="time">. */
 function toTimeInput(value: string) {
   return value.slice(0, 5)
@@ -56,10 +59,18 @@ export function AvailabilityManager({
   rules: AvailabilityRule[]
 }) {
   const [state, formAction, isPending] = useActionState(createAvailabilityAction, initialState)
-  const [selectedProfessional, setSelectedProfessional] = useState(professionals[0]?.id ?? "")
+  // Duas escolhas independentes de propósito. Antes um seletor só decidia o que aparece na
+  // semana E para quem o formulário cria — trocar a visualização mudava, sem avisar, o
+  // destino do próximo horário adicionado. Separá-las é o que permite olhar a equipe inteira
+  // sem perder o formulário.
+  const [filtro, setFiltro] = useState<string>(professionals[0]?.id ?? "")
+  const [alvoDoFormulario, setAlvoDoFormulario] = useState(professionals[0]?.id ?? "")
 
   const roomById = new Map(rooms.map((r) => [r.id, r.name]))
-  const visible = rules.filter((r) => r.professional_id === selectedProfessional)
+  const nomePorProfissional = new Map(professionals.map((p) => [p.id, p.full_name]))
+
+  const vendoTodos = filtro === TODOS
+  const visible = vendoTodos ? rules : rules.filter((r) => r.professional_id === filtro)
 
   // Grouped by weekday so the shape of the week is readable at a glance, which a flat
   // list of rows never is.
@@ -68,6 +79,8 @@ export function AvailabilityManager({
     weekday,
     rules: visible.filter((r) => r.weekday === weekday),
   }))
+
+  const profissionaisComHorario = new Set(visible.map((r) => r.professional_id)).size
 
   const weeklyMinutes = visible.reduce(
     (sum, r) => sum + minutesBetween(toTimeInput(r.start_time), toTimeInput(r.end_time)),
@@ -91,7 +104,25 @@ export function AvailabilityManager({
         </CardHeader>
         <CardContent>
           <form action={formAction} className="grid gap-3.5">
-            <input type="hidden" name="professional_id" value={selectedProfessional} />
+            <div className="grid gap-1.5">
+              <Label htmlFor="availability-form-professional">Profissional</Label>
+              <Select
+                name="professional_id"
+                value={alvoDoFormulario}
+                onValueChange={(value) => setAlvoDoFormulario(value ?? "")}
+              >
+                <SelectTrigger id="availability-form-professional">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {professionals.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="grid gap-1.5">
               <Label htmlFor="availability-weekday">Dia da semana</Label>
@@ -163,7 +194,7 @@ export function AvailabilityManager({
               </p>
             ) : null}
 
-            <Button type="submit" disabled={isPending || !selectedProfessional} className="mt-1">
+            <Button type="submit" disabled={isPending || !alvoDoFormulario} className="mt-1">
               {isPending ? "Adicionando..." : "Adicionar horário"}
             </Button>
           </form>
@@ -173,15 +204,13 @@ export function AvailabilityManager({
       <div className="grid gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid gap-1.5 min-w-56">
-            <Label htmlFor="availability-professional">Profissional</Label>
-            <Select
-              value={selectedProfessional}
-              onValueChange={(value) => setSelectedProfessional(value ?? "")}
-            >
+            <Label htmlFor="availability-professional">Mostrando</Label>
+            <Select value={filtro} onValueChange={(value) => setFiltro(value ?? "")}>
               <SelectTrigger id="availability-professional">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={TODOS}>Todos os profissionais</SelectItem>
                 {professionals.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.full_name}
@@ -195,8 +224,15 @@ export function AvailabilityManager({
               "Nenhum horário definido"
             ) : (
               <>
-                <span className="metric font-medium text-foreground">{formatHours(weeklyMinutes)}</span>{" "}
+                <span className="metric font-medium text-foreground">
+                  {formatHours(weeklyMinutes)}
+                </span>{" "}
                 por semana em {visible.length} {visible.length === 1 ? "faixa" : "faixas"}
+                {vendoTodos && profissionaisComHorario > 0
+                  ? ` · ${profissionaisComHorario} ${
+                      profissionaisComHorario === 1 ? "profissional" : "profissionais"
+                    }`
+                  : ""}
               </>
             )}
           </p>
@@ -205,7 +241,11 @@ export function AvailabilityManager({
         {visible.length === 0 ? (
           <EmptyState
             title="Sem horário de atendimento"
-            description="Enquanto este profissional não tiver horário definido, a agenda recusa qualquer agendamento para ele."
+            description={
+              vendoTodos
+                ? "Nenhum profissional tem horário definido. Enquanto isso, a agenda recusa qualquer agendamento."
+                : "Enquanto este profissional não tiver horário definido, a agenda recusa qualquer agendamento para ele."
+            }
           />
         ) : (
           <div className="grid gap-2.5">
@@ -224,7 +264,9 @@ export function AvailabilityManager({
                   {day.label}
                 </p>
                 {day.rules.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Não atende</p>
+                  <p className="text-sm text-muted-foreground">
+                    {vendoTodos ? "Ninguém atende" : "Não atende"}
+                  </p>
                 ) : (
                   <div className="grid gap-2">
                     {day.rules.map((rule) => (
@@ -232,6 +274,11 @@ export function AvailabilityManager({
                         key={rule.id}
                         rule={rule}
                         roomName={rule.room_id ? roomById.get(rule.room_id) ?? null : null}
+                        professionalName={
+                          vendoTodos
+                            ? nomePorProfissional.get(rule.professional_id) ?? null
+                            : null
+                        }
                       />
                     ))}
                   </div>
@@ -245,7 +292,17 @@ export function AvailabilityManager({
   )
 }
 
-function RuleRow({ rule, roomName }: { rule: AvailabilityRule; roomName: string | null }) {
+function RuleRow({
+  rule,
+  roomName,
+  professionalName,
+}: {
+  rule: AvailabilityRule
+  roomName: string | null
+  /** Preenchido só na visão de equipe: sem isso as faixas de pessoas diferentes ficariam
+   *  indistinguíveis dentro do mesmo dia. */
+  professionalName?: string | null
+}) {
   const [isRemoving, startRemoving] = useTransition()
 
   const start = toTimeInput(rule.start_time)
@@ -254,7 +311,10 @@ function RuleRow({ rule, roomName }: { rule: AvailabilityRule; roomName: string 
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="tabular-nums text-sm font-medium">
+        {professionalName && (
+          <span className="text-sm font-medium">{professionalName}</span>
+        )}
+        <span className="text-sm font-medium tabular-nums">
           {start} – {end}
         </span>
         <span className="text-xs text-muted-foreground">
@@ -268,7 +328,11 @@ function RuleRow({ rule, roomName }: { rule: AvailabilityRule; roomName: string 
         type="button"
         variant="ghost"
         size="icon"
-        aria-label={`Remover horário de ${start} às ${end}`}
+        aria-label={
+          professionalName
+            ? `Remover horário de ${professionalName}, ${start} às ${end}`
+            : `Remover horário de ${start} às ${end}`
+        }
         disabled={isRemoving}
         onClick={() =>
           startRemoving(async () => {
