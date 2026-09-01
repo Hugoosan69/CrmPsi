@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -58,18 +59,17 @@ export function SlotRhythmFields({
         </Select>
       </div>
 
-      <label className="flex items-start gap-2.5 text-sm" htmlFor={`${idPrefix}-seguido`}>
-        <input
+      <label className="flex items-start gap-2.5 text-sm">
+        <Checkbox
           id={`${idPrefix}-seguido`}
-          type="checkbox"
           name="back_to_back"
           className="mt-0.5"
           checked={seguido}
-          onChange={(e) => setSeguido(e.target.checked)}
+          onCheckedChange={(marcado) => setSeguido(marcado === true)}
         />
         <span>
           Atender seguido, sem intervalo
-          <span className="block text-[0.78rem] text-muted-foreground">
+          <span className="block text-[0.75rem] text-muted-foreground">
             Cada paciente começa quando o anterior termina.
           </span>
         </span>
