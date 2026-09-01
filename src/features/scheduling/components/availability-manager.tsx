@@ -22,7 +22,7 @@ import {
   deleteAvailabilityAction,
   type AvailabilityActionState,
 } from "../actions/availability.actions"
-import { BackToBackField } from "./back-to-back-field"
+import { SlotRhythmFields } from "./slot-rhythm-fields"
 
 type ProfessionalOption = { id: string; full_name: string }
 
@@ -151,23 +151,11 @@ export function AvailabilityManager({
               </div>
             </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="availability-slot">Intervalo entre encaixes</Label>
-              <Select name="slot_minutes" defaultValue="30">
-                <SelectTrigger id="availability-slot">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[15, 20, 30, 45, 50, 60].map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {m} minutos
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <BackToBackField id="availability-seguido" />
+            <SlotRhythmFields
+              idPrefix="availability"
+              label="Intervalo entre encaixes"
+              options={[15, 20, 30, 45, 50, 60]}
+            />
 
             <div className="grid gap-1.5">
               <Label htmlFor="availability-room">Sala (opcional)</Label>

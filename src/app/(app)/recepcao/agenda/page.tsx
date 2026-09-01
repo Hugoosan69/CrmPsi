@@ -53,29 +53,32 @@ export default async function RecepcaoAgendaPage({
     .filter((p) => p.active)
     .map((p) => ({ id: p.id, full_name: p.full_name }))
 
-  // Week mode shows one professional at a time — seven days times every professional does
-  // not fit in columns and stops being readable.
-  const weekProfessionalId =
-    (profissional && activeProfessionals.some((p) => p.id === profissional)
-      ? profissional
-      : activeProfessionals[0]?.id) ?? ""
+  // Sem `profissional` na URL, mostra a equipe. O padrão é esse de propósito: quem abre a
+  // agenda quer ver o movimento do dia, não o de uma pessoa escolhida por ordem alfabética.
+  // Um id que não pertence à clínica é ignorado em vez de consultado.
+  const filtroProfissional =
+    profissional && activeProfessionals.some((p) => p.id === profissional) ? profissional : null
 
   // Only fetch the window the current view draws, so the day views never pay for a week
   // of rows they will not render.
   const rawAppointments =
     view === "semana"
-      ? weekProfessionalId
-        ? await listAppointmentsForRange(
-            supabase,
-            membership.clinicId,
-            weekStart,
-            addDays(weekStart, 6),
-            { professionalId: weekProfessionalId }
-          )
-        : []
+      ? await listAppointmentsForRange(
+          supabase,
+          membership.clinicId,
+          weekStart,
+          addDays(weekStart, 6),
+          filtroProfissional ? { professionalId: filtroProfissional } : {}
+        )
       : await listAppointmentsForDay(supabase, membership.clinicId, date)
 
-  const appointments = await hydrateAppointments(supabase, rawAppointments)
+  const todos = await hydrateAppointments(supabase, rawAppointments)
+  // A consulta do dia não filtra por profissional (a vista Dia mostra todos em colunas), então
+  // o recorte da Lista é feito aqui.
+  const appointments =
+    view === "lista" && filtroProfissional
+      ? todos.filter((a) => a.professional_id === filtroProfissional)
+      : todos
 
   const canManage = hasPermission(membership, PERMISSIONS.AGENDA_MANAGE)
   const canCheckIn = hasPermission(membership, PERMISSIONS.QUEUE_MANAGE)
@@ -100,8 +103,8 @@ export default async function RecepcaoAgendaPage({
         view={view}
         date={date}
         views={VIEWS}
-        professionals={view === "semana" ? activeProfessionals : undefined}
-        selectedProfessionalId={weekProfessionalId}
+        professionals={view === "dia" ? undefined : activeProfessionals}
+        selectedProfessionalId={filtroProfissional}
       />
 
       {view === "dia" && (
@@ -127,7 +130,7 @@ export default async function RecepcaoAgendaPage({
           appointments={appointments}
           rules={rules}
           exceptions={exceptions}
-          professionalId={weekProfessionalId}
+          professionalId={filtroProfissional}
           formProfessionals={activeProfessionals}
           procedures={procedures.filter((p) => p.active)}
           rooms={rooms}

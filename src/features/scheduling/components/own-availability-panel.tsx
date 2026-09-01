@@ -21,7 +21,7 @@ import {
   deleteOwnAvailabilityAction,
   type AvailabilityActionState,
 } from "../actions/availability.actions"
-import { BackToBackField } from "./back-to-back-field"
+import { SlotRhythmFields } from "./slot-rhythm-fields"
 
 const initialState: AvailabilityActionState = {}
 
@@ -109,23 +109,11 @@ export function OwnAvailabilityPanel({
           <Input id="own-end" name="end_time" type="time" defaultValue="12:00" required />
         </div>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="own-slot">Duração da consulta</Label>
-          <Select name="slot_minutes" defaultValue="30" required>
-            <SelectTrigger id="own-slot">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {["15", "20", "30", "40", "45", "60"].map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m} minutos
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <BackToBackField id="own-seguido" />
+        <SlotRhythmFields
+          idPrefix="own"
+          label="Duração da consulta"
+          options={[15, 20, 30, 40, 45, 60]}
+        />
 
         <div className="grid gap-1.5">
           <Label htmlFor="own-room">

@@ -29,6 +29,14 @@ const VIEW_META: Record<AgendaView, { label: string; icon: typeof List }> = {
  * screen is linkable and survives a refresh — a receptionist sending "look at Thursday"
  * to a colleague is a real workflow.
  */
+/**
+ * Valor do seletor que significa "sem filtrar por profissional".
+ *
+ * A ausência do parâmetro `profissional` na URL é o que representa a equipe — assim o
+ * endereço limpo já cai na visão de todos, e não num profissional escolhido por acaso.
+ */
+export const TODA_EQUIPE = "equipe"
+
 export function AgendaViewNav({
   view,
   date,
@@ -39,9 +47,10 @@ export function AgendaViewNav({
   view: AgendaView
   date: string
   views: AgendaView[]
-  /** Only used by week mode, which shows one professional at a time. */
+  /** Quando informado, a vista ganha o seletor de profissional (com a opção de equipe). */
   professionals?: { id: string; full_name: string }[]
-  selectedProfessionalId?: string
+  /** `null` = equipe inteira. */
+  selectedProfessionalId?: string | null
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -124,18 +133,21 @@ export function AgendaViewNav({
         </div>
       </div>
 
-      {view === "semana" && professionals && professionals.length > 0 && (
+      {professionals && professionals.length > 0 && (
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="grid min-w-56 gap-1.5">
-            <Label htmlFor="agenda-week-professional">Profissional</Label>
+            <Label htmlFor="agenda-professional">Mostrando</Label>
             <Select
-              value={selectedProfessionalId ?? professionals[0]?.id}
-              onValueChange={(value) => value && push({ profissional: value })}
+              value={selectedProfessionalId ?? TODA_EQUIPE}
+              onValueChange={(value) =>
+                value && push({ profissional: value === TODA_EQUIPE ? "" : value })
+              }
             >
-              <SelectTrigger id="agenda-week-professional">
+              <SelectTrigger id="agenda-professional">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={TODA_EQUIPE}>Toda a equipe</SelectItem>
                 {professionals.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.full_name}
@@ -148,7 +160,7 @@ export function AgendaViewNav({
         </div>
       )}
 
-      {view === "semana" && !professionals && periodLabel && (
+      {!professionals && periodLabel && (
         <p className="text-sm text-muted-foreground">{periodLabel}</p>
       )}
     </div>

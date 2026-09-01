@@ -118,10 +118,12 @@ export function WeekCalendar({
   appointments: AppointmentView[]
   rules: AvailabilityRule[]
   exceptions: ScheduleException[]
-  professionalId: string
+  /** `null` = semana da equipe inteira. */
+  professionalId: string | null
 } & ActionProps) {
   const { setSelectedId, selected } = useAppointmentSelection(appointments)
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const equipe = professionalId === null
 
   const columns: CalendarColumn[] = days.map((date) => ({
     key: date,
@@ -132,8 +134,11 @@ export function WeekCalendar({
 
   const ownRules = rules.filter((r) => r.professional_id === professionalId && r.active)
 
+  // Na visão de equipe as faixas de disponibilidade ficam de fora. Elas são de cada pessoa;
+  // desenhar as de todo mundo sobrepostas na mesma coluna vira uma mancha que não informa
+  // de quem é o quê. O que importa aqui são os agendamentos.
   const bands: CalendarBand[] = []
-  for (const date of days) {
+  for (const date of equipe ? [] : days) {
     const weekday = weekdayOf(date)
     for (const rule of ownRules) {
       if (rule.weekday !== weekday) continue
@@ -159,7 +164,13 @@ export function WeekCalendar({
   }
 
   const events = appointments.map((appointment) =>
-    toEvent(appointment, toClinicDate(appointment.scheduled_at), appointment.procedureName)
+    toEvent(
+      appointment,
+      toClinicDate(appointment.scheduled_at),
+      // De quem é o horário passa a ser a informação que falta quando tudo está junto; o
+      // procedimento continua visível ao abrir o agendamento.
+      equipe ? appointment.professionalName : appointment.procedureName
+    )
   )
 
   const { windowStart, windowEnd } = deriveWindow([
@@ -177,9 +188,11 @@ export function WeekCalendar({
         windowEnd={windowEnd}
         onEventSelect={setSelectedId}
         emptyHint={
-          ownRules.length === 0
-            ? "Nenhum horário de atendimento cadastrado — a agenda recusa agendamentos até que a gestão defina os horários."
-            : "Nenhum agendamento nesta semana."
+          equipe
+            ? "Nenhum agendamento nesta semana."
+            : ownRules.length === 0
+              ? "Nenhum horário de atendimento cadastrado — a agenda recusa agendamentos até que a gestão defina os horários."
+              : "Nenhum agendamento nesta semana."
         }
       />
       <AppointmentDetailDialog
