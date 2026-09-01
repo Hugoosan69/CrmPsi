@@ -712,6 +712,8 @@ export interface Database {
           start_time: string
           end_time: string
           slot_minutes: number
+          /** migrations/012 — encaixes seguem a duração do procedimento, sem passo fixo. */
+          back_to_back: boolean
           room_id: string | null
           active: boolean
           created_at: string

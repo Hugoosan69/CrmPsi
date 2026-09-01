@@ -230,6 +230,7 @@ export async function createOwnAvailabilityAction(
     start_time: formData.get("start_time"),
     end_time: formData.get("end_time"),
     slot_minutes: formData.get("slot_minutes"),
+    back_to_back: formData.get("back_to_back") ?? "",
     room_id: formData.get("room_id") ?? "",
   })
   if (!parsed.success) {
@@ -242,6 +243,7 @@ export async function createOwnAvailabilityAction(
       start_time: parsed.data.start_time,
       end_time: parsed.data.end_time,
       slot_minutes: parsed.data.slot_minutes,
+      back_to_back: parsed.data.back_to_back,
       room_id: parsed.data.room_id,
     })
   } catch (err) {

@@ -22,6 +22,7 @@ import {
   deleteAvailabilityAction,
   type AvailabilityActionState,
 } from "../actions/availability.actions"
+import { BackToBackField } from "./back-to-back-field"
 
 type ProfessionalOption = { id: string; full_name: string }
 
@@ -134,6 +135,8 @@ export function AvailabilityManager({
                 </SelectContent>
               </Select>
             </div>
+
+            <BackToBackField id="availability-seguido" />
 
             <div className="grid gap-1.5">
               <Label htmlFor="availability-room">Sala (opcional)</Label>
@@ -255,7 +258,9 @@ function RuleRow({ rule, roomName }: { rule: AvailabilityRule; roomName: string 
           {start} – {end}
         </span>
         <span className="text-xs text-muted-foreground">
-          encaixes de {rule.slot_minutes} min
+          {rule.back_to_back
+            ? "atendimento seguido"
+            : `encaixes de ${rule.slot_minutes} min`}
           {roomName ? ` · ${roomName}` : ""}
         </span>
       </div>

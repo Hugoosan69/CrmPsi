@@ -47,6 +47,11 @@ export const availabilitySchema = z
       .int()
       .min(5, "Intervalo mínimo de 5 minutos")
       .max(480, "Intervalo máximo de 8 horas"),
+    // Checkbox não marcada não é enviada pelo formulário — ausência significa "não".
+    back_to_back: z
+      .union([z.literal("on"), z.literal("true"), z.literal("")])
+      .optional()
+      .transform((v) => v === "on" || v === "true"),
     room_id: optionalUuid,
   })
   .refine((v) => v.end_time > v.start_time, {

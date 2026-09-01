@@ -150,6 +150,7 @@ export async function createAvailability(
     start_time: string
     end_time: string
     slot_minutes: number
+    back_to_back: boolean
     room_id: string | null
   }
 ) {
@@ -330,6 +331,7 @@ export async function createOwnAvailability(
     start_time: string
     end_time: string
     slot_minutes: number
+    back_to_back: boolean
     room_id: string | null
   }
 ) {

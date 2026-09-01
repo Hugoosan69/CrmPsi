@@ -21,6 +21,7 @@ import {
   deleteOwnAvailabilityAction,
   type AvailabilityActionState,
 } from "../actions/availability.actions"
+import { BackToBackField } from "./back-to-back-field"
 
 const initialState: AvailabilityActionState = {}
 
@@ -124,6 +125,8 @@ export function OwnAvailabilityPanel({
           </Select>
         </div>
 
+        <BackToBackField id="own-seguido" />
+
         <div className="grid gap-1.5">
           <Label htmlFor="own-room">
             Sala <span className="text-muted-foreground">(opcional)</span>
@@ -176,7 +179,9 @@ export function OwnAvailabilityPanel({
                   {hhmm(rule.end_time)}
                 </p>
                 <p className="text-[0.78rem] text-muted-foreground">
-                  Consultas de {rule.slot_minutes} min
+                  {rule.back_to_back
+                    ? "Atendimento seguido, sem intervalo"
+                    : `Consultas de ${rule.slot_minutes} min`}
                   {rule.room_id && roomById.has(rule.room_id)
                     ? ` · ${roomById.get(rule.room_id)}`
                     : ""}
