@@ -7,6 +7,7 @@ import {
   hydrateAppointments,
   listAppointmentsForDay,
   listAppointmentsForRange,
+  listPendingClosures,
 } from "@/services/scheduling.service"
 import { getProfessionalByUserId, listProfessionals } from "@/services/professionals.service"
 import { listProcedures } from "@/services/procedures.service"
@@ -23,6 +24,7 @@ import { OwnAvailabilityPanel } from "@/features/scheduling/components/own-avail
 import { addDays, startOfWeek, todaySaoPauloDate } from "@/utils/datetime"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { PendingClosuresAlert } from "@/features/scheduling/components/pending-closures-alert"
 import { EmptyState } from "@/components/shared/empty-state"
 
 /** The professional's own week is the useful default — a single day of one person's
@@ -80,6 +82,13 @@ export default async function ProfissionalAgendaPage({
   ])
   const appointments = await hydrateAppointments(supabase, rawAppointments)
 
+  // Só os atendimentos dele: é quem sabe dizer se o paciente veio ou não.
+  const pendingClosures = canManageAgenda
+    ? await listPendingClosures(supabase, membership.clinicId, {
+        professionalId: professional.id,
+      })
+    : []
+
   return (
     <div className="grid animate-fade-in-up gap-6">
       <PageHeader
@@ -93,6 +102,8 @@ export default async function ProfissionalAgendaPage({
           />
         }
       />
+
+      <PendingClosuresAlert appointments={pendingClosures} />
 
       <AgendaViewNav view={view} date={date} views={VIEWS} />
 

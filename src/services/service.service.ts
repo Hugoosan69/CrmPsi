@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/types/supabase"
+import { consumePackageSession } from "@/services/packages.service"
 
 type DB = SupabaseClient<Database>
 type ServiceSessionEvent = Database["public"]["Tables"]["service_session_events"]["Row"]
@@ -227,12 +228,20 @@ export async function finishService(
   if (queueError) throw queueError
 
   if (input.appointmentId) {
-    const { error: apptError } = await supabase
+    const { data: appointment, error: apptError } = await supabase
       .from("appointments")
       .update({ status: "completed" })
       .eq("clinic_id", clinicId)
       .eq("id", input.appointmentId)
+      .select("patient_package_session_id")
+      .single()
     if (apptError) throw apptError
+
+    // Consumo real do saldo de pacote: só aqui, quando o atendimento de fato aconteceu —
+    // agendar apenas reserva a posição (ver reservePackageSession).
+    if (appointment.patient_package_session_id) {
+      await consumePackageSession(supabase, appointment.patient_package_session_id)
+    }
   }
 
   return times

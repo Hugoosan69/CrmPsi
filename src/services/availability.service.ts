@@ -257,13 +257,16 @@ export async function findSlotProblem(
   const { data, error } = await supabase.rpc("appointment_slot_problem", {
     p_clinic: clinicId,
     p_professional: input.professionalId,
-    p_room: input.roomId,
+    // Os tipos gerados marcam p_room como string obrigatória porque o Postgres não expõe
+    // "aceita null" na introspecção de parâmetros de função — a coluna real (appointments.
+    // room_id) é nullable, e passar null aqui é válido em tempo de execução.
+    p_room: input.roomId as string,
     p_start: input.startsAt,
     p_duration: input.durationMinutes,
-    p_exclude: input.excludeAppointmentId ?? null,
+    p_exclude: input.excludeAppointmentId ?? undefined,
   })
   if (error) throw error
-  return data
+  return data as SlotProblem | null
 }
 
 export async function listFreeSlots(
@@ -275,7 +278,7 @@ export async function listFreeSlots(
     p_clinic: clinicId,
     p_professional: input.professionalId,
     p_date: input.date,
-    p_duration: input.durationMinutes ?? null,
+    p_duration: input.durationMinutes ?? undefined,
   })
   if (error) throw error
   return data ?? []

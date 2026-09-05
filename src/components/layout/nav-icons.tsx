@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  Layers,
   LayoutDashboard,
   ListOrdered,
   MessageSquare,
@@ -24,10 +25,14 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/recepcao/financeiro": Wallet,
   "/profissional/agenda": CalendarDays,
   "/profissional/fila": ListOrdered,
+  "/profissional/financeiro": Wallet,
   "/gestao/financeiro": Wallet,
   "/gestao/profissionais": UsersRound,
   "/gestao/comunicacao": MessageSquare,
   "/gestao/procedimentos": Package,
+  // Camadas em vez de outra caixa: "pacote" aqui é um conjunto de sessões, e reusar o
+  // ícone de Procedimentos deixaria os dois itens indistinguíveis na barra estreita.
+  "/gestao/pacotes": Layers,
   "/gestao/usuarios": Users,
   "/gestao/permissoes": ShieldCheck,
   "/gestao/configuracoes": Settings,

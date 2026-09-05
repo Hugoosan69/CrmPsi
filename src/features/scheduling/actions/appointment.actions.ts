@@ -13,10 +13,18 @@ import {
   getAppointment,
   rescheduleAppointment,
   setAppointmentStatus,
+  setAppointmentNoShow,
 } from "@/services/scheduling.service"
-import { checkInAppointment } from "@/services/queue.service"
+import { checkInAppointment, markQueueEntriesReleasedForTransaction } from "@/services/queue.service"
 import { getProcedure } from "@/services/procedures.service"
 import { createTransaction } from "@/services/financial.service"
+import {
+  reservePackageSession,
+  releasePackageSession,
+  consumePackageSession,
+  createPackageSessionCharge,
+  getPackageSessionForAppointment,
+} from "@/services/packages.service"
 import { recordAudit } from "@/services/audit.service"
 import { notify, profileIdsForProfessionals } from "@/services/notifications.service"
 import { describeDbError } from "@/lib/db-errors"
@@ -55,9 +63,19 @@ export async function createAppointmentAction(
   })
   if (problem) return { error: describeSlotProblem(problem)! }
 
+  // patient_package_id não é coluna de appointments — é o saldo a reservar, tratado à
+  // parte logo abaixo.
+  const { patient_package_id, ...appointmentInput } = parsed.data
+
   let created: { id: string }
   try {
-    created = await createAppointment(supabase, membership.clinicId, membership.userId, parsed.data)
+    created = await createAppointment(supabase, membership.clinicId, membership.userId, appointmentInput)
+    if (patient_package_id) {
+      await reservePackageSession(supabase, membership.clinicId, {
+        patientPackageId: patient_package_id,
+        appointmentId: created.id,
+      })
+    }
   } catch (err) {
     return { error: describeDbError(err) }
   }
@@ -100,8 +118,14 @@ export async function rescheduleAppointmentAction(
   })
   if (problem) return { error: describeSlotProblem(problem)! }
 
+  // Reagendar não mexe no vínculo de pacote já feito na criação — só muda horário/sala/
+  // profissional. patient_package_id não é coluna de appointments, por isso sai do objeto
+  // antes do update (senão o Supabase reclama de uma coluna inexistente).
+  const { patient_package_id, ...appointmentInput } = parsed.data
+  void patient_package_id
+
   try {
-    await rescheduleAppointment(supabase, membership.clinicId, appointmentId, parsed.data)
+    await rescheduleAppointment(supabase, membership.clinicId, appointmentId, appointmentInput)
   } catch (err) {
     return { error: describeDbError(err) }
   }
@@ -126,6 +150,12 @@ export async function cancelAppointmentAction(appointmentId: string, reason: str
   // Read before the update, so the notification can name the slot that just freed up.
   const appointment = await getAppointment(supabase, membership.clinicId, appointmentId)
   await setAppointmentStatus(supabase, membership.clinicId, appointmentId, "cancelled", reason)
+
+  // Cancelar sempre libera a posição do pacote sem consumir — o paciente não usou a
+  // sessão, então ela volta a ficar disponível.
+  if (appointment.patient_package_session_id) {
+    await releasePackageSession(supabase, appointment.patient_package_session_id)
+  }
 
   await recordAudit({
     clinicId: membership.clinicId,
@@ -219,11 +249,25 @@ export async function confirmAppointmentAction(appointmentId: string) {
   revalidateAgenda()
 }
 
-export async function markNoShowAppointmentAction(appointmentId: string) {
+/**
+ * Falta. `justified` decide o destino da sessão de pacote (se houver): justificada
+ * libera a posição (o paciente pode remarcar sem perder a sessão); não justificada
+ * consome — a clínica reservou a vaga e ela não apareceu sem aviso.
+ */
+export async function markNoShowAppointmentAction(appointmentId: string, justified: boolean) {
   const membership = await requirePermission(PERMISSIONS.AGENDA_MANAGE)
 
   const supabase = await createClient()
-  await setAppointmentStatus(supabase, membership.clinicId, appointmentId, "no_show")
+  const appointment = await getAppointment(supabase, membership.clinicId, appointmentId)
+  await setAppointmentNoShow(supabase, membership.clinicId, appointmentId, justified)
+
+  if (appointment.patient_package_session_id) {
+    if (justified) {
+      await releasePackageSession(supabase, appointment.patient_package_session_id)
+    } else {
+      await consumePackageSession(supabase, appointment.patient_package_session_id)
+    }
+  }
 
   await recordAudit({
     clinicId: membership.clinicId,
@@ -231,9 +275,44 @@ export async function markNoShowAppointmentAction(appointmentId: string) {
     action: "appointment.no_show",
     entityType: "appointment",
     entityId: appointmentId,
+    after: { justified },
   })
 
   revalidateAgenda()
+}
+
+/**
+ * Fecha o agendamento como atendido, sem passar pela fila.
+ *
+ * O ciclo oficial (check-in → fila → cronômetro → finalizar) marca `completed` sozinho,
+ * mas a clínica atende muita gente sem usar a fila — e aí o agendamento fica "confirmado"
+ * para sempre, ninguém sabe o que aconteceu e a sessão do pacote nunca é debitada. Este é
+ * o fechamento manual: mesmo efeito, feito por quem atendeu.
+ */
+export async function completeAppointmentAction(appointmentId: string) {
+  const membership = await requirePermission(PERMISSIONS.AGENDA_MANAGE)
+
+  const supabase = await createClient()
+  const appointment = await getAppointment(supabase, membership.clinicId, appointmentId)
+  await setAppointmentStatus(supabase, membership.clinicId, appointmentId, "completed")
+
+  // Mesma regra do finishService: a sessão só é consumida quando o atendimento de fato
+  // aconteceu, e é aqui que isso passa a ser verdade.
+  if (appointment.patient_package_session_id) {
+    await consumePackageSession(supabase, appointment.patient_package_session_id)
+  }
+
+  await recordAudit({
+    clinicId: membership.clinicId,
+    userId: membership.userId,
+    action: "appointment.complete",
+    entityType: "appointment",
+    entityId: appointmentId,
+  })
+
+  revalidateAgenda()
+  revalidatePath(`/recepcao/pacientes/${appointment.patient_id}`)
+  revalidatePath(`/profissional/pacientes/${appointment.patient_id}`)
 }
 
 export type CheckInState = { error?: string; success?: boolean }
@@ -264,6 +343,47 @@ export async function checkInAppointmentAction(
   const procedure = appointment.procedure_id
     ? await getProcedure(supabase, membership.clinicId, appointment.procedure_id)
     : null
+
+  // Sessão de pacote: já paga integralmente na venda, então esta cobrança nasce com
+  // R$ 0,00 e status "pago" — libera direto para a fila, sem etapa de cobrança na
+  // recepção (requisito 5). Fora isso o fluxo é idêntico ao avulso.
+  if (appointment.patient_package_session_id) {
+    const packageSession = await getPackageSessionForAppointment(supabase, appointment.id)
+    let transactionId: string
+    let queueEntryId: string
+    try {
+      transactionId = await createPackageSessionCharge(supabase, membership.clinicId, {
+        patientId: appointment.patient_id,
+        appointmentId: appointment.id,
+        createdBy: membership.userId,
+        category: procedure?.name ?? "Atendimento",
+        patientPackageSessionId: appointment.patient_package_session_id,
+      })
+      queueEntryId = await checkInAppointment(supabase, membership.clinicId, {
+        appointmentId: appointment.id,
+        patientId: appointment.patient_id,
+        professionalId: appointment.professional_id,
+        financialTransactionId: transactionId,
+      })
+      await markQueueEntriesReleasedForTransaction(supabase, membership.clinicId, transactionId)
+    } catch (err) {
+      return { error: describeDbError(err) }
+    }
+
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "appointment.check_in",
+      entityType: "appointment",
+      entityId: appointmentId,
+      after: { queueEntryId, financialTransactionId: transactionId, packageSession: !!packageSession },
+    })
+
+    revalidateAgenda()
+    revalidatePath("/recepcao/fila")
+    revalidatePath("/recepcao/financeiro")
+    return { success: true }
+  }
 
   const rawAmount = formData.get("amount")
   const typedAmount = typeof rawAmount === "string" && rawAmount.trim() ? Number(rawAmount) : null

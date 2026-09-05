@@ -33,6 +33,7 @@ const MODULE_LABELS: Record<string, string> = {
   integrations: "Integrações",
   users: "Usuários",
   audit: "Auditoria",
+  packages: "Pacotes",
 }
 
 const OPTIONS: { value: OverrideState; label: string }[] = [

@@ -5,6 +5,7 @@ import {
   hydrateAppointments,
   listAppointmentsForDay,
   listAppointmentsForRange,
+  listPendingClosures,
 } from "@/services/scheduling.service"
 import { listProfessionals } from "@/services/professionals.service"
 import { listProcedures } from "@/services/procedures.service"
@@ -14,6 +15,7 @@ import {
   listScheduleExceptionsIfAvailable,
 } from "@/services/availability.service"
 import { PageHeader } from "@/components/shared/page-header"
+import { PendingClosuresAlert } from "@/features/scheduling/components/pending-closures-alert"
 import { AppointmentsList } from "@/features/scheduling/components/appointments-list"
 import { CreateAppointmentDialog } from "@/features/scheduling/components/create-appointment-dialog"
 import { AgendaViewNav } from "@/features/scheduling/components/agenda-view-nav"
@@ -83,6 +85,12 @@ export default async function RecepcaoAgendaPage({
   const canManage = hasPermission(membership, PERMISSIONS.AGENDA_MANAGE)
   const canCheckIn = hasPermission(membership, PERMISSIONS.QUEUE_MANAGE)
 
+  // Consultas vencidas que ninguém fechou. Só para quem pode agir sobre elas — mostrar o
+  // aviso a quem não consegue resolvê-lo é ruído.
+  const pendingClosures = canManage
+    ? await listPendingClosures(supabase, membership.clinicId)
+    : []
+
   return (
     <div className="grid animate-fade-in-up gap-6">
       <PageHeader
@@ -98,6 +106,8 @@ export default async function RecepcaoAgendaPage({
           )
         }
       />
+
+      <PendingClosuresAlert appointments={pendingClosures} />
 
       <AgendaViewNav
         view={view}

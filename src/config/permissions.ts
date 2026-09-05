@@ -30,6 +30,16 @@ export const PERMISSIONS = {
    * exceção individual, caso a caso.
    */
   INTEGRATIONS_MANAGE: "integrations.manage",
+
+  // migration 015 — pacotes de sessões.
+  PACKAGES_VIEW: "packages.view",
+  PACKAGES_MANAGE: "packages.manage",
+
+  // migration 017 — o profissional vê só a movimentação dos próprios atendimentos.
+  FINANCIAL_VIEW_OWN: "financial.view_own",
+
+  // migration 019 — corrigir o valor de um lançamento já registrado (sempre auditado).
+  FINANCIAL_EDIT_AMOUNT: "financial.edit_amount",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

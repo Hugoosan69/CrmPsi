@@ -22,6 +22,8 @@ import { DocumentBuilder } from "@/features/documents/components/document-builde
 import { getProfessionalByUserId } from "@/services/professionals.service"
 import { listDocumentTemplates } from "@/services/documents.service"
 import { PatientFinancialSummary } from "@/features/financial/components/patient-financial-summary"
+import { PatientPackagesPanel } from "@/features/packages/components/patient-packages-panel"
+import { PatientAppointments } from "./patient-appointments"
 import { PatientMessagesPanel } from "@/features/communication/components/patient-messages-panel"
 import { formatDate as formatSaoPauloDate } from "@/utils/datetime"
 
@@ -69,6 +71,12 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
   const canEditClinicalInfo = hasPermission(membership, PERMISSIONS.SERVICE_MANAGE)
   const canViewFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_VIEW)
   const canManageFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
+  // A lista de atendimentos é agenda, não prontuário: a recepção precisa ver quando o
+  // paciente veio e o que ficou em aberto, mesmo sem acesso ao conteúdo clínico.
+  const canViewAppointments =
+    hasPermission(membership, PERMISSIONS.AGENDA_VIEW) || canViewRecords
+  const canViewPackages = hasPermission(membership, PERMISSIONS.PACKAGES_VIEW)
+  const canManagePackages = hasPermission(membership, PERMISSIONS.PACKAGES_MANAGE)
   const canMessage = hasPermission(membership, PERMISSIONS.PATIENTS_MANAGE)
 
   // Emitir receita ou documento fora do atendimento exige duas coisas: a permissão de
@@ -105,10 +113,11 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
         <TabsList>
           <TabsTrigger value="dados">Dados pessoais</TabsTrigger>
           <TabsTrigger value="clinico">Informações clínicas</TabsTrigger>
-          {canViewRecords && <TabsTrigger value="historico">Atendimentos</TabsTrigger>}
+          {canViewAppointments && <TabsTrigger value="historico">Atendimentos</TabsTrigger>}
           {canViewRecords && <TabsTrigger value="prescricoes">Prescrições</TabsTrigger>}
           {canViewRecords && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
           {canViewFinancial && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
+          {canViewPackages && <TabsTrigger value="pacotes">Pacotes</TabsTrigger>}
           {canMessage && <TabsTrigger value="mensagens">Mensagens</TabsTrigger>}
         </TabsList>
         {!canViewRecords && (
@@ -144,11 +153,21 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
         <TabsContent value="clinico" className="mt-4">
           <ClinicalInfoCard patientId={patientId} info={clinicalInfo} canEdit={canEditClinicalInfo} />
         </TabsContent>
+        {canViewAppointments && (
+          <TabsContent value="historico" className="mt-4">
+            <div className="grid gap-6">
+              <PatientAppointments clinicId={membership.clinicId} patientId={patientId} />
+              {canViewRecords && (
+                <div className="grid gap-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Prontuários</h3>
+                  <PatientTimeline clinicId={membership.clinicId} patientId={patientId} />
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        )}
         {canViewRecords && (
           <>
-            <TabsContent value="historico" className="mt-4">
-              <PatientTimeline clinicId={membership.clinicId} patientId={patientId} />
-            </TabsContent>
             <TabsContent value="prescricoes" className="mt-4">
               {/* medicalRecordId nulo de propósito: aqui a receita não nasce de um
                   atendimento em curso, e amarrá-la a um prontuário antigo daria a entender
@@ -189,6 +208,15 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
               clinicId={membership.clinicId}
               patientId={patientId}
               canManage={canManageFinancial}
+            />
+          </TabsContent>
+        )}
+        {canViewPackages && (
+          <TabsContent value="pacotes" className="mt-4">
+            <PatientPackagesPanel
+              clinicId={membership.clinicId}
+              patientId={patientId}
+              canManage={canManagePackages}
             />
           </TabsContent>
         )}

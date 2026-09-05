@@ -60,6 +60,11 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/profissional/agenda", label: "Minha agenda", permission: PERMISSIONS.SERVICE_MANAGE },
       { href: "/profissional/fila", label: "Minha fila", permission: PERMISSIONS.SERVICE_MANAGE },
+      {
+        href: "/profissional/financeiro",
+        label: "Meu financeiro",
+        permission: PERMISSIONS.FINANCIAL_VIEW_OWN,
+      },
     ],
   },
   {
@@ -73,6 +78,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       { href: "/gestao/comunicacao", label: "Comunicação", permission: PERMISSIONS.COMMUNICATION_MANAGE },
       { href: "/gestao/procedimentos", label: "Procedimentos", permission: PERMISSIONS.CATALOG_MANAGE },
+      { href: "/gestao/pacotes", label: "Pacotes", permission: PERMISSIONS.PACKAGES_MANAGE },
       { href: "/gestao/usuarios", label: "Usuários", permission: PERMISSIONS.USERS_MANAGE },
       { href: "/gestao/permissoes", label: "Permissões", permission: PERMISSIONS.USERS_MANAGE },
       { href: "/gestao/configuracoes", label: "Configurações", permission: PERMISSIONS.SETTINGS_MANAGE },

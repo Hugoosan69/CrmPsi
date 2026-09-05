@@ -11,6 +11,7 @@ import {
   createTransaction,
   getTransaction,
   registerPayment,
+  updateTransactionAmount,
 } from "@/services/financial.service"
 import { markQueueEntriesReleasedForTransaction } from "@/services/queue.service"
 import { recordAudit } from "@/services/audit.service"
@@ -20,6 +21,45 @@ export type FinancialActionState = { error?: string; success?: boolean }
 function revalidateFinancial() {
   revalidatePath("/gestao/financeiro")
   revalidatePath("/recepcao/financeiro")
+}
+
+/**
+ * Corrige o valor de um lançamento já registrado.
+ *
+ * Permissão própria (`financial.edit_amount`, migrations/019): registrar um recebimento é
+ * uma coisa, reescrever um valor já contabilizado é outra. O audit_log guarda o valor
+ * anterior e o novo — a tela avisa quem edita que isso fica registrado, e este é o
+ * registro.
+ */
+export async function updateTransactionAmountAction(
+  transactionId: string,
+  _prev: FinancialActionState,
+  formData: FormData
+): Promise<FinancialActionState> {
+  const membership = await requirePermission(PERMISSIONS.FINANCIAL_EDIT_AMOUNT)
+
+  const raw = formData.get("amount")
+  const amount = typeof raw === "string" && raw.trim() ? Number(raw) : NaN
+  if (Number.isNaN(amount) || amount < 0) {
+    return { error: "Informe um valor válido." }
+  }
+
+  const supabase = await createClient()
+  const before = await getTransaction(supabase, membership.clinicId, transactionId)
+  await updateTransactionAmount(supabase, membership.clinicId, transactionId, amount)
+
+  await recordAudit({
+    clinicId: membership.clinicId,
+    userId: membership.userId,
+    action: "financial.edit_amount",
+    entityType: "financial_transaction",
+    entityId: transactionId,
+    before: { amount: before.amount },
+    after: { amount, reason: String(formData.get("reason") ?? "") || null },
+  })
+
+  revalidateFinancial()
+  return { success: true }
 }
 
 export async function createTransactionAction(

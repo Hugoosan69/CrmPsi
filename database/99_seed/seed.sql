@@ -33,7 +33,11 @@ insert into permissions (slug, module, description) values
   ('professionals.manage', 'professionals', 'Cadastrar e editar profissionais'),
   ('communication.manage', 'communication', 'Modelos, campanhas e automações de mensagem'),
   ('integrations.manage', 'integrations', 'Configurar n8n, WhatsApp e pagamentos online'),
-  ('audit.view', 'audit', 'Visualizar trilha de auditoria');
+  ('audit.view', 'audit', 'Visualizar trilha de auditoria'),
+  ('packages.view', 'packages', 'Visualizar pacotes de sessões'),
+  ('packages.manage', 'packages', 'Vender pacotes e gerenciar o catálogo'),
+  ('financial.view_own', 'financial', 'Ver o próprio financeiro (apenas os seus atendimentos)'),
+  ('financial.edit_amount', 'financial', 'Corrigir o valor de um lançamento já registrado');
 
 insert into role_permissions (role_id, permission_id)
 -- Proprietário: tudo, integrações inclusive.
@@ -46,13 +50,13 @@ select '00000000-0000-0000-0000-000000000011', id from permissions
   where slug <> 'integrations.manage'
 union all
 select '00000000-0000-0000-0000-000000000012', id from permissions where slug in
-  ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'financial.view', 'financial.manage')
+  ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'financial.view', 'financial.manage', 'packages.view', 'packages.manage')
 union all
 select '00000000-0000-0000-0000-000000000013', id from permissions where slug in
-  ('patients.view', 'agenda.view', 'queue.manage', 'service.manage', 'records.view', 'documents.issue')
+  ('patients.view', 'agenda.view', 'queue.manage', 'service.manage', 'records.view', 'documents.issue', 'packages.view', 'financial.view_own')
 union all
 select '00000000-0000-0000-0000-000000000014', id from permissions where slug in
-  ('financial.view', 'financial.manage');
+  ('financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.view_own');
 
 insert into specialties (clinic_id, name) values
   ('00000000-0000-0000-0000-000000000001', 'Clínica Geral'),

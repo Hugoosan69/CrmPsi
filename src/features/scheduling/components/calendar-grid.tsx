@@ -17,7 +17,13 @@ import { minutesToTime } from "@/utils/datetime"
  * instead of being lost in fourteen empty hours.
  */
 
-const PX_PER_MINUTE = 1.05
+/**
+ * Altura da grade. A 1.05 px/min uma consulta de 30 minutos ocupava ~31px — cabia só o
+ * nome do paciente, e os limiares abaixo escondiam procedimento e situação justamente nos
+ * blocos mais comuns. A 1.8 os mesmos 30 minutos viram 54px, o suficiente para as três
+ * linhas do bloco, e o dia inteiro continua rolando normalmente.
+ */
+const PX_PER_MINUTE = 1.8
 const HOUR_HEIGHT = 60 * PX_PER_MINUTE
 
 export type CalendarColumn = {
@@ -153,7 +159,7 @@ export function CalendarGrid({
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <div
         className="grid min-w-fit"
-        style={{ gridTemplateColumns: `3.5rem repeat(${columns.length}, minmax(9.5rem, 1fr))` }}
+        style={{ gridTemplateColumns: `3.5rem repeat(${columns.length}, minmax(11.5rem, 1fr))` }}
       >
         {/* Header row */}
         <div className="sticky left-0 z-20 border-b border-r border-border bg-card" />
@@ -210,13 +216,22 @@ export function CalendarGrid({
               )}
               style={{ height: gridHeight }}
             >
-              {/* Hour lines */}
+              {/* Hour lines, e a meia hora tracejada: com a grade mais alta ela ajuda a
+                  situar o horário de um bloco sem precisar contar do topo. */}
               {hours.map((hour, index) => (
-                <div
-                  key={hour}
-                  className={cn("absolute inset-x-0 border-t", index === 0 ? "border-transparent" : "border-border")}
-                  style={{ top: index * HOUR_HEIGHT }}
-                />
+                <div key={hour}>
+                  <div
+                    className={cn(
+                      "absolute inset-x-0 border-t",
+                      index === 0 ? "border-transparent" : "border-border"
+                    )}
+                    style={{ top: index * HOUR_HEIGHT }}
+                  />
+                  <div
+                    className="absolute inset-x-0 border-t border-dashed border-border/45"
+                    style={{ top: index * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
+                  />
+                </div>
               ))}
 
               {/* Availability and blocks, behind the events */}
