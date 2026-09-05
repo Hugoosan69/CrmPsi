@@ -156,45 +156,78 @@ alter table lp_contact enable row level security;
 alter table lp_faq enable row level security;
 alter table lp_leads enable row level security;
 
+drop policy if exists lp_settings_public_read on lp_settings;
 create policy lp_settings_public_read on lp_settings for select using (true);
+drop policy if exists lp_settings_admin_insert on lp_settings;
 create policy lp_settings_admin_insert on lp_settings for insert with check (lp_is_admin());
+drop policy if exists lp_settings_admin_update on lp_settings;
 create policy lp_settings_admin_update on lp_settings for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_settings_admin_delete on lp_settings;
 create policy lp_settings_admin_delete on lp_settings for delete using (lp_is_admin());
 
+drop policy if exists lp_sections_public_read on lp_sections;
 create policy lp_sections_public_read on lp_sections for select using (true);
+drop policy if exists lp_sections_admin_insert on lp_sections;
 create policy lp_sections_admin_insert on lp_sections for insert with check (lp_is_admin());
+drop policy if exists lp_sections_admin_update on lp_sections;
 create policy lp_sections_admin_update on lp_sections for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_sections_admin_delete on lp_sections;
 create policy lp_sections_admin_delete on lp_sections for delete using (lp_is_admin());
 
+drop policy if exists lp_services_public_read on lp_services;
 create policy lp_services_public_read on lp_services for select using (true);
+drop policy if exists lp_services_admin_insert on lp_services;
 create policy lp_services_admin_insert on lp_services for insert with check (lp_is_admin());
+drop policy if exists lp_services_admin_update on lp_services;
 create policy lp_services_admin_update on lp_services for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_services_admin_delete on lp_services;
 create policy lp_services_admin_delete on lp_services for delete using (lp_is_admin());
 
+drop policy if exists lp_team_public_read on lp_team;
 create policy lp_team_public_read on lp_team for select using (true);
+drop policy if exists lp_team_admin_insert on lp_team;
 create policy lp_team_admin_insert on lp_team for insert with check (lp_is_admin());
+drop policy if exists lp_team_admin_update on lp_team;
 create policy lp_team_admin_update on lp_team for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_team_admin_delete on lp_team;
 create policy lp_team_admin_delete on lp_team for delete using (lp_is_admin());
 
+drop policy if exists lp_testimonials_public_read on lp_testimonials;
 create policy lp_testimonials_public_read on lp_testimonials for select using (true);
+drop policy if exists lp_testimonials_admin_insert on lp_testimonials;
 create policy lp_testimonials_admin_insert on lp_testimonials for insert with check (lp_is_admin());
+drop policy if exists lp_testimonials_admin_update on lp_testimonials;
 create policy lp_testimonials_admin_update on lp_testimonials for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_testimonials_admin_delete on lp_testimonials;
 create policy lp_testimonials_admin_delete on lp_testimonials for delete using (lp_is_admin());
 
+drop policy if exists lp_contact_public_read on lp_contact;
 create policy lp_contact_public_read on lp_contact for select using (true);
+drop policy if exists lp_contact_admin_insert on lp_contact;
 create policy lp_contact_admin_insert on lp_contact for insert with check (lp_is_admin());
+drop policy if exists lp_contact_admin_update on lp_contact;
 create policy lp_contact_admin_update on lp_contact for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_contact_admin_delete on lp_contact;
 create policy lp_contact_admin_delete on lp_contact for delete using (lp_is_admin());
 
+drop policy if exists lp_faq_public_read on lp_faq;
 create policy lp_faq_public_read on lp_faq for select using (true);
+drop policy if exists lp_faq_admin_insert on lp_faq;
 create policy lp_faq_admin_insert on lp_faq for insert with check (lp_is_admin());
+drop policy if exists lp_faq_admin_update on lp_faq;
 create policy lp_faq_admin_update on lp_faq for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_faq_admin_delete on lp_faq;
 create policy lp_faq_admin_delete on lp_faq for delete using (lp_is_admin());
 
 -- lp_leads não tem policy de leitura pública: só quem enviou o formulário (anon) grava,
 -- só admin/owner lê o que chegou.
+drop policy if exists lp_leads_public_insert on lp_leads;
 create policy lp_leads_public_insert on lp_leads for insert with check (true);
+drop policy if exists lp_leads_admin_read on lp_leads;
 create policy lp_leads_admin_read on lp_leads for select using (lp_is_admin());
+drop policy if exists lp_leads_admin_insert on lp_leads;
 create policy lp_leads_admin_insert on lp_leads for insert with check (lp_is_admin());
+drop policy if exists lp_leads_admin_update on lp_leads;
 create policy lp_leads_admin_update on lp_leads for update using (lp_is_admin()) with check (lp_is_admin());
+drop policy if exists lp_leads_admin_delete on lp_leads;
 create policy lp_leads_admin_delete on lp_leads for delete using (lp_is_admin());
