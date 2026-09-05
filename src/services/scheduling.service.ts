@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { AppointmentStatus, Database } from "@/types/supabase"
+import { ACTIVE_APPOINTMENT_STATUSES } from "@/config/agenda"
 import { dayRange, rangeBounds } from "@/utils/datetime"
 
 type DB = SupabaseClient<Database>
@@ -14,6 +15,9 @@ export type AppointmentInput = {
   room_id?: string | null
   scheduled_at: string
   duration_minutes: number
+  /** Só o que se escolhe ao marcar. Os desfechos (confirmado, concluído, cancelado,
+   *  falta) passam por `setAppointmentStatus`/`setAppointmentNoShow`. */
+  status?: "scheduled" | "triagem"
   notes?: string | null
 }
 
@@ -171,7 +175,7 @@ export async function listPendingClosures(
     .from("appointments")
     .select("*")
     .eq("clinic_id", clinicId)
-    .in("status", ["scheduled", "confirmed"])
+    .in("status", ACTIVE_APPOINTMENT_STATUSES)
     .lt("scheduled_at", new Date().toISOString())
     .order("scheduled_at", { ascending: false })
     .limit(opts.limit ?? 50)
@@ -192,7 +196,7 @@ export async function countPendingClosures(
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("clinic_id", clinicId)
-    .in("status", ["scheduled", "confirmed"])
+    .in("status", ACTIVE_APPOINTMENT_STATUSES)
     .lt("scheduled_at", new Date().toISOString())
 
   if (opts.professionalId) query = query.eq("professional_id", opts.professionalId)

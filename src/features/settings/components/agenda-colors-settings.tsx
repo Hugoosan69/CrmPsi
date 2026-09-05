@@ -18,6 +18,7 @@ const initialState: SettingsActionState = {}
 
 const STATUS_ORDER: AppointmentStatus[] = [
   "scheduled",
+  "triagem",
   "confirmed",
   "completed",
   "no_show",
@@ -27,6 +28,7 @@ const STATUS_ORDER: AppointmentStatus[] = [
 /** O que cada situação significa na prática — a cor só ajuda quem sabe o que está pintando. */
 const STATUS_HINTS: Record<AppointmentStatus, string> = {
   scheduled: "Marcado, ainda sem confirmação do paciente.",
+  triagem: "Primeira avaliação, a porta de entrada do paciente.",
   confirmed: "Paciente confirmou que vem.",
   completed: "Atendimento realizado e encerrado.",
   no_show: "Paciente não compareceu.",

@@ -4,8 +4,10 @@
 -- queue domain (06_queue), which references appointments but evolves independently —
 -- required because the queue also handles walk-ins and transfers that have no appointment.
 
+-- 'triagem' entrou depois (migrations/022): é uma consulta ativa como 'scheduled' e
+-- 'confirmed' — ocupa o horário e conta nos guardas de conflito (migrations/023).
 create type appointment_status as enum (
-  'scheduled', 'confirmed', 'cancelled', 'no_show', 'completed'
+  'scheduled', 'triagem', 'confirmed', 'cancelled', 'no_show', 'completed'
 );
 
 create table appointments (

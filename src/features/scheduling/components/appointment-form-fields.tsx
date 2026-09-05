@@ -14,6 +14,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { PatientCombobox } from "@/features/patients/components/patient-combobox"
 import { PackageSessionField } from "@/features/packages/components/package-session-field"
+import { APPOINTMENT_STATUS_LABELS } from "@/config/agenda"
 import type { Database } from "@/types/supabase"
 import { toDateTimeLocalValue } from "@/utils/datetime"
 import type { ProcedureOption, ProfessionalOption } from "@/types/options"
@@ -123,6 +124,26 @@ export function AppointmentFormFields({
           </Select>
         </div>
       )}
+      {/* Triagem se decide na hora de marcar — é a porta de entrada do paciente, e quem
+          atende o telefone já sabe. As demais situações não entram aqui: confirmar,
+          concluir e cancelar são consequência do que acontece depois, e têm seus botões
+          no detalhe do agendamento. */}
+      <div className="grid gap-1.5">
+        <Label htmlFor="status">Tipo de agendamento</Label>
+        <Select
+          name="status"
+          defaultValue={appointment?.status === "triagem" ? "triagem" : "scheduled"}
+        >
+          <SelectTrigger id="status" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="scheduled">{APPOINTMENT_STATUS_LABELS.scheduled}</SelectItem>
+            <SelectItem value="triagem">{APPOINTMENT_STATUS_LABELS.triagem}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid gap-1.5">
         <Label htmlFor="notes">Observações</Label>
         <Textarea id="notes" name="notes" rows={2} defaultValue={appointment?.notes ?? ""} />

@@ -2975,6 +2975,7 @@ export type Database = {
     Enums: {
       appointment_status:
         | "scheduled"
+        | "triagem"
         | "confirmed"
         | "cancelled"
         | "no_show"
@@ -3152,6 +3153,7 @@ export const Constants = {
     Enums: {
       appointment_status: [
         "scheduled",
+        "triagem",
         "confirmed",
         "cancelled",
         "no_show",

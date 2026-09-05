@@ -1,5 +1,7 @@
 import "server-only"
 
+import { ACTIVE_APPOINTMENT_STATUSES } from "@/config/agenda"
+
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, Json, MessageChannel, MessageType } from "@/types/supabase"
@@ -478,7 +480,7 @@ export async function resolveMessageVariables(
       .select("scheduled_at, professionals(full_name), procedures(name)")
       .eq("patient_id", patientId)
       .eq("clinic_id", clinicId)
-      .in("status", ["scheduled", "confirmed"])
+      .in("status", ACTIVE_APPOINTMENT_STATUSES)
       .gte("scheduled_at", new Date().toISOString())
       .order("scheduled_at", { ascending: true })
       .limit(1),

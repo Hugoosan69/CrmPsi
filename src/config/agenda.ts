@@ -60,6 +60,7 @@ export function roomKindLabel(value: string) {
  */
 export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
+  triagem: "Triagem",
   confirmed: "Confirmado",
   cancelled: "Cancelado",
   no_show: "Não compareceu",
@@ -68,6 +69,9 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
 
 export const APPOINTMENT_STATUS_TONES: Record<AppointmentStatus, StatusTone> = {
   scheduled: "neutral",
+  // Sem tom próprio no tema — a triagem nasceu junto com as cores configuráveis
+  // (migrations/021-022) e o que a distingue no card é a cor padrão abaixo.
+  triagem: "info",
   confirmed: "info",
   cancelled: "danger",
   no_show: "warning",
@@ -89,6 +93,7 @@ export const APPOINTMENT_STATUS_TONES: Record<AppointmentStatus, StatusTone> = {
  */
 export const DEFAULT_APPOINTMENT_STATUS_COLORS: Record<AppointmentStatus, string> = {
   scheduled: "#8494A0",
+  triagem: "#7A5C9E",
   confirmed: "#1B7F94",
   cancelled: "#C33C2E",
   no_show: "#B07C1F",
@@ -124,6 +129,20 @@ export function resolveStatusColors(stored: unknown): AppointmentStatusColors {
   }
   return result
 }
+
+/**
+ * Situações que ocupam o horário e ainda esperam um desfecho.
+ *
+ * É o mesmo conjunto dos guardas de conflito no banco (migrations/023): mudar um lado sem
+ * o outro é como a triagem nasceria furada — visível na agenda, invisível para quem checa
+ * se o horário está livre. Cancelado e não-compareceu ficam de fora porque de fato
+ * liberam o horário; concluído porque já teve desfecho.
+ */
+export const ACTIVE_APPOINTMENT_STATUSES: AppointmentStatus[] = [
+  "scheduled",
+  "triagem",
+  "confirmed",
+]
 
 /** A cancelled or missed slot is vacated time — it should not read as occupied. */
 export function isVacatedStatus(status: AppointmentStatus) {

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { timingSafeEqual } from "node:crypto"
 
+import { ACTIVE_APPOINTMENT_STATUSES } from "@/config/agenda"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export const dynamic = "force-dynamic"
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     .from("appointments")
     .select("id, professional_id")
     .eq("clinic_id", clinicId)
-    .in("status", ["scheduled", "confirmed"])
+    .in("status", ACTIVE_APPOINTMENT_STATUSES)
     .lt("scheduled_at", new Date().toISOString())
 
   if (error) {

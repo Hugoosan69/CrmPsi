@@ -121,11 +121,21 @@ export async function rescheduleAppointmentAction(
   // Reagendar não mexe no vínculo de pacote já feito na criação — só muda horário/sala/
   // profissional. patient_package_id não é coluna de appointments, por isso sai do objeto
   // antes do update (senão o Supabase reclama de uma coluna inexistente).
-  const { patient_package_id, ...appointmentInput } = parsed.data
+  const { patient_package_id, status, ...appointmentInput } = parsed.data
   void patient_package_id
 
+  // O seletor do formulário só conhece "Agendado" e "Triagem". Reagendar uma consulta que
+  // já foi confirmada (ou concluída) não pode fazê-la regredir para "Agendado" só porque o
+  // campo veio com o padrão — a situação só é reescrita quando ainda é uma das duas.
+  const current = await getAppointment(supabase, membership.clinicId, appointmentId)
+  const nextStatus =
+    current.status === "scheduled" || current.status === "triagem" ? status : undefined
+
   try {
-    await rescheduleAppointment(supabase, membership.clinicId, appointmentId, appointmentInput)
+    await rescheduleAppointment(supabase, membership.clinicId, appointmentId, {
+      ...appointmentInput,
+      ...(nextStatus ? { status: nextStatus } : {}),
+    })
   } catch (err) {
     return { error: describeDbError(err) }
   }

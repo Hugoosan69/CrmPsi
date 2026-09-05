@@ -28,7 +28,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { StatusDot } from "@/components/shared/status-dot"
 import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
-import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_TONES } from "@/config/agenda"
+import {
+  ACTIVE_APPOINTMENT_STATUSES,
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_STATUS_TONES,
+} from "@/config/agenda"
 import type { AppointmentView } from "@/services/scheduling.service"
 import { formatDateTime, formatTime } from "@/utils/datetime"
 import type { ProcedureOption, ProfessionalOption } from "@/types/options"
@@ -200,7 +204,9 @@ function ViewMode({
     new Date(appointment.scheduled_at).getTime() + appointment.duration_minutes * 60_000
   ).toISOString()
 
-  const isOpen = appointment.status === "scheduled" || appointment.status === "confirmed"
+  // Triagem é agendamento aberto como qualquer outro: confirma, faz check-in, conclui e
+  // falta do mesmo jeito. Só muda a cor no card e o que a clínica lê ali.
+  const isOpen = ACTIVE_APPOINTMENT_STATUSES.includes(appointment.status)
 
   return (
     <>
@@ -272,7 +278,7 @@ function ViewMode({
 
       {isOpen && (
         <div className="grid gap-2">
-          {canManage && appointment.status === "scheduled" && (
+          {canManage && (appointment.status === "scheduled" || appointment.status === "triagem") && (
             <Button
               variant="outline"
               disabled={isPending}

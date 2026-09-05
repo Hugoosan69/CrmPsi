@@ -49,6 +49,13 @@ export const appointmentSchema = z.object({
     .transform((v) => (v ? v : null)),
   scheduled_at: localDateTimeToIso,
   duration_minutes: z.coerce.number().int().min(5, "Duração mínima de 5 minutos"),
+  // Só as duas situações que se escolhe ao marcar (ver appointment-form-fields). Confirmar,
+  // concluir e cancelar são desfechos e têm ações próprias — aceitar qualquer valor do enum
+  // aqui deixaria o formulário concluir um atendimento que nunca aconteceu.
+  status: z
+    .enum(["scheduled", "triagem"])
+    .optional()
+    .transform((v) => v ?? "scheduled"),
   notes: optionalText,
 })
 
