@@ -24,10 +24,14 @@ export function PatientCombobox({
   name,
   defaultValue,
   placeholder = "Buscar paciente por nome, CPF ou telefone...",
+  onSelect,
 }: {
   name: string
   defaultValue?: { id: string; label: string }
   placeholder?: string
+  /** Chamado com o id do paciente escolhido — usado por formulários que precisam reagir
+   * à escolha (ex.: agendamento, para sugerir sessões de pacote ativas). */
+  onSelect?: (patientId: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -86,6 +90,7 @@ export function PatientCombobox({
                   onSelect={() => {
                     setSelected(option)
                     setOpen(false)
+                    onSelect?.(option.id)
                   }}
                 >
                   <Check

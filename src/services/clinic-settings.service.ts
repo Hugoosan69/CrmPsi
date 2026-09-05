@@ -184,7 +184,7 @@ export async function getClinicBranding(supabase: DB, clinicId: string): Promise
  */
 export async function getPublicBranding(supabase: DB): Promise<ClinicBranding | null> {
   try {
-    const { data, error } = await supabase.rpc("public_clinic_branding", { p_slug: null })
+    const { data, error } = await supabase.rpc("public_clinic_branding", { p_slug: undefined })
     if (error) throw error
     const row = data?.[0]
     if (!row) return null

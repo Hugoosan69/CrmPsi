@@ -38,6 +38,15 @@ export const appointmentSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((v) => (v ? v : null)),
+  // Não é coluna de `appointments` — é o id do saldo de pacote (patient_packages) a
+  // reservar. A Server Action extrai e usa via reservePackageSession antes de repassar o
+  // resto ao insert/update de appointments.
+  patient_package_id: z
+    .string()
+    .uuid()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : null)),
   scheduled_at: localDateTimeToIso,
   duration_minutes: z.coerce.number().int().min(5, "Duração mínima de 5 minutos"),
   notes: optionalText,

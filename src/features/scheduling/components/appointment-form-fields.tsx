@@ -1,3 +1,7 @@
+"use client"
+
+import { useState } from "react"
+
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -9,6 +13,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { PatientCombobox } from "@/features/patients/components/patient-combobox"
+import { PackageSessionField } from "@/features/packages/components/package-session-field"
 import type { Database } from "@/types/supabase"
 import { toDateTimeLocalValue } from "@/utils/datetime"
 import type { ProcedureOption, ProfessionalOption } from "@/types/options"
@@ -29,12 +34,23 @@ export function AppointmentFormFields({
    *  offering an empty select. */
   rooms?: { id: string; name: string }[]
 }) {
+  const [patientId, setPatientId] = useState<string | null>(patientDefault?.id ?? null)
+
   return (
     <div className="grid gap-4">
       <div className="grid gap-1.5">
         <Label>Paciente</Label>
-        <PatientCombobox name="patient_id" defaultValue={patientDefault} />
+        <PatientCombobox name="patient_id" defaultValue={patientDefault} onSelect={setPatientId} />
       </div>
+      {/* Sugestão automática (requisito 3): só aparece quando o paciente tem saldo de
+          pacote ativo. Reagenda mantém o vínculo já feito na criação, sem oferecer o
+          seletor de novo — appointment presente é o sinal de edição, não venda nova. */}
+      {!appointment && (
+        <PackageSessionField
+          patientId={patientId}
+          defaultValue={null}
+        />
+      )}
       <div className="grid grid-cols-2 gap-4">
         <div className="grid gap-1.5">
           <Label htmlFor="professional_id">Profissional</Label>

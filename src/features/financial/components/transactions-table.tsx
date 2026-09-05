@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/shared/empty-state"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -11,6 +12,8 @@ import type { TransactionView } from "@/services/financial.service"
 import { TransactionStatusBadge } from "./transaction-status-badge"
 import { RegisterPaymentDialog } from "./register-payment-dialog"
 import { CancelTransactionButton } from "./cancel-transaction-button"
+import { LinkRetroactivePackageDialog } from "@/features/packages/components/link-retroactive-package-dialog"
+import { EditAmountDialog } from "./edit-amount-dialog"
 
 type PaymentMethod = { id: string; name: string }
 
@@ -28,10 +31,13 @@ export function TransactionsTable({
   transactions,
   paymentMethods,
   canManage,
+  canEditAmount = false,
 }: {
   transactions: TransactionView[]
   paymentMethods: PaymentMethod[]
   canManage: boolean
+  /** financial.edit_amount — corrigir valor é permissão à parte de registrar pagamento. */
+  canEditAmount?: boolean
 }) {
   if (transactions.length === 0) {
     return (
@@ -39,7 +45,18 @@ export function TransactionsTable({
     )
   }
 
+  const hasPackageRow = transactions.some((t) => t.isPackage)
+
   return (
+    <div className="grid gap-2">
+    {hasPackageRow && (
+      // A linha de R$ 0,00 numa sessão de pacote parece erro de lançamento para quem não
+      // conhece a regra. Uma frase resolve, e fica só quando há pacote na lista.
+      <p className="text-xs text-muted-foreground">
+        Pacote: o valor é contabilizado uma vez, na venda. As sessões seguintes aparecem a
+        R$ 0,00 — já estão pagas.
+      </p>
+    )}
     <Table>
       <TableHeader>
         <TableRow>
@@ -55,7 +72,14 @@ export function TransactionsTable({
         {transactions.map((t) => (
           <TableRow key={t.id}>
             <TableCell className="font-medium">
-              {t.description || t.category || "—"}
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                {t.description || t.category || "—"}
+                {t.isPackage && (
+                  <Badge variant="secondary" className="font-normal">
+                    Pacote
+                  </Badge>
+                )}
+              </span>
               {t.category && t.description && (
                 <p className="text-xs font-normal text-muted-foreground">{t.category}</p>
               )}
@@ -76,10 +100,24 @@ export function TransactionsTable({
                   <CancelTransactionButton transactionId={t.id} />
                 </>
               )}
+              {/* Requisito 6: lançamentos de R$ 1 ou menos são, por definição, sessões de
+                  pacote lançadas como avulso — ver database/migrations/015. Some assim que
+                  a linha já está vinculada a um pacote. */}
+              {canManage && !t.isPackage && t.status !== "cancelado" && Number(t.amount) <= 1 && (
+                <LinkRetroactivePackageDialog transactionId={t.id} patientId={t.patient_id} />
+              )}
+              {canEditAmount && t.status !== "cancelado" && (
+                <EditAmountDialog
+                  transactionId={t.id}
+                  amount={Number(t.amount)}
+                  description={t.description}
+                />
+              )}
             </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
+    </div>
   )
 }

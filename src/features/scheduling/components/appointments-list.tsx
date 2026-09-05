@@ -50,7 +50,21 @@ export function AppointmentsList({
         {appointments.map((appointment) => (
           <TableRow key={appointment.id}>
             <TableCell className="font-medium">{formatTime(appointment.scheduled_at)}</TableCell>
-            <TableCell>{appointment.patientName}</TableCell>
+            <TableCell>
+              {appointment.patientName}
+              {appointment.packageSessionLabel && (
+                <p
+                  className={
+                    appointment.packageSessionIsLast
+                      ? "text-xs font-medium text-amber-600"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {appointment.packageSessionLabel}
+                  {appointment.packageSessionIsLast ? " · última sessão" : ""}
+                </p>
+              )}
+            </TableCell>
             <TableCell>{appointment.professionalName}</TableCell>
             <TableCell>{appointment.procedureName || "—"}</TableCell>
             <TableCell>

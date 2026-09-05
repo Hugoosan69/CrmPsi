@@ -56,15 +56,22 @@ function toEvent(
   subtitle: string | null
 ): CalendarEvent {
   const start = minutesSinceMidnight(appointment.scheduled_at)
+  // Requisito 4: selo do pacote junto ao nome do paciente, direto no card da agenda —
+  // "Última sessão" destaca quando é a 4/4 para a recepção já oferecer renovação.
+  const title = appointment.packageSessionLabel
+    ? `${appointment.patientName} — ${appointment.packageSessionLabel}${
+        appointment.packageSessionIsLast ? " · última sessão" : ""
+      }`
+    : appointment.patientName
   return {
     id: appointment.id,
     columnKey,
     startMinutes: start,
     endMinutes: start + appointment.duration_minutes,
-    title: appointment.patientName,
+    title,
     subtitle,
     statusLabel: APPOINTMENT_STATUS_LABELS[appointment.status],
-    tone: APPOINTMENT_STATUS_TONES[appointment.status],
+    tone: appointment.packageSessionIsLast ? "warning" : APPOINTMENT_STATUS_TONES[appointment.status],
     muted: isVacatedStatus(appointment.status),
   }
 }

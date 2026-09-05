@@ -81,9 +81,7 @@ psql "$DATABASE_URL" -f 00_core/schema.sql          # ... through 15_audit/schem
 
 # 2. migrations, in numeric order
 psql "$DATABASE_URL" -f migrations/001_payment_gate_and_timer.sql
-psql "$DATABASE_URL" -f migrations/002_agenda_foundation.sql
-psql "$DATABASE_URL" -f migrations/003_branding_and_integrations.sql
-psql "$DATABASE_URL" -f migrations/004_internal_comms.sql
+# ... through migrations/019_amount_edit_and_package_billing.sql, em ordem numérica
 
 # 3. reference + demo data
 psql "$DATABASE_URL" -f 08_records/seed_cid.sql
@@ -106,6 +104,13 @@ Or paste each file into the Supabase SQL Editor in the same order.
 | `010_stripe_scaffolding.sql` | base para pagamentos online: `payments.external_provider`/`external_id` com índice único **parcial** (o `where` é indispensável — sem ele um único índice sobre dois nulos barraria o segundo pagamento em dinheiro), a tabela `stripe_events` com o id do Stripe como chave primária, e a forma de pagamento `stripe`. Idempotência antes de tudo: o Stripe entrega **ao menos uma vez**, e sem isso a retentativa de um `payment_intent.succeeded` grava o mesmo recebimento duas vezes. Não cria cobrança nem tela de checkout |
 | `011_call_acknowledgement.sql` | `queue_entries.call_acknowledged_at` / `call_acknowledged_by` — o "avisei o paciente" deixa de ser estado do navegador e passa a ser compartilhado no balcão. Sem reset: a leitura compara `call_acknowledged_at` com `called_at`, então um paciente rechamado volta a aparecer como não avisado por **qualquer** caminho que ponha a entrada em `called`, e não só pelos que alguém lembrasse de cobrir com um gatilho |
 | `012_back_to_back_slots.sql` | `professional_availability.back_to_back` e a nova versão de `professional_free_slots`. `slot_minutes` é o PASSO da grade, não a duração da consulta — quando os dois não batem sobra tempo morto (passo de 15 com procedimento de 40 gera 5 minutos parados a cada paciente). Com o sinalizador ligado o passo passa a ser a duração pedida, de modo que um paciente começa quando o anterior termina. Fica na faixa e não no profissional porque é onde `slot_minutes` já vive, e a preferência pode mudar com o dia. **Default `false`: sem ligar nada, o comportamento é idêntico ao de antes** |
+| `013_landing_page.sql` | `lp_settings`, `lp_sections`, `lp_services`, `lp_team`, `lp_testimonials`, `lp_contact`, `lp_faq`, `lp_leads` + `lp_is_admin()`. Página institucional (landing page) pública, editável por owner/admin. Reconstruído a partir do schema vivo de produção em 2026-09-05 — tinha sido aplicado direto no SQL editor (migration Supabase `create_landing_page_tables`, 20260902224253) sem nenhum arquivo correspondente neste repositório |
+| `014_clinics_extra_columns.sql` | `clinics.cnpj`, `clinics.whatsapp`, `clinics.staff_count`, `clinics.short_name` — também aplicadas direto em produção sem migration correspondente. Reconstruído junto com a 013 pelo mesmo motivo |
+| `015_session_packages.sql` | `session_packages` (catálogo por especialidade), `patient_packages` (o saldo vendido) e `patient_package_sessions` (uma linha por sessão) + `appointments.patient_package_session_id` e `appointments.no_show_justified`. Antes disso cada sessão de pacote era lançada como avulso de R$ 1 só para não ficar pendente no financeiro. Reserva x consumo: agendar reserva a posição, o consumo (e o débito do saldo) só acontece quando o atendimento é concluído. Permissões `packages.view` / `packages.manage` |
+| `016_fix_package_session_trigger.sql` | O gatilho de consumo só disparava em UPDATE, e o vínculo retroativo insere a sessão já como `consumed` — nesse caminho `sessions_used` nunca era incrementado. Passa a disparar em INSERT também |
+| `017_professional_own_financial.sql` | `financial.view_own`: o profissional vê a movimentação dos próprios atendimentos (`/profissional/financeiro`) sem enxergar o caixa da clínica |
+| `018_unique_package_session_number.sql` | Índice único parcial em (`patient_package_id`, `session_number`) para `status <> 'released'`. A tela de vínculo já esconde as posições ocupadas, mas esconder não é impedir: duas pessoas fechando o mesmo pacote gravariam a sessão 3 duas vezes |
+| `019_amount_edit_and_package_billing.sql` | `financial.edit_amount` (corrigir valor de lançamento já registrado, sempre auditado com o valor anterior) + `session_packages.billing_mode`: `unico` (valor total na venda, sessões a R$ 0 — padrão) ou `por_sessao` (cada sessão carrega a sua parte) |
 
 `99_seed/seed.sql` requires demo `auth.users` to be created first (Supabase Auth cannot be
 seeded with plain SQL inserts) — see the comments at the top of that file. For a set of
