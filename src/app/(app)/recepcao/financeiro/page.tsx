@@ -15,6 +15,8 @@ export default async function RecepcaoFinanceiroPage({
 }) {
   const membership = await requirePermission(PERMISSIONS.FINANCIAL_VIEW)
   const canManage = hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
+  const canEditAmount = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_AMOUNT)
+  const canEditPaid = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)
 
   const { pagina, por } = await searchParams
   const { page, pageSize, offset, rangeEnd } = parsePagination({ page: pagina, pageSize: por })
@@ -37,6 +39,8 @@ export default async function RecepcaoFinanceiroPage({
           transactions={rows}
           paymentMethods={paymentMethods}
           canManage={canManage}
+          canEditAmount={canEditAmount}
+          canEditPaid={canEditPaid}
         />
         <PaginationBar total={total} page={page} pageSize={pageSize} label="cobranças" />
       </div>

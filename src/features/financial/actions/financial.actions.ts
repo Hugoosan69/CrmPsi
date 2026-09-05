@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { createClient } from "@/lib/supabase/server"
-import { requirePermission } from "@/lib/auth/session"
+import { hasPermission, requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
 import { transactionSchema, paymentSchema } from "@/schemas/financial.schema"
 import {
@@ -30,6 +30,11 @@ function revalidateFinancial() {
  * uma coisa, reescrever um valor já contabilizado é outra. O audit_log guarda o valor
  * anterior e o novo — a tela avisa quem edita que isso fica registrado, e este é o
  * registro.
+ *
+ * Quando o lançamento já está **pago**, exige também `financial.edit_paid`
+ * (migrations/020): aí não se está corrigindo uma cobrança em aberto, e sim mudando um
+ * valor que já entrou no caixa e já contou no fechamento. A checagem é aqui, e não só na
+ * tela — a UI esconder o botão nunca é a garantia.
  */
 export async function updateTransactionAmountAction(
   transactionId: string,
@@ -46,6 +51,14 @@ export async function updateTransactionAmountAction(
 
   const supabase = await createClient()
   const before = await getTransaction(supabase, membership.clinicId, transactionId)
+
+  if (before.status === "pago" && !hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)) {
+    return {
+      error:
+        "Este lançamento já está pago. Alterar um registro pago exige a permissão “Alterar um lançamento que já está pago”.",
+    }
+  }
+
   await updateTransactionAmount(supabase, membership.clinicId, transactionId, amount)
 
   await recordAudit({
@@ -54,7 +67,7 @@ export async function updateTransactionAmountAction(
     action: "financial.edit_amount",
     entityType: "financial_transaction",
     entityId: transactionId,
-    before: { amount: before.amount },
+    before: { amount: before.amount, status: before.status },
     after: { amount, reason: String(formData.get("reason") ?? "") || null },
   })
 

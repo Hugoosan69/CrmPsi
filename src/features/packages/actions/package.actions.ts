@@ -16,8 +16,11 @@ import {
   createPatientPackageWithoutCharge,
   listActivePatientPackages,
   listSessionPackages,
+  settlePendingChargesForAppointment,
+  syncPatientPackagesWithCatalog,
   takenSessionNumbers,
 } from "@/services/packages.service"
+import { markQueueEntriesReleasedForTransaction } from "@/services/queue.service"
 import { getAppointment } from "@/services/scheduling.service"
 import { recordAudit } from "@/services/audit.service"
 import { describeDbError } from "@/lib/db-errors"
@@ -77,8 +80,14 @@ export async function updateSessionPackageAction(
   }
 
   const supabase = await createClient()
+  let sync: Awaited<ReturnType<typeof syncPatientPackagesWithCatalog>>
   try {
     await updateSessionPackage(supabase, membership.clinicId, packageId, parsed.data)
+    // Corrigir o catálogo tem de chegar em quem já comprou: o pacote cadastrado com 1
+    // sessão por engano e ajustado para 4 precisa virar "1/4" também na agenda e na ficha
+    // do paciente. Quem já usou mais sessões do que o novo total fica de fora (ver
+    // syncPatientPackagesWithCatalog) e é reprocessado à mão pelo botão do catálogo.
+    sync = await syncPatientPackagesWithCatalog(supabase, membership.clinicId, packageId)
   } catch (err) {
     return { error: describeDbError(err) }
   }
@@ -89,11 +98,55 @@ export async function updateSessionPackageAction(
     action: "package.catalog.update",
     entityType: "session_package",
     entityId: packageId,
-    after: parsed.data,
+    after: { ...parsed.data, saldosAtualizados: sync.updated, saldosIgnorados: sync.skipped },
   })
 
   revalidatePackages()
+  revalidatePath("/recepcao/agenda")
+  revalidatePath("/profissional/agenda")
   return { success: true }
+}
+
+/**
+ * Reprocessa os saldos já vendidos deste pacote, sob demanda.
+ *
+ * A atualização do catálogo já faz isso sozinha, mas nem todo desencontro veio de uma
+ * edição: pacotes criados na conversão retroativa, importações e ajustes feitos direto no
+ * banco também deixam saldos com o número de sessões antigo. O botão existe para alinhar
+ * tudo sem precisar reabrir e salvar o cadastro.
+ */
+export async function reprocessPackageBalancesAction(
+  packageId: string
+): Promise<PackageActionState & { message?: string }> {
+  const membership = await requirePermission(PERMISSIONS.PACKAGES_MANAGE)
+  const supabase = await createClient()
+
+  let sync: Awaited<ReturnType<typeof syncPatientPackagesWithCatalog>>
+  try {
+    sync = await syncPatientPackagesWithCatalog(supabase, membership.clinicId, packageId)
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
+
+  await recordAudit({
+    clinicId: membership.clinicId,
+    userId: membership.userId,
+    action: "package.catalog.reprocess",
+    entityType: "session_package",
+    entityId: packageId,
+    after: sync,
+  })
+
+  revalidatePackages()
+  revalidatePath("/recepcao/agenda")
+  revalidatePath("/profissional/agenda")
+
+  const partes = [`${sync.updated} saldo(s) atualizado(s)`]
+  if (sync.unchanged > 0) partes.push(`${sync.unchanged} já estava(m) em dia`)
+  if (sync.skipped > 0) {
+    partes.push(`${sync.skipped} com mais sessões usadas do que o pacote tem agora — revise à mão`)
+  }
+  return { success: true, message: partes.join(", ") + "." }
 }
 
 export async function setSessionPackageActiveAction(packageId: string, active: boolean) {
@@ -179,6 +232,12 @@ export async function listPatientActivePackagesAction(patientId: string) {
  * sistema saber disso. Quando o paciente ainda não tem o saldo cadastrado, o pacote é
  * criado sem lançamento financeiro. A venda com cobrança continua sendo a da ficha do
  * paciente ("Vender pacote").
+ *
+ * O que ele faz é **quitar** o que ficou pendente por engano: se a consulta tinha uma
+ * cobrança avulsa esperando "Registrar pagamento", ela vira sessão de pacote paga aqui
+ * mesmo (ver settlePendingChargesForAppointment). Sem isso o vínculo resolvia o saldo do
+ * paciente e deixava a clínica cobrando de novo pela sessão que o pacote já pagou — e o
+ * paciente preso no gate de pagamento da fila.
  */
 export async function linkAppointmentToPackageAction(
   appointmentId: string,
@@ -204,6 +263,7 @@ export async function linkAppointmentToPackageAction(
   }
 
   let patientPackageId = existingPackageId
+  let settledTransactionIds: string[] = []
   try {
     if (!patientPackageId) {
       if (!newPackageId) return { error: "Selecione um pacote." }
@@ -213,12 +273,23 @@ export async function linkAppointmentToPackageAction(
       })
     }
 
-    await linkAppointmentToPackage(supabase, membership.clinicId, {
+    const session = await linkAppointmentToPackage(supabase, membership.clinicId, {
       appointmentId,
       patientPackageId,
       alreadyHappened: appointment.status === "completed",
       sessionNumber,
     })
+
+    settledTransactionIds = await settlePendingChargesForAppointment(supabase, membership.clinicId, {
+      appointmentId,
+      patientPackageSessionId: session.id,
+    })
+
+    // Quitada a cobrança que segurava o paciente, ele sai de `payment_pending` na hora —
+    // mesmo caminho do registro de pagamento normal (ver registerPaymentAction).
+    for (const transactionId of settledTransactionIds) {
+      await markQueueEntriesReleasedForTransaction(supabase, membership.clinicId, transactionId)
+    }
   } catch (err) {
     return { error: describeDbError(err) }
   }
@@ -229,7 +300,7 @@ export async function linkAppointmentToPackageAction(
     action: "package.link_appointment",
     entityType: "appointment",
     entityId: appointmentId,
-    after: { patientPackageId, createdPackage: !existingPackageId },
+    after: { patientPackageId, createdPackage: !existingPackageId, settledTransactionIds },
   })
 
   revalidatePath("/recepcao/agenda")
@@ -237,6 +308,7 @@ export async function linkAppointmentToPackageAction(
   revalidatePackages(appointment.patient_id)
   revalidatePath("/gestao/financeiro")
   revalidatePath("/recepcao/financeiro")
+  if (settledTransactionIds.length > 0) revalidatePath("/recepcao/fila")
   return { success: true }
 }
 

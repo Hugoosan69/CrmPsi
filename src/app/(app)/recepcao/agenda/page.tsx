@@ -1,5 +1,6 @@
 import { hasPermission, requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
+import { getAgendaStatusColors } from "@/services/clinic-settings.service"
 import { PERMISSIONS } from "@/config/permissions"
 import {
   hydrateAppointments,
@@ -40,7 +41,7 @@ export default async function RecepcaoAgendaPage({
 
   const supabase = await createClient()
 
-  const [professionals, procedures, rooms, rules, exceptions] = await Promise.all([
+  const [professionals, procedures, rooms, rules, exceptions, statusColors] = await Promise.all([
     listProfessionals(supabase, membership.clinicId),
     listProcedures(supabase, membership.clinicId),
     listRoomsIfAvailable(supabase, membership.clinicId),
@@ -49,6 +50,7 @@ export default async function RecepcaoAgendaPage({
       from: view === "semana" ? weekStart : date,
       to: view === "semana" ? addDays(weekStart, 6) : date,
     }),
+    getAgendaStatusColors(supabase, membership.clinicId),
   ])
 
   const activeProfessionals = professionals
@@ -130,6 +132,7 @@ export default async function RecepcaoAgendaPage({
           rooms={rooms}
           canManage={canManage}
           canCheckIn={canCheckIn}
+          statusColors={statusColors}
         />
       )}
 
@@ -146,6 +149,7 @@ export default async function RecepcaoAgendaPage({
           rooms={rooms}
           canManage={canManage}
           canCheckIn={canCheckIn}
+          statusColors={statusColors}
         />
       )}
 

@@ -162,7 +162,8 @@ export function LinkAppointmentPackageFields({ appointmentId }: { appointmentId:
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Nenhuma cobrança é lançada aqui — o pagamento do pacote já foi feito.
+        Nenhuma cobrança é lançada aqui — o pagamento do pacote já foi feito. Se este
+        atendimento tiver uma cobrança em aberto, ela é quitada como sessão de pacote.
       </p>
     </div>
   )

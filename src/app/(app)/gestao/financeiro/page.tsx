@@ -51,6 +51,7 @@ export default async function GestaoFinanceiroPage({
   const membership = await requirePermission(PERMISSIONS.FINANCIAL_VIEW)
   const canManage = hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
   const canEditAmount = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_AMOUNT)
+  const canEditPaid = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)
 
   const { aba, pagina, por, de, ate, profissional, origem, formaPagamento } = await searchParams
   const abaAtiva: FinancialTab = ABAS.includes(aba as FinancialTab)
@@ -133,6 +134,7 @@ export default async function GestaoFinanceiroPage({
             paymentMethods={paymentMethods}
             canManage={canManage}
             canEditAmount={canEditAmount}
+            canEditPaid={canEditPaid}
           />
           <PaginationBar total={total} page={page} pageSize={pageSize} label="lançamentos" />
         </div>

@@ -42,6 +42,10 @@ export type CalendarEvent = {
   subtitle?: string | null
   statusLabel: string
   tone: StatusTone
+  /** Cor definida pela clínica para esta situação (hex). Quando vem, substitui o `tone` —
+   *  ver Configurações › Cores da agenda. O `tone` continua sendo o fallback, e é o que
+   *  vale para quem nunca personalizou nada. */
+  color?: string
   href?: string
   /** Cancelled and no-show slots read as vacated, not as occupied time. */
   muted?: boolean
@@ -272,17 +276,33 @@ export function CalendarGrid({
                 const top = offset(event.startMinutes)
                 const height = Math.max((event.endMinutes - event.startMinutes) * PX_PER_MINUTE, 22)
                 const widthPct = 100 / lanes
+                // Cor da clínica quando existe, tom do tema quando não. As mesmas
+                // proporções (45% na borda, 12% no fundo) dos tons padrão, para uma cor
+                // escolhida no seletor não virar um bloco chapado que apaga o texto.
+                const custom = event.color
                 const body = (
                   <div
                     className={cn(
                       "flex h-full gap-1.5 overflow-hidden rounded-md border px-1.5 py-1 text-left",
-                      TONE_BLOCK[event.tone],
+                      custom ? "text-foreground" : TONE_BLOCK[event.tone],
                       event.muted && "opacity-55",
                       event.href && "transition-shadow hover:shadow-card"
                     )}
+                    style={
+                      custom
+                        ? {
+                            borderColor: `color-mix(in oklab, ${custom} 45%, transparent)`,
+                            backgroundColor: `color-mix(in oklab, ${custom} 12%, transparent)`,
+                          }
+                        : undefined
+                    }
                   >
                     <span
-                      className={cn("mt-0.5 w-0.5 shrink-0 rounded-full", TONE_SPINE[event.tone])}
+                      className={cn(
+                        "mt-0.5 w-0.5 shrink-0 rounded-full",
+                        !custom && TONE_SPINE[event.tone]
+                      )}
+                      style={custom ? { backgroundColor: custom } : undefined}
                       aria-hidden
                     />
                     <div className="min-w-0">

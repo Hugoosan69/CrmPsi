@@ -1,10 +1,15 @@
 import { hasPermission, requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
-import { getClinicBranding, getN8nIntegration } from "@/services/clinic-settings.service"
+import {
+  getAgendaStatusColors,
+  getClinicBranding,
+  getN8nIntegration,
+} from "@/services/clinic-settings.service"
 import { fetchWahaQrDataUri, getWahaConfig, getWahaStatus } from "@/services/waha.service"
 import { PageHeader } from "@/components/shared/page-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AgendaColorsSettings } from "@/features/settings/components/agenda-colors-settings"
 import { BrandingSettings } from "@/features/settings/components/branding-settings"
 import { N8nSettings } from "@/features/settings/components/n8n-settings"
 import { WahaSettings } from "@/features/settings/components/waha-settings"
@@ -19,8 +24,14 @@ export default async function ConfiguracoesPage() {
   // as Server Actions por trás delas exigem o mesmo, então esconder aqui é conveniência,
   // não a barreira.
   const canManageIntegrations = hasPermission(membership, PERMISSIONS.INTEGRATIONS_MANAGE)
+  // Cores da agenda têm permissão própria (migrations/021): mexer na leitura da tela em que
+  // a equipe trabalha o dia inteiro é decisão à parte de trocar a logo.
+  const canSetAgendaColors = hasPermission(membership, PERMISSIONS.AGENDA_APPEARANCE)
 
   const branding = await getClinicBranding(supabase, membership.clinicId)
+  const agendaColors = canSetAgendaColors
+    ? await getAgendaStatusColors(supabase, membership.clinicId)
+    : null
 
   // Nada de integração é buscado para quem não pode vê-la: sem isso a página bateria no
   // servidor do WAHA em toda carga de quem só ia trocar a logo.
@@ -50,6 +61,7 @@ export default async function ConfiguracoesPage() {
       <Tabs defaultValue="identidade">
         <TabsList>
           <TabsTrigger value="identidade">Identidade visual</TabsTrigger>
+          {canSetAgendaColors ? <TabsTrigger value="agenda">Cores da agenda</TabsTrigger> : null}
           {canManageIntegrations ? (
             <>
               <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
@@ -61,6 +73,12 @@ export default async function ConfiguracoesPage() {
         <TabsContent value="identidade" className="mt-5">
           <BrandingSettings logoUrl={branding.logoUrl} />
         </TabsContent>
+
+        {agendaColors ? (
+          <TabsContent value="agenda" className="mt-5">
+            <AgendaColorsSettings colors={agendaColors} />
+          </TabsContent>
+        ) : null}
 
         {canManageIntegrations && waha && wahaStatus ? (
           <TabsContent value="whatsapp" className="mt-5">

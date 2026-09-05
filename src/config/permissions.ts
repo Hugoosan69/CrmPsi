@@ -40,6 +40,14 @@ export const PERMISSIONS = {
 
   // migration 019 — corrigir o valor de um lançamento já registrado (sempre auditado).
   FINANCIAL_EDIT_AMOUNT: "financial.edit_amount",
+
+  // migration 020 — mexer numa linha JÁ PAGA. Exigida junto com FINANCIAL_EDIT_AMOUNT,
+  // nunca sozinha: corrigir um lançamento em aberto é rotina, reescrever um recebimento já
+  // conciliado é outra responsabilidade.
+  FINANCIAL_EDIT_PAID: "financial.edit_paid",
+
+  // migration 021 — cor de cada situação no card da agenda.
+  AGENDA_APPEARANCE: "agenda.appearance",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

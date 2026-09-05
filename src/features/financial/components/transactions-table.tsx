@@ -32,12 +32,15 @@ export function TransactionsTable({
   paymentMethods,
   canManage,
   canEditAmount = false,
+  canEditPaid = false,
 }: {
   transactions: TransactionView[]
   paymentMethods: PaymentMethod[]
   canManage: boolean
   /** financial.edit_amount — corrigir valor é permissão à parte de registrar pagamento. */
   canEditAmount?: boolean
+  /** financial.edit_paid — mexer numa linha JÁ PAGA exige as duas (migrations/020). */
+  canEditPaid?: boolean
 }) {
   if (transactions.length === 0) {
     return (
@@ -106,13 +109,18 @@ export function TransactionsTable({
               {canManage && !t.isPackage && t.status !== "cancelado" && Number(t.amount) <= 1 && (
                 <LinkRetroactivePackageDialog transactionId={t.id} patientId={t.patient_id} />
               )}
-              {canEditAmount && t.status !== "cancelado" && (
-                <EditAmountDialog
-                  transactionId={t.id}
-                  amount={Number(t.amount)}
-                  description={t.description}
-                />
-              )}
+              {/* Linha paga só é editável por quem tem as DUAS permissões — a Server Action
+                  confere de novo, isto aqui é só não oferecer o que vai ser recusado. */}
+              {canEditAmount &&
+                t.status !== "cancelado" &&
+                (t.status !== "pago" || canEditPaid) && (
+                  <EditAmountDialog
+                    transactionId={t.id}
+                    amount={Number(t.amount)}
+                    description={t.description}
+                    isPaid={t.status === "pago"}
+                  />
+                )}
             </TableCell>
           </TableRow>
         ))}

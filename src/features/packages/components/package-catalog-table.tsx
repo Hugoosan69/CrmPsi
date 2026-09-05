@@ -12,6 +12,7 @@ import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import type { SessionPackageView } from "@/services/packages.service"
 import { setSessionPackageActiveAction } from "../actions/package.actions"
 import { EditPackageDialog } from "./edit-package-dialog"
+import { ReprocessBalancesButton } from "./reprocess-balances-button"
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
@@ -57,6 +58,7 @@ export function PackageCatalogTable({
             <TableCell>{formatCurrency(Number(p.price_per_session))}</TableCell>
             <TableCell className="flex justify-end gap-1 text-right">
               <EditPackageDialog sessionPackage={p} specialties={specialties} />
+              <ReprocessBalancesButton packageId={p.id} />
               <ToggleActiveButton
                 active={p.active}
                 deactivateLabel="Inativar"

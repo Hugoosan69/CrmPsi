@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState, useState } from "react"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, ShieldAlert } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,15 +31,23 @@ function formatCurrency(value: number) {
  * O aviso de auditoria não é decoração: mexer no valor de algo já contabilizado é o tipo
  * de edição que alguém vai querer explicar depois. Quem edita vê, antes de confirmar, que
  * ficam registrados o valor anterior, o novo, quem mudou e quando.
+ *
+ * `isPaid` acrescenta o segundo aviso, e não é o mesmo caso: corrigir uma cobrança em
+ * aberto ajusta o que ainda vai entrar; mudar uma linha paga mexe em dinheiro que já
+ * entrou, já foi conciliado e já contou no fechamento. Por isso essa edição exige, além de
+ * `financial.edit_amount`, a permissão `financial.edit_paid` (migrations/020) — conferida
+ * de novo na Server Action.
  */
 export function EditAmountDialog({
   transactionId,
   amount,
   description,
+  isPaid = false,
 }: {
   transactionId: string
   amount: number
   description: string | null
+  isPaid?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const action = updateTransactionAmountAction.bind(null, transactionId)
@@ -60,6 +68,17 @@ export function EditAmountDialog({
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
+            {isPaid && (
+              <div className="flex gap-2.5 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+                <p className="text-sm text-muted-foreground">
+                  Este lançamento <strong className="font-medium text-foreground">já está
+                  pago</strong>. Alterar o valor muda dinheiro que já entrou no caixa e já
+                  contou no fechamento do período — só faça se a conciliação for refeita.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-2.5 rounded-lg border border-status-warning/40 bg-status-warning/5 p-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-warning" aria-hidden />
               <p className="text-sm text-muted-foreground">
@@ -96,7 +115,7 @@ export function EditAmountDialog({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" variant={isPaid ? "destructive" : "default"} disabled={isPending}>
               {isPending ? "Salvando..." : "Confirmar correção"}
             </Button>
           </DialogFooter>

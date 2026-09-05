@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { hasPermission, requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
+import { getAgendaStatusColors } from "@/services/clinic-settings.service"
 import { PERMISSIONS } from "@/config/permissions"
 import {
   hydrateAppointments,
@@ -59,7 +60,7 @@ export default async function ProfissionalAgendaPage({
     )
   }
 
-  const [rawAppointments, professionals, procedures, rules, rooms, exceptions] = await Promise.all([
+  const [rawAppointments, professionals, procedures, rules, rooms, exceptions, statusColors] = await Promise.all([
     view === "semana"
       ? listAppointmentsForRange(
           supabase,
@@ -79,6 +80,7 @@ export default async function ProfissionalAgendaPage({
       from: view === "semana" ? weekStart : date,
       to: view === "semana" ? addDays(weekStart, 6) : date,
     }),
+    getAgendaStatusColors(supabase, membership.clinicId),
   ])
   const appointments = await hydrateAppointments(supabase, rawAppointments)
 
@@ -123,6 +125,7 @@ export default async function ProfissionalAgendaPage({
           procedures={procedures.filter((p) => p.active)}
           canManage={canManageAgenda}
           canCheckIn={false}
+          statusColors={statusColors}
         />
       ) : (
         <AppointmentsList

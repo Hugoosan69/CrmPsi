@@ -10,9 +10,15 @@ import { brandingSchema, n8nSettingsSchema } from "@/schemas/settings.schema"
 import {
   getN8nIntegration,
   n8nWebhookUrl,
+  saveAgendaStatusColors,
   saveN8nIntegration,
   updateClinicBranding,
 } from "@/services/clinic-settings.service"
+import {
+  APPOINTMENT_STATUS_LABELS,
+  DEFAULT_APPOINTMENT_STATUS_COLORS,
+  normalizeHexColor,
+} from "@/config/agenda"
 import { recordAudit } from "@/services/audit.service"
 import { describeDbError } from "@/lib/db-errors"
 import { MAX_LOGO_BYTES, formatMegabytes } from "@/config/uploads"
@@ -214,4 +220,54 @@ export async function testN8nAction(
       error: `Não foi possível alcançar o webhook: ${message}. Confirme a URL e se o n8n está acessível a partir deste servidor.`,
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Cores da agenda
+// ---------------------------------------------------------------------------
+
+/**
+ * Grava a cor de cada situação no card da agenda.
+ *
+ * Permissão própria (`agenda.appearance`, migrations/021) e não `settings.manage`: mudar a
+ * leitura da agenda afeta todo mundo que trabalha nela o dia inteiro, e a clínica pode
+ * querer que quem troca a logo não mexa nisso. Cada cor é validada antes de ser gravada —
+ * o valor termina dentro de um atributo `style`, então só hexadecimal entra.
+ */
+export async function saveAgendaColorsAction(
+  _prev: SettingsActionState,
+  formData: FormData
+): Promise<SettingsActionState> {
+  const membership = await requirePermission(PERMISSIONS.AGENDA_APPEARANCE)
+
+  const colors = { ...DEFAULT_APPOINTMENT_STATUS_COLORS }
+  for (const status of Object.keys(colors) as (keyof typeof colors)[]) {
+    const raw = formData.get(status)
+    const color = normalizeHexColor(raw)
+    if (!color) {
+      return { error: `Cor inválida para "${APPOINTMENT_STATUS_LABELS[status]}". Use um valor hexadecimal.` }
+    }
+    colors[status] = color
+  }
+
+  const supabase = await createClient()
+  try {
+    await saveAgendaStatusColors(supabase, membership.clinicId, colors)
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
+
+  await recordAudit({
+    clinicId: membership.clinicId,
+    userId: membership.userId,
+    action: "settings.agenda_colors",
+    entityType: "clinic_settings",
+    entityId: membership.clinicId,
+    after: colors,
+  })
+
+  revalidateSettings()
+  revalidatePath("/recepcao/agenda")
+  revalidatePath("/profissional/agenda")
+  return { success: "Cores da agenda salvas." }
 }

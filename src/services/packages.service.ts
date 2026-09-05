@@ -65,6 +65,82 @@ export async function updateSessionPackage(
   if (error) throw error
 }
 
+export type PackageSyncResult = {
+  /** Saldos de paciente que passaram a refletir o catálogo. */
+  updated: number
+  /** Saldos que já estavam iguais — nada a fazer. */
+  unchanged: number
+  /** Saldos com mais sessões usadas do que o catálogo passou a ter. Não são mexidos:
+   *  encolher um pacote abaixo do que o paciente já usou apagaria atendimento realizado. */
+  skipped: number
+}
+
+/**
+ * Reprocessa os saldos já vendidos de um pacote do catálogo.
+ *
+ * `patient_packages` guarda `total_sessions`/`total_price` como **snapshot da venda**, de
+ * propósito: mudar o preço do catálogo não pode reescrever o valor do que já foi vendido e
+ * cobrado. Só que isso tem o outro lado — o pacote cadastrado com 1 sessão por engano e
+ * corrigido depois para 4 deixa o paciente preso ao "1/1" antigo, na agenda e na ficha.
+ *
+ * Esta função alinha os saldos ao catálogo atual e recalcula o status (um pacote fechado
+ * que ganhou sessões volta a ficar ativo). Pacotes cancelados ficam de fora, e os que já
+ * consumiram mais sessões do que o novo total são pulados e contados à parte, para a tela
+ * dizer quantos precisam de decisão humana em vez de sumir com o histórico.
+ */
+export async function syncPatientPackagesWithCatalog(
+  supabase: DB,
+  clinicId: string,
+  sessionPackageId: string
+): Promise<PackageSyncResult> {
+  const { data: pkg, error: pkgError } = await supabase
+    .from("session_packages")
+    .select("total_sessions, total_price")
+    .eq("clinic_id", clinicId)
+    .eq("id", sessionPackageId)
+    .single()
+  if (pkgError) throw pkgError
+
+  const { data: balances, error } = await supabase
+    .from("patient_packages")
+    .select("id, total_sessions, total_price, sessions_used, status")
+    .eq("clinic_id", clinicId)
+    .eq("session_package_id", sessionPackageId)
+    .neq("status", "cancelled")
+  if (error) throw error
+
+  const result: PackageSyncResult = { updated: 0, unchanged: 0, skipped: 0 }
+
+  for (const balance of balances ?? []) {
+    if (balance.sessions_used > pkg.total_sessions) {
+      result.skipped += 1
+      continue
+    }
+
+    const status = balance.sessions_used >= pkg.total_sessions ? "completed" : "active"
+    const sameSessions = balance.total_sessions === pkg.total_sessions
+    const samePrice = Number(balance.total_price) === Number(pkg.total_price)
+    if (sameSessions && samePrice && balance.status === status) {
+      result.unchanged += 1
+      continue
+    }
+
+    const { error: updateError } = await supabase
+      .from("patient_packages")
+      .update({
+        total_sessions: pkg.total_sessions,
+        total_price: pkg.total_price,
+        status,
+      })
+      .eq("clinic_id", clinicId)
+      .eq("id", balance.id)
+    if (updateError) throw updateError
+    result.updated += 1
+  }
+
+  return result
+}
+
 export async function setSessionPackageActive(supabase: DB, clinicId: string, id: string, active: boolean) {
   const { error } = await supabase
     .from("session_packages")
@@ -392,6 +468,32 @@ export async function releasePackageSession(supabase: DB, patientPackageSessionI
 }
 
 /**
+ * Quanto uma sessão de pacote lança no financeiro, conforme o `billing_mode` do pacote
+ * (migrations/019): `unico` → R$ 0,00 (o dinheiro entrou uma vez, na venda; repetir aqui
+ * dobraria a receita), `por_sessao` → total ÷ nº de sessões.
+ */
+async function packageSessionAmount(
+  supabase: DB,
+  patientPackageSessionId?: string | null
+): Promise<number> {
+  if (!patientPackageSessionId) return 0
+
+  const { data } = await supabase
+    .from("patient_package_sessions")
+    .select("patient_packages(total_price, total_sessions, session_packages(billing_mode))")
+    .eq("id", patientPackageSessionId)
+    .maybeSingle()
+
+  const pp = data?.patient_packages as
+    | { total_price: number; total_sessions: number; session_packages: { billing_mode: string } | null }
+    | null
+  if (pp?.session_packages?.billing_mode === "por_sessao" && pp.total_sessions > 0) {
+    return Math.round((Number(pp.total_price) / pp.total_sessions) * 100) / 100
+  }
+  return 0
+}
+
+/**
  * Sessão de pacote no check-in: já paga na venda, então nasce com `status: pago` — o que
  * satisfaz o gate de pagamento da fila (migration 001) sem nenhuma ação de cobrança na
  * recepção.
@@ -413,21 +515,7 @@ export async function createPackageSessionCharge(
     patientPackageSessionId?: string | null
   }
 ) {
-  let amount = 0
-  if (input.patientPackageSessionId) {
-    const { data } = await supabase
-      .from("patient_package_sessions")
-      .select("patient_packages(total_price, total_sessions, session_packages(billing_mode))")
-      .eq("id", input.patientPackageSessionId)
-      .maybeSingle()
-
-    const pp = data?.patient_packages as
-      | { total_price: number; total_sessions: number; session_packages: { billing_mode: string } | null }
-      | null
-    if (pp?.session_packages?.billing_mode === "por_sessao" && pp.total_sessions > 0) {
-      amount = Math.round((Number(pp.total_price) / pp.total_sessions) * 100) / 100
-    }
-  }
+  const amount = await packageSessionAmount(supabase, input.patientPackageSessionId)
 
   const { data, error } = await supabase
     .from("financial_transactions")
@@ -446,6 +534,58 @@ export async function createPackageSessionCharge(
     .single()
   if (error) throw error
   return data.id
+}
+
+/**
+ * Quita as cobranças em aberto de um agendamento que acabou de ser reconhecido como sessão
+ * de pacote.
+ *
+ * O caso é o do dia a dia: a recepção lançou a consulta como avulsa e ela ficou esperando
+ * "Registrar pagamento"; depois alguém percebe que o paciente é de pacote e faz o vínculo
+ * pela agenda. O pacote já foi pago — deixar a cobrança pendente cobraria duas vezes a
+ * mesma sessão e ainda seguraria o paciente no gate de pagamento da fila.
+ *
+ * O tratamento é o mesmo do vínculo retroativo do financeiro: a linha vira **paga**, com o
+ * valor que a sessão de pacote deve lançar (R$ 0,00 em `unico`, o valor por sessão em
+ * `por_sessao`) e a descrição que a identifica como sessão de pacote — é esse prefixo que o
+ * filtro avulsa/pacote e o resumo usam para classificar. Nada de `payments`: não houve
+ * recebimento novo, o dinheiro está na venda do pacote.
+ *
+ * Devolve os ids quitados para o chamador liberar a fila e registrar na auditoria.
+ */
+export async function settlePendingChargesForAppointment(
+  supabase: DB,
+  clinicId: string,
+  input: { appointmentId: string; patientPackageSessionId?: string | null }
+): Promise<string[]> {
+  const { data: pending, error } = await supabase
+    .from("financial_transactions")
+    .select("id, category")
+    .eq("clinic_id", clinicId)
+    .eq("appointment_id", input.appointmentId)
+    .eq("type", "receita")
+    .in("status", ["pendente", "atrasado"])
+  if (error) throw error
+  if (!pending || pending.length === 0) return []
+
+  const amount = await packageSessionAmount(supabase, input.patientPackageSessionId)
+
+  const settled: string[] = []
+  for (const transaction of pending) {
+    const { error: updateError } = await supabase
+      .from("financial_transactions")
+      .update({
+        status: "pago",
+        amount,
+        description: `Sessão de pacote — ${transaction.category ?? "Atendimento"}`,
+      })
+      .eq("clinic_id", clinicId)
+      .eq("id", transaction.id)
+    if (updateError) throw updateError
+    settled.push(transaction.id)
+  }
+
+  return settled
 }
 
 /**

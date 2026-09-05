@@ -5,6 +5,11 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database, Json, MessageChannel } from "@/types/supabase"
 import { pendingMigrationFor } from "@/lib/db-errors"
 import { composeWebhookUrls, switchWebhookMode } from "@/config/n8n"
+import {
+  DEFAULT_APPOINTMENT_STATUS_COLORS,
+  resolveStatusColors,
+  type AppointmentStatusColors,
+} from "@/config/agenda"
 
 type DB = SupabaseClient<Database>
 
@@ -32,6 +37,10 @@ export type N8nIntegration = {
 export type ClinicSettingsShape = {
   integrations?: {
     n8n?: Partial<N8nIntegration>
+  }
+  agenda?: {
+    /** Cor de cada situação no card da agenda — ver config/agenda.ts. */
+    statusColors?: Record<string, string>
   }
 }
 
@@ -145,6 +154,52 @@ export async function saveN8nIntegration(
     .select("clinic_id")
   if (error) throw error
   if (!data || data.length === 0) throw new Error("Não foi possível salvar as configurações.")
+}
+
+// ---------------------------------------------------------------------------
+// Cores da agenda
+// ---------------------------------------------------------------------------
+
+/**
+ * Cores dos cards da agenda, por situação.
+ *
+ * Vive no mesmo `clinic_settings.settings` das integrações — é preferência de clínica, não
+ * de usuário: a recepção e o profissional precisam ver a mesma grade quando conversam sobre
+ * ela ("o vermelho das 14h"), e uma cor por navegador acabaria com isso.
+ *
+ * Falha em silêncio para o padrão: a agenda é a tela mais usada do sistema e não pode cair
+ * porque a configuração de cor está ilegível ou a migration ainda não rodou.
+ */
+export async function getAgendaStatusColors(
+  supabase: DB,
+  clinicId: string
+): Promise<AppointmentStatusColors> {
+  try {
+    const settings = await getClinicSettings(supabase, clinicId)
+    return resolveStatusColors(settings.agenda?.statusColors)
+  } catch (err) {
+    if (pendingMigrationFor(err)) return { ...DEFAULT_APPOINTMENT_STATUS_COLORS }
+    throw err
+  }
+}
+
+export async function saveAgendaStatusColors(
+  supabase: DB,
+  clinicId: string,
+  colors: AppointmentStatusColors
+) {
+  const current = await getClinicSettings(supabase, clinicId)
+  const next: ClinicSettingsShape = {
+    ...current,
+    agenda: { ...current.agenda, statusColors: colors },
+  }
+
+  const { data, error } = await supabase
+    .from("clinic_settings")
+    .upsert({ clinic_id: clinicId, settings: next as unknown as Json })
+    .select("clinic_id")
+  if (error) throw error
+  if (!data || data.length === 0) throw new Error("Não foi possível salvar as cores da agenda.")
 }
 
 // ---------------------------------------------------------------------------

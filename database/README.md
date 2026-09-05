@@ -112,6 +112,10 @@ Or paste each file into the Supabase SQL Editor in the same order.
 | `018_unique_package_session_number.sql` | Índice único parcial em (`patient_package_id`, `session_number`) para `status <> 'released'`. A tela de vínculo já esconde as posições ocupadas, mas esconder não é impedir: duas pessoas fechando o mesmo pacote gravariam a sessão 3 duas vezes |
 | `019_amount_edit_and_package_billing.sql` | `financial.edit_amount` (corrigir valor de lançamento já registrado, sempre auditado com o valor anterior) + `session_packages.billing_mode`: `unico` (valor total na venda, sessões a R$ 0 — padrão) ou `por_sessao` (cada sessão carrega a sua parte) |
 
+| `020_financial_edit_paid.sql` | `financial.edit_paid`: alterar uma linha **já paga** exige esta permissão *além* de `financial.edit_amount`. Corrigir uma cobrança em aberto é rotina; reescrever um recebimento já conciliado, que já contou no fechamento, é outra responsabilidade — e a clínica pode separar as duas |
+
+| `021_agenda_appearance.sql` | `agenda.appearance`: a cor de cada situação no card da agenda passa a ser da clínica, gravada em `clinic_settings.settings.agenda.statusColors` (sem coluna nova). Permissão à parte de `settings.manage` — trocar a logo é identidade visual, mudar as cores altera a leitura da tela em que a equipe trabalha o dia inteiro |
+
 `99_seed/seed.sql` requires demo `auth.users` to be created first (Supabase Auth cannot be
 seeded with plain SQL inserts) — see the comments at the top of that file. For a set of
 test logins against an already-provisioned project, use `scripts/dev/reset-users-01-create.mjs`

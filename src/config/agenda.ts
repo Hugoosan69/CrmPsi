@@ -74,6 +74,57 @@ export const APPOINTMENT_STATUS_TONES: Record<AppointmentStatus, StatusTone> = {
   completed: "success",
 }
 
+/**
+ * Cor de cada situação no card da agenda.
+ *
+ * Os padrões abaixo são os mesmos tons que a agenda sempre usou (as variáveis
+ * `--status-*` do tema), escritos em hexadecimal porque agora atravessam o banco: a clínica
+ * pode trocar qualquer um deles em Configurações › Cores da agenda. Quem olha a grade de
+ * longe reconhece o dia pela cor antes de ler qualquer texto, e essa leitura é particular
+ * de cada clínica — a que atende muita triagem quer "agendado" gritando, a que vive de
+ * retorno quer "confirmado".
+ *
+ * A cor **nunca** viaja sozinha: o rótulo continua no card e no `aria-label`, senão a
+ * agenda deixa de funcionar para quem não distingue as cores.
+ */
+export const DEFAULT_APPOINTMENT_STATUS_COLORS: Record<AppointmentStatus, string> = {
+  scheduled: "#8494A0",
+  confirmed: "#1B7F94",
+  cancelled: "#C33C2E",
+  no_show: "#B07C1F",
+  completed: "#2F8461",
+}
+
+export type AppointmentStatusColors = Record<AppointmentStatus, string>
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
+
+/** `#RGB` e `#RRGGBB` entram; qualquer outra coisa (inclusive `red` ou uma função CSS)
+ *  fica de fora — o valor vai para dentro de um `style`, e um campo de configuração não é
+ *  lugar de aceitar string arbitrária. */
+export function normalizeHexColor(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  if (HEX_COLOR.test(trimmed)) return trimmed.toLowerCase()
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [, r, g, b] = trimmed
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
+  }
+  return null
+}
+
+/** Completa o que estiver faltando (ou inválido) com o padrão, para a tela nunca ficar
+ *  sem cor por causa de um valor mal gravado. */
+export function resolveStatusColors(stored: unknown): AppointmentStatusColors {
+  const raw = (stored ?? {}) as Record<string, unknown>
+  const result = { ...DEFAULT_APPOINTMENT_STATUS_COLORS }
+  for (const status of Object.keys(result) as AppointmentStatus[]) {
+    const color = normalizeHexColor(raw[status])
+    if (color) result[status] = color
+  }
+  return result
+}
+
 /** A cancelled or missed slot is vacated time — it should not read as occupied. */
 export function isVacatedStatus(status: AppointmentStatus) {
   return status === "cancelled" || status === "no_show"

@@ -5,7 +5,9 @@ import { useState } from "react"
 import {
   APPOINTMENT_STATUS_LABELS,
   APPOINTMENT_STATUS_TONES,
+  DEFAULT_APPOINTMENT_STATUS_COLORS,
   isVacatedStatus,
+  type AppointmentStatusColors,
   type AvailabilityRule,
   type ScheduleException,
 } from "@/config/agenda"
@@ -38,6 +40,9 @@ type ActionProps = {
   rooms?: { id: string; name: string }[]
   canManage: boolean
   canCheckIn: boolean
+  /** Cores por situação definidas pela clínica (Configurações › Cores da agenda).
+   *  Ausente = as cores padrão do tema. */
+  statusColors?: AppointmentStatusColors
 }
 
 /**
@@ -53,7 +58,8 @@ function useAppointmentSelection(appointments: AppointmentView[]) {
 function toEvent(
   appointment: AppointmentView,
   columnKey: string,
-  subtitle: string | null
+  subtitle: string | null,
+  statusColors: AppointmentStatusColors = DEFAULT_APPOINTMENT_STATUS_COLORS
 ): CalendarEvent {
   const start = minutesSinceMidnight(appointment.scheduled_at)
   // Requisito 4: selo do pacote junto ao nome do paciente, direto no card da agenda —
@@ -72,6 +78,9 @@ function toEvent(
     subtitle,
     statusLabel: APPOINTMENT_STATUS_LABELS[appointment.status],
     tone: appointment.packageSessionIsLast ? "warning" : APPOINTMENT_STATUS_TONES[appointment.status],
+    // A última sessão do pacote continua roubando a cor de aviso: é o card que a recepção
+    // precisa enxergar para oferecer renovação, e isso vale mais que a cor da situação.
+    color: appointment.packageSessionIsLast ? undefined : statusColors[appointment.status],
     muted: isVacatedStatus(appointment.status),
   }
 }
@@ -119,6 +128,7 @@ export function WeekCalendar({
   rooms = [],
   canManage,
   canCheckIn,
+  statusColors,
 }: {
   weekStart: string
   today: string
@@ -176,7 +186,8 @@ export function WeekCalendar({
       toClinicDate(appointment.scheduled_at),
       // De quem é o horário passa a ser a informação que falta quando tudo está junto; o
       // procedimento continua visível ao abrir o agendamento.
-      equipe ? appointment.professionalName : appointment.procedureName
+      equipe ? appointment.professionalName : appointment.procedureName,
+      statusColors
     )
   )
 
@@ -235,6 +246,7 @@ export function ResourceCalendar({
   rooms = [],
   canManage,
   canCheckIn,
+  statusColors,
 }: {
   date: string
   today: string
@@ -286,7 +298,7 @@ export function ResourceCalendar({
   }
 
   const events = appointments.map((appointment) =>
-    toEvent(appointment, appointment.professional_id, appointment.procedureName)
+    toEvent(appointment, appointment.professional_id, appointment.procedureName, statusColors)
   )
 
   const { windowStart, windowEnd } = deriveWindow([
