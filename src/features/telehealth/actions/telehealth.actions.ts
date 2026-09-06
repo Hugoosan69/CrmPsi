@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { describeDbError } from "@/lib/db-errors"
 import { recordAudit } from "@/services/audit.service"
-import { getAppointment } from "@/services/scheduling.service"
+import { getQueueEntry } from "@/services/queue.service"
+import { getServiceSessionForQueueEntry } from "@/services/service.service"
 import { isLiveKitConfigured } from "@/lib/livekit/env"
 import { closeRoom, issueAccessToken } from "@/lib/livekit/livekit.service"
 import { chatMessageSchema, createInviteSchema } from "@/schemas/telehealth.schema"
@@ -16,7 +17,7 @@ import {
   createInvite,
   getCall,
   listMessages,
-  openCallForAppointment,
+  openCallForServiceEntry,
   revokeInvitesForCall,
   setCallStatus,
 } from "@/services/telehealth.service"
@@ -27,26 +28,39 @@ const SEM_CREDENCIAL =
   "Teleconsulta indisponível: as credenciais do LiveKit não estão configuradas neste ambiente."
 
 /**
- * Abre (ou reabre) a sala de um agendamento.
+ * Abre (ou reabre) a sala do atendimento em curso.
  *
- * A permissão é conferida aqui e o agendamento é lido com o cliente da SESSÃO — se ele não
- * pertencer à clínica de quem chamou, a RLS devolve nada e a ação para. É esse par que
+ * **Só com o atendimento aberto.** É a regra que faz o tempo da sala coincidir com o do
+ * cronômetro: sem sessão iniciada, a consulta aconteceria fora do que o sistema mede,
+ * cobra e registra. Por isso a ação recusa antes do "Iniciar atendimento" em vez de criar
+ * uma sala que ninguém está contando.
+ *
+ * A permissão é conferida aqui e a entrada de fila é lida com o cliente da SESSÃO — se ela
+ * não pertencer à clínica de quem chamou, a RLS devolve nada e a ação para. É esse par que
  * substitui a checagem de "tem permissão sobre aquele atendimento" da spec: no CSIB o
- * escopo é a clínica, e é a RLS que o garante, não um `if`.
+ * escopo é a clínica, e quem o garante é a RLS, não um `if`.
  */
 export async function openCallAction(
-  appointmentId: string
+  queueEntryId: string
 ): Promise<TelehealthActionState & { callId?: string }> {
   const membership = await requirePermission(PERMISSIONS.TELEHEALTH_MANAGE)
   if (!isLiveKitConfigured()) return { error: SEM_CREDENCIAL }
 
   const supabase = await createClient()
   try {
-    const appointment = await getAppointment(supabase, membership.clinicId, appointmentId)
-    if (!appointment) return { error: "Agendamento não encontrado." }
+    const entry = await getQueueEntry(supabase, membership.clinicId, queueEntryId)
+    if (!entry) return { error: "Atendimento não encontrado." }
 
-    const call = await openCallForAppointment(supabase, membership.clinicId, {
-      appointmentId,
+    const session = await getServiceSessionForQueueEntry(supabase, queueEntryId)
+    if (!session?.started_at) {
+      return {
+        error:
+          "Inicie o atendimento antes de abrir a sala — é o que faz o tempo da chamada contar como atendimento.",
+      }
+    }
+
+    const call = await openCallForServiceEntry(supabase, membership.clinicId, {
+      queueEntryId,
       createdBy: membership.userId,
     })
 
@@ -56,11 +70,10 @@ export async function openCallAction(
       action: "telehealth.call.open",
       entityType: "video_call",
       entityId: call.id,
-      after: { appointmentId, status: call.status },
+      after: { queueEntryId, status: call.status },
     })
 
-    revalidatePath("/recepcao/agenda")
-    revalidatePath("/profissional/agenda")
+    revalidatePath(`/profissional/atendimento/${queueEntryId}`)
     return { success: true, callId: call.id }
   } catch (err) {
     return { error: describeDbError(err) }
@@ -212,8 +225,7 @@ export async function endCallAction(callId: string): Promise<TelehealthActionSta
       after: { status: "encerrada" },
     })
 
-    revalidatePath("/recepcao/agenda")
-    revalidatePath("/profissional/agenda")
+    revalidatePath(`/profissional/atendimento/${call.queue_entry_id}`)
     return { success: true }
   } catch (err) {
     return { error: describeDbError(err) }

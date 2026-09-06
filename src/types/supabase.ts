@@ -2896,7 +2896,7 @@ export type Database = {
       }
       video_calls: {
         Row: {
-          appointment_id: string
+          queue_entry_id: string
           clinic_id: string
           created_at: string
           created_by: string | null
@@ -2908,7 +2908,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          appointment_id: string
+          queue_entry_id: string
           clinic_id: string
           created_at?: string
           created_by?: string | null
@@ -2920,7 +2920,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          appointment_id?: string
+          queue_entry_id?: string
           clinic_id?: string
           created_at?: string
           created_by?: string | null

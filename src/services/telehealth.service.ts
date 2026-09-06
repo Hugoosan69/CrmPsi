@@ -50,22 +50,23 @@ function hashesMatch(a: string, b: string): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Abre a teleconsulta de um agendamento.
+ * Abre a teleconsulta do atendimento em curso.
  *
- * Idempotente de propósito: clicar "Iniciar videochamada" duas vezes devolve a MESMA sala,
- * em vez de criar uma segunda e deixar as duas pontas em consultas diferentes. Só uma
- * chamada viva por agendamento — encerrada ou cancelada libera para abrir outra.
+ * Idempotente de propósito: reabrir a tela devolve a MESMA sala, em vez de criar uma
+ * segunda e deixar profissional e paciente em consultas diferentes. Um índice único
+ * parcial (migration 026) sustenta isso mesmo sob duas requisições simultâneas — esta
+ * leitura é a conveniência, o índice é a garantia.
  */
-export async function openCallForAppointment(
+export async function openCallForServiceEntry(
   supabase: DB,
   clinicId: string,
-  input: { appointmentId: string; createdBy: string }
+  input: { queueEntryId: string; createdBy: string }
 ): Promise<VideoCall> {
   const { data: existing, error: findError } = await supabase
     .from("video_calls")
     .select("*")
     .eq("clinic_id", clinicId)
-    .eq("appointment_id", input.appointmentId)
+    .eq("queue_entry_id", input.queueEntryId)
     .in("status", ["aguardando", "em_andamento"])
     .maybeSingle()
   if (findError) throw findError
@@ -75,7 +76,7 @@ export async function openCallForAppointment(
     .from("video_calls")
     .insert({
       clinic_id: clinicId,
-      appointment_id: input.appointmentId,
+      queue_entry_id: input.queueEntryId,
       created_by: input.createdBy,
     })
     .select("*")
@@ -99,20 +100,40 @@ export async function getCall(
   return data
 }
 
-/** As chamadas de um agendamento, para o bloco de histórico na ficha. */
-export async function listCallsForAppointment(
+/** As chamadas de um atendimento, para o histórico na ficha. */
+export async function listCallsForServiceEntry(
   supabase: DB,
   clinicId: string,
-  appointmentId: string
+  queueEntryId: string
 ): Promise<VideoCall[]> {
   const { data, error } = await supabase
     .from("video_calls")
     .select("*")
     .eq("clinic_id", clinicId)
-    .eq("appointment_id", appointmentId)
+    .eq("queue_entry_id", queueEntryId)
     .order("created_at", { ascending: false })
   if (error) throw error
   return data ?? []
+}
+
+/**
+ * A sala viva deste atendimento, se houver. É o que a tela lê ao abrir, para mostrar o
+ * link já gerado em vez de oferecer "iniciar" a quem já iniciou.
+ */
+export async function getLiveCallForServiceEntry(
+  supabase: DB,
+  clinicId: string,
+  queueEntryId: string
+): Promise<VideoCall | null> {
+  const { data, error } = await supabase
+    .from("video_calls")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("queue_entry_id", queueEntryId)
+    .in("status", ["aguardando", "em_andamento"])
+    .maybeSingle()
+  if (error) throw error
+  return data
 }
 
 export async function setCallStatus(

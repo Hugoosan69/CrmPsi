@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
-import { requirePermission } from "@/lib/auth/session"
+import { hasPermission, requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { getProfessionalByUserId } from "@/services/professionals.service"
@@ -25,6 +25,9 @@ import { PrescriptionBuilder } from "@/features/prescriptions/components/prescri
 import { DocumentBuilder } from "@/features/documents/components/document-builder"
 import { ServiceTimerPanel } from "@/features/service/components/service-timer-panel"
 import { FinishServiceButton } from "@/features/service/components/finish-service-button"
+import { TelehealthPanel } from "@/features/telehealth/components/telehealth-panel"
+import { getLiveCallForServiceEntry } from "@/services/telehealth.service"
+import { isLiveKitConfigured } from "@/lib/livekit/env"
 import { formatDate } from "@/utils/datetime"
 
 /**
@@ -60,6 +63,13 @@ export default async function AtendimentoPage({ params }: { params: Promise<{ id
     }),
     listDocumentTemplates(supabase, membership.clinicId),
   ])
+
+  // Teleconsulta: só para quem pode conduzi-la, e só a sala VIVA deste atendimento — uma
+  // encerrada não deve reaparecer como se ainda estivesse de pé.
+  const canTelehealth = hasPermission(membership, PERMISSIONS.TELEHEALTH_MANAGE)
+  const liveCall = canTelehealth
+    ? await getLiveCallForServiceEntry(supabase, membership.clinicId, queueEntryId)
+    : null
 
   const diagnoses = await listDiagnosesForRecord(supabase, medicalRecord.id)
   const cidDescriptions = await getCidDescriptions(supabase, diagnoses.map((d) => d.cid_code))
@@ -169,6 +179,16 @@ export default async function AtendimentoPage({ params }: { params: Promise<{ id
         {/* RIGHT — pinned: the timer never scrolls out of view (item 8.7). */}
         <aside className="grid gap-4 xl:sticky xl:top-[4.75rem]">
           <ServiceTimerPanel queueEntryId={queueEntryId} />
+          {/* Encostado no cronômetro de propósito: a sala vive o mesmo intervalo que ele
+              mede, e é isso que faz a teleconsulta contar como atendimento. */}
+          {canTelehealth && (
+            <TelehealthPanel
+              queueEntryId={queueEntryId}
+              patientName={patient.social_name || patient.full_name}
+              initialCallId={liveCall?.id ?? null}
+              configured={isLiveKitConfigured()}
+            />
+          )}
           <PatientSummaryCard
             patient={patient}
             clinicalInfo={clinicalInfo}
