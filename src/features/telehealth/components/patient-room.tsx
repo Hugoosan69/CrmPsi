@@ -129,6 +129,7 @@ export function PatientRoom({ token: inviteToken }: { token: string }) {
               cada botão a menos é uma dúvida a menos para quem abriu isto pela primeira vez. */}
           <CallStage
             canShareScreen={false}
+            waitingFor="Aguardando o profissional entrar na sala"
             onLeave={() => setAcesso({ estado: "encerrado" })}
             chat={{
               selfIdentity: acesso.identity,

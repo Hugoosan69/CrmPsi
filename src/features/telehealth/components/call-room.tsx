@@ -104,6 +104,7 @@ export function CallRoom({
             trabalhando ali — prontuário, prescrição, encerrar o atendimento. */}
         <CallStage
           onLeave={() => router.push(`/profissional/atendimento/${queueEntryId}`)}
+          waitingFor="Aguardando o paciente entrar pelo link"
           chat={{
             selfIdentity,
             selfName,

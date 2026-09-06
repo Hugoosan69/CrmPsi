@@ -301,6 +301,37 @@ Duas regras que valem para qualquer verificação nova:
    vem não tem entrada na fila e isso está certo. O sinal real de "pago e não mandado para o
    profissional" é a entrada parada em `released`.
 
+### Teleconsulta
+
+Videochamada com chat, presa ao **atendimento** (`queue_entries`) e não ao agendamento: a
+sala nasce quando o profissional abre o atendimento, então o tempo dentro dela é o mesmo
+que o cronômetro mede e que entra no tempo efetivo. Aberta na marcação, o paciente entraria
+quando quisesse e a consulta aconteceria fora do que o sistema conta.
+
+O paciente **não é usuário do CSIB**. A credencial dele é o token do link — 256 bits,
+guardado só como hash, com validade e revogação — e a sala dele fica no grupo de rotas
+`(consulta)`, sem barra lateral, menu ou qualquer caminho para o resto do sistema. Oferecer
+login a um paciente é oferecer um formulário de funcionário a quem não tem conta.
+
+Todo uso de `LIVEKIT_API_SECRET` passa por `lib/livekit/livekit.service.ts` e por nenhum
+outro arquivo — é o que torna a regra auditável por leitura. `identity` e `room` são
+montados no servidor (`user:<id>` / `invite:<id>`), nunca vindos do navegador.
+
+**O webhook é a única fonte da verdade sobre o que aconteceu na sala.** Sem ele o sistema
+só sabe o que ele mesmo mandou fazer: `started_at` fica aproximado pela emissão do token e
+a lista de participantes fica vazia. Precisa ser configurado à mão em
+cloud.livekit.io › Settings › Webhooks, apontando para
+`https://<dominio>/api/integrations/livekit/webhook` — nenhum código faz isso sozinho.
+
+Duas armadilhas que o endpoint já cobre e que voltam se alguém o reescrever:
+
+- **Corpo cru.** A assinatura cobre os bytes exatos enviados; um `JSON.parse` seguido de
+  `stringify` reordena chaves e invalida a conferência.
+- **Entrega ao menos uma vez.** O mesmo evento chega de novo sempre que o LiveKit não
+  recebe o 2xx a tempo. `participant_joined` é deduplicado por
+  (`call_id`, `identity`, `joined_at`) — o `createdAt` do evento é igual em toda tentativa
+  do mesmo evento e diferente numa reentrada real (migration 027).
+
 ## 9. Comunicação (desacoplada, item 21)
 
 `services/communication.service.ts` expõe uma interface `MessageProvider` (`send(message):

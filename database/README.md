@@ -117,6 +117,14 @@ Or paste each file into the Supabase SQL Editor in the same order.
 | `021_agenda_appearance.sql` | `agenda.appearance`: a cor de cada situação no card da agenda passa a ser da clínica, gravada em `clinic_settings.settings.agenda.statusColors` (sem coluna nova). Permissão à parte de `settings.manage` — trocar a logo é identidade visual, mudar as cores altera a leitura da tela em que a equipe trabalha o dia inteiro |
 
 | `022_appointment_status_triagem.sql` | Valor `triagem` no enum `appointment_status`. Só o valor: o Postgres não deixa usar um valor de enum recém-criado em predicado de índice na mesma transação, e é o que a 023 faz — por isso são dois arquivos |
+## Teleconsulta: migrations 025 a 027
+
+| Migration | Adiciona |
+|---|---|
+| `025_telehealth.sql` | `video_calls`, `video_call_invites`, `video_call_participants`, `video_call_messages` + permissões `telehealth.view` / `telehealth.manage`. `token_hash` guarda só o SHA-256 do token do link, pelo mesmo motivo de uma tabela de senhas: um dump não abre a consulta de ninguém |
+| `026_telehealth_bind_to_service.sql` | A chamada passa de `appointments` para `queue_entries` — a sala tem de viver o mesmo intervalo que o cronômetro mede, senão o tempo da consulta não é o tempo que o sistema conta. Índice único parcial garante uma sala viva por atendimento |
+| `027_participant_join_idempotent.sql` | Deduplica reenvio de `participant_joined`. O índice da 025 cobria só `left_at is null` e parava de valer depois que a pessoa saía: o reenvio inseria uma segunda linha e o histórico mostrava duas entradas onde houve uma |
+
 ## Vínculo de sessão de pacote: as duas pontas importam
 
 `patient_package_sessions.appointment_id` e `appointments.patient_package_session_id` são

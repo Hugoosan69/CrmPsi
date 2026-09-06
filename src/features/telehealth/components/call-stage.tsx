@@ -10,6 +10,7 @@ import {
   RoomAudioRenderer,
   TrackToggle,
   useLocalParticipant,
+  useRemoteParticipants,
   useRoomContext,
   useTracks,
 } from "@livekit/components-react"
@@ -37,11 +38,15 @@ import { CallChat, type ChatMessage } from "./call-chat"
 export function CallStage({
   onLeave,
   canShareScreen = true,
+  waitingFor,
   chat,
 }: {
   onLeave: () => void
   /** O paciente não compartilha tela — é ruído numa consulta, e um risco a menos. */
   canShareScreen?: boolean
+  /** Texto da sala de espera enquanto ninguém mais entrou. Sem ele a espera não é
+   *  anunciada — o que a faz parecer falha em vez de espera. */
+  waitingFor?: string
   /** Sem isto a sala funciona só com vídeo — é o que mantém o palco reaproveitável. */
   chat?: {
     loadHistory: () => Promise<ChatMessage[]>
@@ -52,6 +57,8 @@ export function CallStage({
 }) {
   const room = useRoomContext()
   const { localParticipant } = useLocalParticipant()
+  const remotos = useRemoteParticipants()
+  const sozinho = remotos.length === 0
   const [saindo, setSaindo] = useState(false)
   const [chatAberto, setChatAberto] = useState(false)
   const [naoLidas, setNaoLidas] = useState(0)
@@ -97,7 +104,15 @@ export function CallStage({
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
+      {/* Sala de espera. Sem este aviso, estar sozinho numa sala escura parece defeito —
+          e o paciente desliga achando que o link não funcionou. */}
+      {waitingFor && sozinho && !conectando && (
+        <div className="flex items-center gap-2 border-b border-white/10 bg-white/5 px-4 py-2.5">
+          <StatusDot tone="info" pulse label={waitingFor} />
+        </div>
+      )}
+
+      <div className="relative flex min-h-0 flex-1">
       <div className="min-h-0 flex-1 p-2">
         {emApresentacao ? (
           // Alguém compartilhando tela: ela domina, e as câmeras viram uma fita ao lado.
