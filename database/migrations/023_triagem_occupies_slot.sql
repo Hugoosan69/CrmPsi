@@ -36,6 +36,15 @@ alter table appointments add constraint appointments_no_room_overlap
   ) where (room_id is not null and status in ('scheduled', 'confirmed', 'triagem'));
 
 -- 3. Validação de horário (migration 002) — mesma função, só a lista de situações muda.
+--
+-- O DROP não é zelo: a versão da 002 declara os mesmos seis parâmetros em OUTRA ordem
+-- (`p_room` antes de `p_start`). `create or replace` casa por assinatura, então sem isto o
+-- banco fica com AS DUAS — e como o app chama por nome (`supabase.rpc(..., { p_clinic: … })`),
+-- o Postgres não consegue escolher e responde
+-- `function appointment_slot_problem(...) is not unique` (42725), derrubando a validação de
+-- horário inteira. Aconteceu em homologação exatamente assim.
+drop function if exists appointment_slot_problem(uuid, uuid, uuid, timestamptz, int, uuid);
+
 create or replace function appointment_slot_problem(
   p_clinic uuid,
   p_professional uuid,

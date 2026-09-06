@@ -1,0 +1,24 @@
+-- ============================================================================
+-- 024 — Remove a sobrecarga de appointment_slot_problem deixada pela 023.
+--
+-- A 002 criou a função com a ordem (p_clinic, p_professional, p_room, p_start, p_duration,
+-- p_exclude). A 023 a reescreveu para incluir 'triagem', mas declarando (p_clinic,
+-- p_professional, p_start, p_duration, p_room, p_exclude) — mesmos nomes e tipos, ordem
+-- diferente. `create or replace function` casa por ASSINATURA, então em vez de substituir
+-- ela criou uma segunda função.
+--
+-- Com as duas no banco, a chamada do app — que é por nome
+-- (`supabase.rpc("appointment_slot_problem", { p_clinic: … })`) — vira ambígua:
+--
+--   ERROR 42725: function appointment_slot_problem(p_clinic => uuid, ...) is not unique
+--
+-- e a validação de horário (conflito de profissional, de sala, fora de disponibilidade)
+-- para de funcionar por inteiro.
+--
+-- Esta migration só derruba a assinatura antiga. A da 023 — a que conhece 'triagem' —
+-- permanece. Idempotente e segura em banco que nunca teve a duplicata.
+--
+-- Apply against a database that already has migrations/001 .. 023.
+-- ============================================================================
+
+drop function if exists appointment_slot_problem(uuid, uuid, uuid, timestamptz, int, uuid);

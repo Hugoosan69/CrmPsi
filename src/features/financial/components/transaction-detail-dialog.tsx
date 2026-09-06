@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { CalendarDays, CreditCard, Info, Layers, Receipt, User } from "lucide-react"
 
@@ -290,21 +290,38 @@ export function TransactionDetailDialog({
   const [open, setOpen] = useDialogOpen(dialogProps)
   const [detail, setDetail] = useState<TransactionDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
 
-  function onOpenChange(next: boolean) {
-    setOpen(next)
-    if (!next || detail) return
-    startTransition(async () => {
-      setError(null)
-      const result = await getTransactionDetailAction(transactionId)
+  /**
+   * A busca reage a `open`, não ao evento de abrir.
+   *
+   * Quando isto ficava dentro de um `onOpenChange` próprio, só funcionava enquanto o
+   * gatilho era o do próprio diálogo: quem abre agora é o menu de ações da linha, que muda
+   * a prop `open` direto — o `Dialog` nunca chama `onOpenChange`, a busca nunca disparava e
+   * o modal abria com cabeçalho e corpo vazio. Mesmo padrão de
+   * `LinkRetroactivePackageDialog`, que já carrega assim.
+   *
+   * Reabrir refaz a leitura de propósito: depois de um reprocessamento, o valor da sessão
+   * pode ter mudado, e o modal é justamente onde se confere isso.
+   */
+  useEffect(() => {
+    if (!open) return
+    let vivo = true
+    getTransactionDetailAction(transactionId).then((result) => {
+      if (!vivo) return
       if (result.error) setError(result.error)
       else setDetail(result.detail ?? null)
     })
-  }
+    return () => {
+      vivo = false
+    }
+  }, [open, transactionId])
+
+  // Derivado, não guardado: enquanto o diálogo está aberto e não chegou nem detalhe nem
+  // erro, está carregando. Um estado a mais só criaria uma terceira fonte de verdade.
+  const carregando = open && !detail && !error
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       {!dialogProps.hideTrigger && (
       <DialogTrigger
         render={
@@ -322,7 +339,7 @@ export function TransactionDetailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {isPending && !detail && (
+        {carregando && (
           <div className="grid gap-2">
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-24 w-full" />
