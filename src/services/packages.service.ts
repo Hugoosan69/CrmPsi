@@ -95,7 +95,7 @@ export async function syncPatientPackagesWithCatalog(
 ): Promise<PackageSyncResult> {
   const { data: pkg, error: pkgError } = await supabase
     .from("session_packages")
-    .select("total_sessions, total_price")
+    .select("total_sessions, total_price, billing_mode")
     .eq("clinic_id", clinicId)
     .eq("id", sessionPackageId)
     .single()
@@ -118,8 +118,16 @@ export async function syncPatientPackagesWithCatalog(
     }
 
     const status = balance.sessions_used >= pkg.total_sessions ? "completed" : "active"
+
+    // Em `por_sessao` o preço muda com o total de sessões: `total_price = total_sessions * price_per_session`.
+    // Em `unico` o preço foi pago tudo junto na venda e não muda com reprocessamento de saldos.
+    const newPrice =
+      pkg.billing_mode === "por_sessao"
+        ? (pkg.total_price / pkg.total_sessions) * pkg.total_sessions
+        : Number(balance.total_price)
+
     const sameSessions = balance.total_sessions === pkg.total_sessions
-    const samePrice = Number(balance.total_price) === Number(pkg.total_price)
+    const samePrice = Number(balance.total_price) === newPrice
     if (sameSessions && samePrice && balance.status === status) {
       result.unchanged += 1
       continue
@@ -129,7 +137,7 @@ export async function syncPatientPackagesWithCatalog(
       .from("patient_packages")
       .update({
         total_sessions: pkg.total_sessions,
-        total_price: pkg.total_price,
+        total_price: newPrice,
         status,
       })
       .eq("clinic_id", clinicId)

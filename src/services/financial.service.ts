@@ -74,6 +74,7 @@ export async function listTransactions(
     statuses?: FinancialTransactionStatus[]
     patientId?: string
     professionalId?: string
+    specialtyId?: string
     paymentMethodId?: string
     sourceType?: "avulsa" | "pacote"
     dateFrom?: string
@@ -86,13 +87,27 @@ export async function listTransactions(
   // PostgREST não faz join condicional nestas duas direções (appointments/payments não
   // têm FK de volta para financial_transactions que dê pra encadear num único `.select`).
   let appointmentIds: string[] | null = null
-  if (opts.professionalId) {
-    const { data } = await supabase
+  if (opts.professionalId || opts.specialtyId) {
+    let query = supabase
       .from("appointments")
       .select("id")
       .eq("clinic_id", clinicId)
-      .eq("professional_id", opts.professionalId)
-    appointmentIds = (data ?? []).map((a) => a.id)
+    if (opts.professionalId) query = query.eq("professional_id", opts.professionalId)
+    if (opts.specialtyId) {
+      // Join com procedures para pegar a especialidade
+      query = query.select(
+        "id, procedures!inner(id, specialty_id)"
+      )
+    }
+    const { data } = await query
+    if (opts.specialtyId && data) {
+      // Filtrar appointments onde procedures.specialty_id = opts.specialtyId
+      appointmentIds = (data as any)
+        .filter((a: any) => a.procedures?.some((p: any) => p.specialty_id === opts.specialtyId))
+        .map((a: any) => a.id)
+    } else {
+      appointmentIds = (data ?? []).map((a: any) => a.id)
+    }
   }
 
   let paymentTransactionIds: string[] | null = null
