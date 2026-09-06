@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { CalendarDays, CreditCard, Info, Layers, Receipt, User } from "lucide-react"
+import { CalendarDays, CreditCard, FileText, Info, Layers, Receipt, User } from "lucide-react"
 
 import {
   Dialog,
@@ -49,6 +49,15 @@ const SESSION_STATUS: Record<string, string> = {
   reserved: "Reservada",
   consumed: "Consumida",
   released: "Liberada",
+}
+
+const GUIDE_STATUS: Record<string, string> = {
+  emitida: "Emitida",
+  enviada: "Enviada ao convênio",
+  paga: "Paga",
+  glosada: "Glosada",
+  recusada: "Recusada",
+  cancelada: "Cancelada",
 }
 
 const BILLING_MODE: Record<string, string> = {
@@ -189,6 +198,27 @@ function DetailBody({ detail }: { detail: TransactionDetail }) {
                 venda. Cobrar de novo por sessão dobraria a receita.
               </p>
             )
+          )}
+        </Section>
+      )}
+
+      {detail.guide && (
+        <Section icon={FileText} title="Guia de convênio">
+          <div className="grid">
+            <Row label="Convênio">{detail.guide.insurerName}</Row>
+            <Row label="Número da guia">
+              <span className="tabular-nums">{detail.guide.guideNumber ?? "—"}</span>
+            </Row>
+            <Row label="O convênio paga">
+              <span className="tabular-nums">{formatCurrency(detail.guide.amount)}</span>
+            </Row>
+            <Row label="Situação da guia">{GUIDE_STATUS[detail.guide.status] ?? detail.guide.status}</Row>
+          </div>
+          {detail.amount === 0 && (
+            <p className="text-[0.78rem] text-muted-foreground">
+              R$ 0,00 para o paciente é o esperado: a guia cobre o atendimento inteiro. O
+              valor acima é o que o convênio deve, e entra no protocolo do mês.
+            </p>
           )}
         </Section>
       )}

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database, FinancialTransactionStatus, FinancialTransactionType } from "@/types/supabase"
 import { packageLinks } from "./financial.service"
+import { guidesByAppointment } from "./billing.service"
 
 type DB = SupabaseClient<Database>
 
@@ -39,6 +40,14 @@ export type TransactionDetail = {
     billingMode: string
     /** O que a sessão deve lançar segundo o modo — para conferir com o valor real. */
     expectedAmount: number
+  } | null
+  /** Guia de convênio deste atendimento — número, convênio e o que ele paga. */
+  guide: {
+    guideNumber: string | null
+    insurerName: string
+    amount: number
+    status: string
+    attachmentUrl: string | null
   } | null
   /** Venda de pacote: a linha É a compra do saldo. */
   packageSale: {
@@ -172,6 +181,12 @@ export async function getTransactionDetail(
       to: amountFrom(a.after),
     }))
 
+  // --- guia de convênio ---------------------------------------------------
+  const guias = tx.appointment_id
+    ? await guidesByAppointment(supabase, clinicId, [tx.appointment_id])
+    : new Map()
+  const guiaDoAtendimento = tx.appointment_id ? guias.get(tx.appointment_id) ?? null : null
+
   // --- sessão de pacote consumida ----------------------------------------
   let packageSession: TransactionDetail["packageSession"] = null
   let packageSale: TransactionDetail["packageSale"] = null
@@ -272,6 +287,15 @@ export async function getTransactionDetail(
           status: appointment.status,
           professionalName: professional?.full_name ?? null,
           procedureName: procedure?.name ?? null,
+        }
+      : null,
+    guide: guiaDoAtendimento
+      ? {
+          guideNumber: guiaDoAtendimento.guideNumber,
+          insurerName: guiaDoAtendimento.insurerName,
+          amount: guiaDoAtendimento.amount,
+          status: guiaDoAtendimento.status,
+          attachmentUrl: guiaDoAtendimento.attachmentUrl,
         }
       : null,
     packageSession,

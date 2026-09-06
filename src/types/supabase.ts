@@ -3082,6 +3082,63 @@ export type Database = {
         }
         Relationships: []
       }
+      service_guides: {
+        Row: {
+          amount: number
+          appointment_id: string
+          attachment_url: string | null
+          batch_id: string | null
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          denial_reason: string | null
+          file_id: string | null
+          guide_number: string | null
+          id: string
+          insurer_id: string
+          issued_at: string
+          paid_amount: number | null
+          status: Database["public"]["Enums"]["service_guide_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          appointment_id: string
+          attachment_url?: string | null
+          batch_id?: string | null
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          denial_reason?: string | null
+          file_id?: string | null
+          guide_number?: string | null
+          id?: string
+          insurer_id: string
+          issued_at?: string
+          paid_amount?: number | null
+          status?: Database["public"]["Enums"]["service_guide_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          appointment_id?: string
+          attachment_url?: string | null
+          batch_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          denial_reason?: string | null
+          file_id?: string | null
+          guide_number?: string | null
+          id?: string
+          insurer_id?: string
+          issued_at?: string
+          paid_amount?: number | null
+          status?: Database["public"]["Enums"]["service_guide_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -3164,6 +3221,13 @@ export type Database = {
     }
     Enums: {
       appointment_billing_kind: "particular" | "convenio" | "cortesia"
+      service_guide_status:
+        | "emitida"
+        | "enviada"
+        | "paga"
+        | "glosada"
+        | "recusada"
+        | "cancelada"
       video_call_status: "aguardando" | "em_andamento" | "encerrada" | "cancelada"
       video_call_role: "atendente" | "cliente" | "supervisor"
       appointment_status:

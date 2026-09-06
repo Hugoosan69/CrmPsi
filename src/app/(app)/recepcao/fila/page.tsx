@@ -4,6 +4,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import { listProfessionals, listSpecialties } from "@/services/professionals.service"
 import { listProcedures } from "@/services/procedures.service"
 import { listPaymentMethods } from "@/services/financial.service"
+import { listActiveInsurers } from "@/services/billing.service"
 import { PageHeader } from "@/components/shared/page-header"
 import { QueueList } from "@/features/queue/components/queue-list"
 import { AddToQueueDialog } from "@/features/queue/components/add-to-queue-dialog"
@@ -11,11 +12,12 @@ import { AddToQueueDialog } from "@/features/queue/components/add-to-queue-dialo
 export default async function RecepcaoFilaPage() {
   const membership = await requirePermission(PERMISSIONS.QUEUE_MANAGE)
   const supabase = await createClient()
-  const [professionals, specialties, procedures, paymentMethods] = await Promise.all([
+  const [professionals, specialties, procedures, paymentMethods, insurers] = await Promise.all([
     listProfessionals(supabase, membership.clinicId),
     listSpecialties(supabase, membership.clinicId),
     listProcedures(supabase, membership.clinicId),
     listPaymentMethods(supabase, membership.clinicId),
+    listActiveInsurers(supabase, membership.clinicId),
   ])
 
   return (
@@ -33,7 +35,7 @@ export default async function RecepcaoFilaPage() {
           />
         }
       />
-      <QueueList paymentMethods={paymentMethods} />
+      <QueueList paymentMethods={paymentMethods} insurers={insurers} />
     </div>
   )
 }

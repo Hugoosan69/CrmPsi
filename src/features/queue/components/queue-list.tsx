@@ -37,6 +37,7 @@ function waitClass(minutes: number) {
 }
 
 type PaymentMethod = { id: string; name: string }
+type Insurer = { id: string; name: string; amount_per_guide: number }
 
 /** Uma leitura do balcão inteiro em quatro números, antes de qualquer lista. */
 function QueueSummary({ entries }: { entries: QueueEntryView[] }) {
@@ -82,7 +83,13 @@ function QueueSummary({ entries }: { entries: QueueEntryView[] }) {
   )
 }
 
-export function QueueList({ paymentMethods }: { paymentMethods: PaymentMethod[] }) {
+export function QueueList({
+  paymentMethods,
+  insurers = [],
+}: {
+  paymentMethods: PaymentMethod[]
+  insurers?: Insurer[]
+}) {
   const queryClient = useQueryClient()
   const { data: all, isLoading, error } = useQuery({
     queryKey: ["queue", "recepcao"],
@@ -140,7 +147,7 @@ export function QueueList({ paymentMethods }: { paymentMethods: PaymentMethod[] 
           quando não há nenhuma. */}
       <CallingNow />
 
-      <PaymentGateBoard entries={gated} paymentMethods={paymentMethods} />
+      <PaymentGateBoard entries={gated} paymentMethods={paymentMethods} insurers={insurers} />
 
       {inQueue.length === 0 ? (
         <EmptyState

@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,11 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
+import { InsurerGuideFields } from "@/features/billing/components/insurer-guide-fields"
+import {
+  registerInsurerGuideAction,
+  type GuideActionState,
+} from "@/features/billing/actions/guide.actions"
 import { registerPaymentAction, type FinancialActionState } from "../actions/financial.actions"
 import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
@@ -34,18 +39,35 @@ export function RegisterPaymentDialog({
   transactionId,
   amount,
   paymentMethods,
+  insurers = [],
   ...dialogProps
 }: {
   transactionId: string
   amount: number
   paymentMethods: PaymentMethod[]
+  /** Convênios ativos. Vazio quando não há nenhum — a tela avisa em vez de sumir. */
+  insurers?: { id: string; name: string; amount_per_guide: number }[]
 } & DialogOpenProps) {
   const [open, setOpen] = useDialogOpen(dialogProps)
   const queryClient = useQueryClient()
-  const action = registerPaymentAction.bind(null, transactionId)
-  const [state, formAction, isPending] = useActionState(action, initialState)
+  // Duas ações, porque são dois fatos diferentes: o pagamento comum registra um
+  // recebimento; o convênio EMITE UMA GUIA e reescreve quanto sobra para o paciente.
+  const [metodo, setMetodo] = useState<string>("")
+  const metodoEscolhido = paymentMethods.find((m) => m.id === metodo)
+  const ehConvenio = (metodoEscolhido?.name ?? "").toLowerCase().includes("conv")
 
-  useCloseOnSuccess(state, Boolean(state.success), () => {
+  const [state, formAction, isPending] = useActionState(
+    registerPaymentAction.bind(null, transactionId),
+    initialState
+  )
+  const [guideState, guideAction, isGuidePending] = useActionState<GuideActionState, FormData>(
+    registerInsurerGuideAction.bind(null, transactionId),
+    {}
+  )
+  const estadoAtivo = ehConvenio ? guideState : state
+  const pendente = ehConvenio ? isGuidePending : isPending
+
+  useCloseOnSuccess(estadoAtivo, Boolean(estadoAtivo.success), () => {
     setOpen(false)
     // Settling a charge is what releases the patient — refresh the live queue board
     // immediately instead of waiting up to 5s for the next poll.
@@ -58,14 +80,19 @@ export function RegisterPaymentDialog({
       <DialogTrigger render={<Button size="sm">Registrar pagamento</Button>} />
       )}
       <DialogContent className="max-w-md">
-        <form action={formAction}>
+        <form action={ehConvenio ? guideAction : formAction}>
           <DialogHeader>
             <DialogTitle>Registrar pagamento</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label htmlFor="payment_method_id">Forma de pagamento</Label>
-              <Select name="payment_method_id" required>
+              <Select
+                name={ehConvenio ? undefined : "payment_method_id"}
+                value={metodo}
+                onValueChange={(v) => setMetodo(v ?? "")}
+                required
+              >
                 <SelectTrigger id="payment_method_id" className="w-full">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -78,26 +105,36 @@ export function RegisterPaymentDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="amount">Valor (R$)</Label>
-              <Input id="amount" name="amount" type="number" min={0.01} step="0.01" defaultValue={amount} required />
-            </div>
+            {ehConvenio ? (
+              <InsurerGuideFields
+                insurers={insurers}
+                paymentMethods={paymentMethods.filter(
+                  (m) => !m.name.toLowerCase().includes("conv")
+                )}
+                procedureAmount={amount}
+              />
+            ) : (
+              <div className="grid gap-1.5">
+                <Label htmlFor="amount">Valor (R$)</Label>
+                <Input id="amount" name="amount" type="number" min={0.01} step="0.01" defaultValue={amount} required />
+              </div>
+            )}
             <div className="grid gap-1.5">
               <Label htmlFor="notes">Observações</Label>
               <Textarea id="notes" name="notes" rows={2} />
             </div>
           </div>
-          {state.error ? (
+          {estadoAtivo.error ? (
             <p className="mb-3 text-sm text-destructive" role="alert">
-              {state.error}
+              {estadoAtivo.error}
             </p>
           ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Registrando..." : "Registrar"}
+            <Button type="submit" disabled={pendente}>
+              {pendente ? "Registrando..." : ehConvenio ? "Registrar guia" : "Registrar"}
             </Button>
           </DialogFooter>
         </form>

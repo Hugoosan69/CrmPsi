@@ -126,3 +126,141 @@ export async function setInsurerActive(
     .eq("id", id)
   if (error) throw error
 }
+
+// ---------------------------------------------------------------------------
+// Guias de atendimento
+// ---------------------------------------------------------------------------
+
+export type ServiceGuide = Database["public"]["Tables"]["service_guides"]["Row"]
+
+export type IssueGuideInput = {
+  appointmentId: string
+  insurerId: string
+  guideNumber: string
+  /** O que o convênio paga — cópia do valor vigente na emissão. */
+  amount: number
+  fileId?: string | null
+  attachmentUrl?: string | null
+  createdBy: string
+}
+
+/**
+ * Emite a guia de um atendimento.
+ *
+ * O valor é COPIADO do convênio na emissão, não lido dele depois: o combinado muda com o
+ * tempo, e um protocolo já enviado não pode mudar junto. É a mesma razão pela qual
+ * `patient_packages` guarda o preço da venda.
+ */
+export async function issueServiceGuide(
+  supabase: DB,
+  clinicId: string,
+  input: IssueGuideInput
+): Promise<ServiceGuide> {
+  const { data, error } = await supabase
+    .from("service_guides")
+    .insert({
+      clinic_id: clinicId,
+      appointment_id: input.appointmentId,
+      insurer_id: input.insurerId,
+      guide_number: input.guideNumber,
+      amount: input.amount,
+      file_id: input.fileId ?? null,
+      attachment_url: input.attachmentUrl ?? null,
+      created_by: input.createdBy,
+    })
+    .select("*")
+    .single()
+  if (error) throw error
+  return data
+}
+
+/** A guia viva de um atendimento, se houver. */
+export async function getGuideForAppointment(
+  supabase: DB,
+  clinicId: string,
+  appointmentId: string
+): Promise<ServiceGuide | null> {
+  const { data, error } = await supabase
+    .from("service_guides")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("appointment_id", appointmentId)
+    .neq("status", "cancelada")
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/**
+ * Marca o atendimento como sendo de convênio.
+ *
+ * Fica em `appointments` e não só na guia porque é o atendimento que a agenda mostra e que
+ * o relatório mensal percorre — e porque o CHECK da migration 029 exige os dois juntos.
+ */
+export async function markAppointmentAsInsured(
+  supabase: DB,
+  clinicId: string,
+  appointmentId: string,
+  insurerId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ billing_kind: "convenio", insurer_id: insurerId })
+    .eq("clinic_id", clinicId)
+    .eq("id", appointmentId)
+  if (error) throw error
+}
+
+export type GuideDetail = {
+  guideNumber: string | null
+  insurerName: string
+  amount: number
+  status: string
+  fileId: string | null
+  attachmentUrl: string | null
+}
+
+/**
+ * A guia de um conjunto de atendimentos, por atendimento.
+ *
+ * Usada pelo financeiro para mostrar o número da guia no detalhe do lançamento — o nome do
+ * convênio sai do cadastro de agora, não de texto congelado, como o resto do sistema.
+ */
+export async function guidesByAppointment(
+  supabase: DB,
+  clinicId: string,
+  appointmentIds: string[]
+): Promise<Map<string, GuideDetail>> {
+  const ids = [...new Set(appointmentIds)]
+  if (ids.length === 0) return new Map()
+
+  const { data: guias } = await supabase
+    .from("service_guides")
+    .select("appointment_id, guide_number, insurer_id, amount, status, file_id, attachment_url")
+    .eq("clinic_id", clinicId)
+    .in("appointment_id", ids)
+    .neq("status", "cancelada")
+
+  if (!guias || guias.length === 0) return new Map()
+
+  const { data: convenios } = await supabase
+    .from("insurers")
+    .select("id, name")
+    .eq("clinic_id", clinicId)
+    .in("id", [...new Set(guias.map((g) => g.insurer_id))])
+
+  const nomePorConvenio = new Map((convenios ?? []).map((c) => [c.id, c.name]))
+
+  const out = new Map<string, GuideDetail>()
+  for (const g of guias) {
+    out.set(g.appointment_id, {
+      guideNumber: g.guide_number,
+      insurerName: nomePorConvenio.get(g.insurer_id) ?? "Convênio",
+      amount: Number(g.amount),
+      status: g.status,
+      fileId: g.file_id,
+      attachmentUrl: g.attachment_url,
+    })
+  }
+  return out
+}
