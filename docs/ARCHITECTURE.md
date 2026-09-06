@@ -167,8 +167,14 @@ Checagem em três pontos, nunca menos que os dois primeiros:
 ## 6. Fluxos operacionais
 
 ### Recepção
-Buscar/cadastrar paciente → Agendar → Paciente chega → Check-in → Entrar na fila →
-Acompanhar fila em tempo real → Registrar pagamento ao final do atendimento.
+Buscar/cadastrar paciente → Agendar → Paciente chega → Check-in → **Confirmar pagamento**
+→ **Enviar para a fila** → Acompanhar fila em tempo real.
+
+São **dois passos, não um**. O check-in abre a cobrança e deixa a entrada em
+`payment_pending`; confirmar o pagamento a move para `released`; só o clique "Enviar para
+fila" a põe em `waiting`, visível ao profissional. A tela separa as duas bandas sob títulos
+distintos porque juntá-las sob "Aguardando pagamento" fazia a recepção ignorar quem já
+tinha pago — e o paciente ficava sentado, invisível para o profissional.
 
 ### Profissional
 Ver fila destinada a mim → Chamar paciente → Iniciar atendimento (cronômetro liga) →
@@ -183,6 +189,28 @@ de/para/motivo/quem fez → fila do profissional destino recebe o paciente.
 ### Financeiro
 Atendimento finalizado ou avulso → `financial_transactions` (receita) → `payments`
 (um ou mais recebimentos) → status pendente/pago/atrasado.
+
+**Pacotes de sessões** (`database/migrations/015`, `019`) têm dois modos de cobrança:
+
+| `billing_mode` | Onde o valor entra | Quanto cada sessão lança |
+|---|---|---|
+| `unico` (padrão) | Uma vez, na **venda** | R$ 0,00 |
+| `por_sessao` | Nada na venda | `total_price ÷ total_sessions` |
+
+Nada disso é gravado como texto no lançamento. **O nome do pacote é resolvido na leitura**
+(`packageLinks`, em `services/financial.service.ts`), pela chave estrangeira — venda por
+`patient_packages.financial_transaction_id`, sessão por `patient_package_sessions.
+appointment_id`. Renomear o pacote no catálogo reflete em toda tela na hora. Classificar
+por `description ilike 'Sessão de pacote —%'`, como já se fez, congelava o nome do dia do
+lançamento e deixava o mesmo pacote aparecendo sob três rótulos diferentes.
+
+O botão **"Reprocessar saldos e financeiro"** alinha o que É dado, e só isso: reata o
+vínculo sessão ⇄ agendamento nos dois sentidos, ajusta os saldos ao catálogo e corrige o
+valor dos lançamentos de sessão conforme o modo. Não cria lançamento que falta (sessão sem
+cobrança pode ser sessão sem check-in, e inventar a linha seria inventar faturamento) nem
+toca na venda, que tem `payments` conciliado atrás dela. Corrigir linha já paga exige
+`financial.edit_paid`; sem a permissão, os saldos ainda são reprocessados e a mensagem diz
+que o financeiro foi pulado.
 
 Esses fluxos devem funcionar ponta a ponta (cenário do item 35 do briefing) antes de
 qualquer funcionalidade secundária ser adicionada.
@@ -207,8 +235,10 @@ qualquer funcionalidade secundária ser adicionada.
 
 /gestao
 /gestao/financeiro
+/gestao/anomalias                   # varredura de consistência (audit.view)
 /gestao/profissionais
 /gestao/procedimentos
+/gestao/pacotes
 /gestao/usuarios
 /gestao/permissoes
 /gestao/configuracoes
@@ -226,6 +256,50 @@ variando quais abas/ações aparecem conforme a permissão do usuário logado.
 `PermissionMatrix`, `DataTable`, `ConfirmDialog`. Todos em `components/` se forem
 genéricos, ou em `features/<domain>/components` se dependerem de regra de negócio do
 domínio.
+
+### Tabelas: uma ação, um menu
+
+`Table` (`components/ui/table.tsx`) já embrulha tudo em `overflow-x-auto`, então uma tabela
+larga nunca estoura a página — ela rola dentro do próprio painel. Isso esconde o sintoma,
+não o problema: rolar de lado para alcançar um botão é ruim de usar.
+
+O que empurrava a largura eram as **ações**, não os dados: a linha do financeiro chegou a
+cinco botões de texto lado a lado. Toda linha com mais de uma ação usa
+`RowActions` (`components/shared/row-actions.tsx`), que recolhe tudo num menu de um ícone.
+
+Dois detalhes que o componente resolve e que quebram se forem refeitos à mão:
+
+- **O diálogo não mora dentro do menu.** O menu desmonta ao fechar e levaria o diálogo
+  junto. O item só anota qual ação foi escolhida; os diálogos ficam fora, montados, e
+  abrem por `open`.
+- **A abertura é adiada um tique.** O menu devolve o foco ao gatilho ao fechar, e esse
+  retorno chegava depois do diálogo abrir, roubando dele o foco inicial.
+
+Para isso os diálogos aceitam `open` / `onOpenChange` / `hideTrigger` via
+`DialogOpenProps` (`hooks/use-dialog-open.ts`) — todas opcionais: sem elas o componente
+segue guardando o próprio estado e desenhando o próprio gatilho, como quando é usado
+sozinho fora de tabela.
+
+Linha com **uma** ação só continua com o botão direto (salas, bloqueios de agenda): um menu
+para um item só é mais clique pelo mesmo resultado. Colunas de contexto recolhem por
+breakpoint e o dado desce para junto do registro a que pertence, em vez de sumir.
+
+### Varredura de anomalias
+
+`services/process-anomalies.service.ts` roda verificações independentes sobre fila, agenda,
+financeiro, pacotes e cadastro, e alimenta `/gestao/anomalias` (`audit.view`). Cada
+verificação devolve um grupo ou `null`, e uma que falhe não derruba a tela — é a tela que
+existe para mostrar o que está errado.
+
+Duas regras que valem para qualquer verificação nova:
+
+1. **Nenhum embed do PostgREST.** `types/supabase.ts` é escrito à mão com
+   `Relationships: []`, então `select("a, b:tabela(...)")` não recebe tipagem e só compila
+   via `any` — e a direção do embed (objeto para FK direta, lista para reversa) passa
+   despercebida, fazendo o filtro errar em silêncio. Tudo aqui é leitura indexada explícita.
+2. **Só anomalia que o sistema consegue provar.** Um agendamento pré-pago para semana que
+   vem não tem entrada na fila e isso está certo. O sinal real de "pago e não mandado para o
+   profissional" é a entrada parada em `released`.
 
 ## 9. Comunicação (desacoplada, item 21)
 

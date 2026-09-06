@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,17 +15,19 @@ import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import type { SessionPackageView } from "@/services/packages.service"
 import { updateSessionPackageAction, type PackageActionState } from "../actions/package.actions"
 import { PackageFormFields } from "./package-form-fields"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 const initialState: PackageActionState = {}
 
 export function EditPackageDialog({
   sessionPackage,
   specialties,
+  ...dialogProps
 }: {
   sessionPackage: SessionPackageView
   specialties: { id: string; name: string }[]
-}) {
-  const [open, setOpen] = useState(false)
+} & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const action = updateSessionPackageAction.bind(null, sessionPackage.id)
   const [state, formAction, isPending] = useActionState(action, initialState)
 
@@ -33,7 +35,9 @@ export function EditPackageDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger render={<Button variant="ghost" size="sm">Editar</Button>} />
+      )}
       <DialogContent className="max-w-lg">
         <form action={formAction}>
           <DialogHeader>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,13 +15,14 @@ import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import type { Database } from "@/types/supabase"
 import { updateProcedureAction, type ProcedureActionState } from "../actions/procedure.actions"
 import { ProcedureFormFields } from "./procedure-form-fields"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 type Procedure = Database["public"]["Tables"]["procedures"]["Row"]
 
 const initialState: ProcedureActionState = {}
 
-export function EditProcedureDialog({ procedure }: { procedure: Procedure }) {
-  const [open, setOpen] = useState(false)
+export function EditProcedureDialog({ procedure, ...dialogProps }: { procedure: Procedure } & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const action = updateProcedureAction.bind(null, procedure.id)
   const [state, formAction, isPending] = useActionState(action, initialState)
 
@@ -29,7 +30,9 @@ export function EditProcedureDialog({ procedure }: { procedure: Procedure }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger render={<Button variant="ghost" size="sm">Editar</Button>} />
+      )}
       <DialogContent className="max-w-lg">
         <form action={formAction}>
           <DialogHeader>

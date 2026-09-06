@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot } from "@/components/shared/status-dot"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 import { cn } from "@/lib/utils"
 import type { TransactionDetail } from "@/services/financial-detail.service"
 import { getTransactionDetailAction } from "../actions/transaction-detail.actions"
@@ -281,11 +282,12 @@ function DetailBody({ detail }: { detail: TransactionDetail }) {
 export function TransactionDetailDialog({
   transactionId,
   label,
+  ...dialogProps
 }: {
   transactionId: string
   label: string
-}) {
-  const [open, setOpen] = useState(false)
+} & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const [detail, setDetail] = useState<TransactionDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -303,6 +305,7 @@ export function TransactionDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger
         render={
           <Button variant="ghost" size="sm">
@@ -310,6 +313,7 @@ export function TransactionDetailDialog({
           </Button>
         }
       />
+      )}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-left">{detail?.title ?? label}</DialogTitle>

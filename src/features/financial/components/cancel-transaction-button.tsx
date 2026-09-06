@@ -14,14 +14,21 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 import { cancelTransactionAction } from "../actions/financial.actions"
 
-export function CancelTransactionButton({ transactionId }: { transactionId: string }) {
+export function CancelTransactionButton({
+  transactionId,
+  ...dialogProps
+}: { transactionId: string } & DialogOpenProps) {
   const [isPending, startTransition] = useTransition()
+  const [open, setOpen] = useDialogOpen(dialogProps)
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="ghost" size="sm">Cancelar</Button>} />
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
+        <AlertDialogTrigger render={<Button variant="ghost" size="sm">Cancelar</Button>} />
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Cancelar lançamento?</AlertDialogTitle>

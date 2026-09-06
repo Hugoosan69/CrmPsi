@@ -24,6 +24,7 @@ import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import type { SpecialtyOption } from "@/types/options"
 import type { ClinicMember } from "@/services/users.service"
 import { linkProfessionalAction, type UserActionState } from "../actions/user.actions"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 const initialState: UserActionState = {}
 
@@ -39,12 +40,13 @@ export function LinkProfessionalDialog({
   member,
   specialties,
   unlinked,
+  ...dialogProps
 }: {
   member: ClinicMember
   specialties: SpecialtyOption[]
   unlinked: { id: string; full_name: string }[]
-}) {
-  const [open, setOpen] = useState(false)
+} & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const [existingId, setExistingId] = useState("")
   const [state, formAction, isPending] = useActionState(
     linkProfessionalAction.bind(null, member.userId),
@@ -55,15 +57,17 @@ export function LinkProfessionalDialog({
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setOpen(true)}
-        aria-label={`Tornar ${member.fullName} um profissional`}
-      >
-        <Stethoscope className="size-3.5" />
-        <span className="sr-only sm:not-sr-only sm:ml-1.5">Tornar profissional</span>
-      </Button>
+      {!dialogProps.hideTrigger && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpen(true)}
+          aria-label={`Tornar ${member.fullName} um profissional`}
+        >
+          <Stethoscope className="size-3.5" />
+          <span className="sr-only sm:not-sr-only sm:ml-1.5">Tornar profissional</span>
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">

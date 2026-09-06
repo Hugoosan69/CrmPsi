@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/shared/empty-state"
+import { PackageRowActions } from "./package-row-actions"
 import {
   Table,
   TableBody,
@@ -8,11 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import type { SessionPackageView } from "@/services/packages.service"
-import { setSessionPackageActiveAction } from "../actions/package.actions"
-import { EditPackageDialog } from "./edit-package-dialog"
-import { ReprocessBalancesButton } from "./reprocess-balances-button"
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
@@ -66,21 +63,7 @@ export function PackageCatalogTable({
               {formatCurrency(Number(p.price_per_session))}
             </TableCell>
             <TableCell>
-              <div className="flex flex-wrap items-center justify-end gap-1">
-              <EditPackageDialog sessionPackage={p} specialties={specialties} />
-              <ReprocessBalancesButton packageId={p.id} />
-              <ToggleActiveButton
-                active={p.active}
-                deactivateLabel="Inativar"
-                confirmTitle={p.active ? "Inativar pacote?" : "Ativar pacote?"}
-                confirmDescription={
-                  p.active
-                    ? "O pacote deixará de aparecer para novas vendas."
-                    : "O pacote voltará a aparecer para novas vendas."
-                }
-                action={setSessionPackageActiveAction.bind(null, p.id, !p.active)}
-              />
-              </div>
+              <PackageRowActions sessionPackage={p} specialties={specialties} />
             </TableCell>
           </TableRow>
         ))}

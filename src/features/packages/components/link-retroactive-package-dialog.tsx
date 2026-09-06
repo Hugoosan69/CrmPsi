@@ -27,6 +27,7 @@ import {
   listPatientPackagesForLinkAction,
   type PackageActionState,
 } from "../actions/package.actions"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 const initialState: PackageActionState = {}
 
@@ -41,11 +42,12 @@ type PackageOption = { id: string; label: string; suggestedSessionNumber: number
 export function LinkRetroactivePackageDialog({
   transactionId,
   patientId,
+  ...dialogProps
 }: {
   transactionId: string
   patientId: string | null
-}) {
-  const [open, setOpen] = useState(false)
+} & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const [options, setOptions] = useState<PackageOption[]>([])
   const [selectedPackage, setSelectedPackage] = useState("")
   const [sessionNumber, setSessionNumber] = useState(1)
@@ -68,7 +70,9 @@ export function LinkRetroactivePackageDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger render={<Button variant="ghost" size="sm">Vincular a um pacote</Button>} />
+      )}
       <DialogContent className="max-w-md">
         <form action={formAction}>
           <input type="hidden" name="transaction_id" value={transactionId} />

@@ -12,11 +12,8 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { StatusDot } from "@/components/shared/status-dot"
-import { cn } from "@/lib/utils"
+import { PatientRowActions } from "./patient-row-actions"
 import type { PatientWithStats } from "@/services/patients.service"
-import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
-import { setPatientActiveAction } from "../actions/patient.actions"
-import { EditPatientDialog } from "./edit-patient-dialog"
 
 /** `birth_date` é um `date` puro (YYYY-MM-DD): partido na mão, sem passar por `Date`, que
  *  interpretaria a string como UTC e mostraria o dia anterior no fuso da clínica. */
@@ -178,21 +175,9 @@ export function PatientsTable({
                   )}
                 </TableCell>
 
-                <TableCell className={cn("flex justify-end gap-1 text-right")}>
-                  <EditPatientDialog patient={patient} />
-                  <ToggleActiveButton
-                    active={patient.active}
-                    activateLabel="Ativar"
-                    deactivateLabel="Inativar"
-                    confirmTitle={patient.active ? "Inativar paciente?" : "Ativar paciente?"}
-                    confirmDescription={
-                      patient.active
-                        ? "O paciente deixará de aparecer nas buscas e listagens padrão."
-                        : "O paciente voltará a aparecer nas buscas e listagens padrão."
-                    }
-                    action={setPatientActiveAction.bind(null, patient.id, !patient.active)}
-                  />
-                </TableCell>
+            <TableCell>
+              <PatientRowActions patient={patient} />
+            </TableCell>
               </TableRow>
             )
           })}

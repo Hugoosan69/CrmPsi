@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 export function ToggleActiveButton({
   active,
@@ -23,6 +24,7 @@ export function ToggleActiveButton({
   confirmTitle,
   confirmDescription,
   action,
+  ...dialogProps
 }: {
   active: boolean
   activateLabel?: string
@@ -30,9 +32,9 @@ export function ToggleActiveButton({
   confirmTitle: string
   confirmDescription: string
   action: () => Promise<void>
-}) {
+} & DialogOpenProps) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const [isPending, startTransition] = useTransition()
 
   /**
@@ -59,6 +61,7 @@ export function ToggleActiveButton({
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <AlertDialogTrigger
         render={
           <Button variant="ghost" size="sm">
@@ -66,6 +69,7 @@ export function ToggleActiveButton({
           </Button>
         }
       />
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>

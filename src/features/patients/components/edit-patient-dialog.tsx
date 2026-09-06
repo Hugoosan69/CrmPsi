@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,13 +15,14 @@ import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import type { Database } from "@/types/supabase"
 import { updatePatientAction, type PatientActionState } from "../actions/patient.actions"
 import { PatientFormFields } from "./patient-form-fields"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 type Patient = Database["public"]["Tables"]["patients"]["Row"]
 
 const initialState: PatientActionState = {}
 
-export function EditPatientDialog({ patient }: { patient: Patient }) {
-  const [open, setOpen] = useState(false)
+export function EditPatientDialog({ patient, ...dialogProps }: { patient: Patient } & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const action = updatePatientAction.bind(null, patient.id)
   const [state, formAction, isPending] = useActionState(action, initialState)
 
@@ -29,7 +30,9 @@ export function EditPatientDialog({ patient }: { patient: Patient }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger render={<Button variant="ghost" size="sm">Editar</Button>} />
+      )}
       <DialogContent className="max-w-lg">
         <form action={formAction}>
           <DialogHeader>

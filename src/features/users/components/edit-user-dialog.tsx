@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 import { Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,7 @@ import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import type { Database } from "@/types/supabase"
 import type { ClinicMember } from "@/services/users.service"
 import { updateUserAction, type UserActionState } from "../actions/user.actions"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 type Role = Pick<Database["public"]["Tables"]["roles"]["Row"], "id" | "name">
 
@@ -38,8 +39,8 @@ const initialState: UserActionState = {}
  * errado — um nome digitado errado no convite só saía se a pessoa conseguisse entrar, que é
  * exatamente o que não acontece quando o cadastro está errado.
  */
-export function EditUserDialog({ member, roles }: { member: ClinicMember; roles: Role[] }) {
-  const [open, setOpen] = useState(false)
+export function EditUserDialog({ member, roles, ...dialogProps }: { member: ClinicMember; roles: Role[] } & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const [state, formAction, isPending] = useActionState(
     updateUserAction.bind(null, member.membershipId),
     initialState
@@ -49,14 +50,16 @@ export function EditUserDialog({ member, roles }: { member: ClinicMember; roles:
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm" aria-label={`Editar ${member.fullName}`}>
-            <Pencil className="size-3.5" />
-            <span className="sr-only sm:not-sr-only sm:ml-1.5">Editar</span>
-          </Button>
-        }
-      />
+      {!dialogProps.hideTrigger && (
+        <DialogTrigger
+          render={
+            <Button variant="ghost" size="sm" aria-label={`Editar ${member.fullName}`}>
+              <Pencil className="size-3.5" />
+              <span className="sr-only sm:not-sr-only sm:ml-1.5">Editar</span>
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="max-w-md">
         <form action={formAction}>
           <DialogHeader>

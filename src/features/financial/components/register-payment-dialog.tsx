@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import { registerPaymentAction, type FinancialActionState } from "../actions/financial.actions"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 type PaymentMethod = { id: string; name: string }
 
@@ -33,12 +34,13 @@ export function RegisterPaymentDialog({
   transactionId,
   amount,
   paymentMethods,
+  ...dialogProps
 }: {
   transactionId: string
   amount: number
   paymentMethods: PaymentMethod[]
-}) {
-  const [open, setOpen] = useState(false)
+} & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const queryClient = useQueryClient()
   const action = registerPaymentAction.bind(null, transactionId)
   const [state, formAction, isPending] = useActionState(action, initialState)
@@ -52,7 +54,9 @@ export function RegisterPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger render={<Button size="sm">Registrar pagamento</Button>} />
+      )}
       <DialogContent className="max-w-md">
         <form action={formAction}>
           <DialogHeader>

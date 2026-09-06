@@ -10,11 +10,7 @@ import {
 } from "@/components/ui/table"
 import type { TransactionView } from "@/services/financial.service"
 import { TransactionStatusBadge } from "./transaction-status-badge"
-import { RegisterPaymentDialog } from "./register-payment-dialog"
-import { CancelTransactionButton } from "./cancel-transaction-button"
-import { LinkRetroactivePackageDialog } from "@/features/packages/components/link-retroactive-package-dialog"
-import { EditAmountDialog } from "./edit-amount-dialog"
-import { TransactionDetailDialog } from "./transaction-detail-dialog"
+import { TransactionRowActions } from "./transaction-row-actions"
 
 type PaymentMethod = { id: string; name: string }
 
@@ -135,36 +131,14 @@ export function TransactionsTable({
               <TransactionStatusBadge status={t.status} />
             </TableCell>
             <TableCell>
-              <div className="flex flex-wrap items-center justify-end gap-1">
-              <TransactionDetailDialog
-                transactionId={t.id}
+              <TransactionRowActions
+                transaction={t}
                 label={describeTransaction(t)}
+                paymentMethods={paymentMethods}
+                canManage={canManage}
+                canEditAmount={canEditAmount}
+                canEditPaid={canEditPaid}
               />
-              {canManage && (t.status === "pendente" || t.status === "atrasado") && (
-                <>
-                  <RegisterPaymentDialog transactionId={t.id} amount={Number(t.amount)} paymentMethods={paymentMethods} />
-                  <CancelTransactionButton transactionId={t.id} />
-                </>
-              )}
-              {/* Requisito 6: lançamentos de R$ 1 ou menos são, por definição, sessões de
-                  pacote lançadas como avulso — ver database/migrations/015. Some assim que
-                  a linha já está vinculada a um pacote. */}
-              {canManage && !t.isPackage && t.status !== "cancelado" && Number(t.amount) <= 1 && (
-                <LinkRetroactivePackageDialog transactionId={t.id} patientId={t.patient_id} />
-              )}
-              {/* Linha paga só é editável por quem tem as DUAS permissões — a Server Action
-                  confere de novo, isto aqui é só não oferecer o que vai ser recusado. */}
-              {canEditAmount &&
-                t.status !== "cancelado" &&
-                (t.status !== "pago" || canEditPaid) && (
-                  <EditAmountDialog
-                    transactionId={t.id}
-                    amount={Number(t.amount)}
-                    description={t.description}
-                    isPaid={t.status === "pago"}
-                  />
-                )}
-              </div>
             </TableCell>
           </TableRow>
         ))}

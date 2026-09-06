@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 import { AlertTriangle, ShieldAlert } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import { updateTransactionAmountAction, type FinancialActionState } from "../actions/financial.actions"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 const initialState: FinancialActionState = {}
 
@@ -43,13 +44,14 @@ export function EditAmountDialog({
   amount,
   description,
   isPaid = false,
+  ...dialogProps
 }: {
   transactionId: string
   amount: number
   description: string | null
   isPaid?: boolean
-}) {
-  const [open, setOpen] = useState(false)
+} & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const action = updateTransactionAmountAction.bind(null, transactionId)
   const [state, formAction, isPending] = useActionState(action, initialState)
 
@@ -57,7 +59,9 @@ export function EditAmountDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger render={<Button variant="ghost" size="sm">Corrigir valor</Button>} />
+      )}
       <DialogContent className="max-w-md">
         <form action={formAction}>
           <DialogHeader>

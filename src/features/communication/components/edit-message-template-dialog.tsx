@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,13 +15,14 @@ import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import type { Database } from "@/types/supabase"
 import { updateMessageTemplateAction, type CommunicationActionState } from "../actions/communication.actions"
 import { MessageTemplateFormFields } from "./message-template-form-fields"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 type MessageTemplate = Database["public"]["Tables"]["message_templates"]["Row"]
 
 const initialState: CommunicationActionState = {}
 
-export function EditMessageTemplateDialog({ template }: { template: MessageTemplate }) {
-  const [open, setOpen] = useState(false)
+export function EditMessageTemplateDialog({ template, ...dialogProps }: { template: MessageTemplate } & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const action = updateMessageTemplateAction.bind(null, template.id)
   const [state, formAction, isPending] = useActionState(action, initialState)
 
@@ -29,7 +30,9 @@ export function EditMessageTemplateDialog({ template }: { template: MessageTempl
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {!dialogProps.hideTrigger && (
       <DialogTrigger render={<Button variant="ghost" size="sm">Editar</Button>} />
+      )}
       <DialogContent className="max-w-lg">
         <form action={formAction}>
           <DialogHeader>

@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/shared/empty-state"
+import { ProcedureRowActions } from "./procedure-row-actions"
 import {
   Table,
   TableBody,
@@ -8,10 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import type { Database } from "@/types/supabase"
-import { setProcedureActiveAction } from "../actions/procedure.actions"
-import { EditProcedureDialog } from "./edit-procedure-dialog"
 
 type Procedure = Database["public"]["Tables"]["procedures"]["Row"]
 
@@ -52,19 +50,8 @@ export function ProceduresTable({ procedures }: { procedures: Procedure[] }) {
             </TableCell>
             <TableCell>{procedure.duration_minutes} min</TableCell>
             <TableCell>{formatCurrency(procedure.price)}</TableCell>
-            <TableCell className="flex justify-end gap-1 text-right">
-              <EditProcedureDialog procedure={procedure} />
-              <ToggleActiveButton
-                active={procedure.active}
-                deactivateLabel="Inativar"
-                confirmTitle={procedure.active ? "Inativar procedimento?" : "Ativar procedimento?"}
-                confirmDescription={
-                  procedure.active
-                    ? "O procedimento deixará de aparecer para novos agendamentos."
-                    : "O procedimento voltará a aparecer para novos agendamentos."
-                }
-                action={setProcedureActiveAction.bind(null, procedure.id, !procedure.active)}
-              />
+            <TableCell>
+              <ProcedureRowActions procedure={procedure} />
             </TableCell>
           </TableRow>
         ))}

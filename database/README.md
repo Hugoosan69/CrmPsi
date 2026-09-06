@@ -117,6 +117,20 @@ Or paste each file into the Supabase SQL Editor in the same order.
 | `021_agenda_appearance.sql` | `agenda.appearance`: a cor de cada situação no card da agenda passa a ser da clínica, gravada em `clinic_settings.settings.agenda.statusColors` (sem coluna nova). Permissão à parte de `settings.manage` — trocar a logo é identidade visual, mudar as cores altera a leitura da tela em que a equipe trabalha o dia inteiro |
 
 | `022_appointment_status_triagem.sql` | Valor `triagem` no enum `appointment_status`. Só o valor: o Postgres não deixa usar um valor de enum recém-criado em predicado de índice na mesma transação, e é o que a 023 faz — por isso são dois arquivos |
+## Vínculo de sessão de pacote: as duas pontas importam
+
+`patient_package_sessions.appointment_id` e `appointments.patient_package_session_id` são
+as duas metades do mesmo vínculo, e as duas são lidas: a primeira diz qual agendamento
+consome a sessão; a segunda é o que a **agenda** lê para mostrar o selo "Pacote 3/4" e o
+que o **check-in** usa para saber quanto a sessão lança.
+
+Gravado só de um lado — o que o vínculo retroativo fazia — o pacote some da agenda e a
+sessão entra a R$ 0,00 mesmo num pacote `por_sessao`, ou seja, receita que nunca é lançada.
+`repairPackageSessionLinks` (em `src/services/packages.service.ts`, acionada pelo botão
+"Reprocessar saldos e financeiro") reata o que é inequívoco: agendamento sem vínculo nenhum
+e reivindicado por uma única sessão. Agendamento que já aponta outra sessão não é tocado, e
+disputa entre duas sessões é reportada em vez de resolvida no chute.
+
 | `023_triagem_occupies_slot.sql` | Triagem passa a **ocupar o horário**: o índice de dupla marcação (001), as duas restrições de sobreposição (002), `appointment_slot_problem` e `professional_free_slots` (002/012) trocam `status in ('scheduled','confirmed')` por `(... ,'triagem')`. Sem isto a triagem apareceria na agenda e continuaria invisível para quem verifica se o horário está livre. **Aplicar depois da 022, em transações separadas** |
 
 `99_seed/seed.sql` requires demo `auth.users` to be created first (Supabase Auth cannot be

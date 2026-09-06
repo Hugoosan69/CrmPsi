@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useTransition } from "react"
 import { KeyRound } from "lucide-react"
 import { toast } from "sonner"
 
@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { sendPasswordResetForMemberAction } from "../actions/user.actions"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 
 /**
  * Lets an admin start the recovery flow for a colleague who is locked out.
@@ -28,12 +29,13 @@ export function SendResetButton({
   membershipId,
   memberName,
   memberEmail,
+  ...dialogProps
 }: {
   membershipId: string
   memberName: string
   memberEmail: string
-}) {
-  const [open, setOpen] = useState(false)
+} & DialogOpenProps) {
+  const [open, setOpen] = useDialogOpen(dialogProps)
   const [isPending, startTransition] = useTransition()
 
   function send() {
@@ -50,15 +52,17 @@ export function SendResetButton({
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setOpen(true)}
-        aria-label={`Enviar link de redefinição de senha para ${memberName}`}
-      >
-        <KeyRound className="size-3.5" />
-        <span className="sr-only sm:not-sr-only sm:ml-1.5">Redefinir senha</span>
-      </Button>
+      {!dialogProps.hideTrigger && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpen(true)}
+          aria-label={`Enviar link de redefinição de senha para ${memberName}`}
+        >
+          <KeyRound className="size-3.5" />
+          <span className="sr-only sm:not-sr-only sm:ml-1.5">Redefinir senha</span>
+        </Button>
+      )}
 
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>

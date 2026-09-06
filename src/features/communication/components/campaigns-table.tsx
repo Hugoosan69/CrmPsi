@@ -1,10 +1,11 @@
 "use client"
 
 import { useTransition } from "react"
+
+import { RowActions, type RowAction } from "@/components/shared/row-actions"
 import { Send, X } from "lucide-react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -81,42 +82,45 @@ export function CampaignsTable({ campaigns }: { campaigns: Campaign[] }) {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-right whitespace-nowrap">
-                  {canSend && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() =>
-                        start(async () => {
-                          const r = await dispatchCampaignAction(campaign.id)
-                          if (r.error) toast.error(r.error)
-                          else if (r.success) toast.success(r.success)
-                        })
-                      }
-                      aria-label={`Disparar ${campaign.name}`}
-                    >
-                      <Send className="size-3.5" />
-                      <span className="sr-only sm:not-sr-only sm:ml-1.5">Disparar</span>
-                    </Button>
-                  )}
-                  {(campaign.status === "draft" || campaign.status === "scheduled") && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() =>
-                        start(async () => {
-                          const r = await cancelCampaignAction(campaign.id)
-                          if (r.error) toast.error(r.error)
-                          else if (r.success) toast.success(r.success)
-                        })
-                      }
-                      aria-label={`Cancelar ${campaign.name}`}
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  )}
+                <TableCell>
+                  <RowActions
+                    label={`Ações de ${campaign.name}`}
+                    actions={[
+                      ...(canSend
+                        ? [
+                            {
+                              key: "send",
+                              label: "Disparar",
+                              icon: Send,
+                              disabled: isPending,
+                              onSelect: () =>
+                                start(async () => {
+                                  const r = await dispatchCampaignAction(campaign.id)
+                                  if (r.error) toast.error(r.error)
+                                  else if (r.success) toast.success(r.success)
+                                }),
+                            } satisfies RowAction,
+                          ]
+                        : []),
+                      ...(campaign.status === "draft" || campaign.status === "scheduled"
+                        ? [
+                            {
+                              key: "cancel",
+                              label: "Cancelar campanha",
+                              icon: X,
+                              danger: true,
+                              disabled: isPending,
+                              onSelect: () =>
+                                start(async () => {
+                                  const r = await cancelCampaignAction(campaign.id)
+                                  if (r.error) toast.error(r.error)
+                                  else if (r.success) toast.success(r.success)
+                                }),
+                            } satisfies RowAction,
+                          ]
+                        : []),
+                    ]}
+                  />
                 </TableCell>
               </TableRow>
             )

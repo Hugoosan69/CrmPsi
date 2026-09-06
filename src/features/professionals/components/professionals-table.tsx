@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/shared/empty-state"
+import { ProfessionalRowActions } from "./professional-row-actions"
 import {
   Table,
   TableBody,
@@ -8,11 +9,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import type { Database } from "@/types/supabase"
 import type { RoleOption } from "@/types/options"
-import { setProfessionalActiveAction } from "../actions/professional.actions"
-import { EditProfessionalDialog } from "./edit-professional-dialog"
 import { CreateUserForProfessionalDialog } from "./create-user-for-professional-dialog"
 
 type Professional = Database["public"]["Tables"]["professionals"]["Row"]
@@ -87,19 +85,8 @@ export function ProfessionalsTable({
                 <span className="text-muted-foreground">Sem login</span>
               )}
             </TableCell>
-            <TableCell className="flex justify-end gap-1 text-right">
-              <EditProfessionalDialog professional={professional} specialties={specialties} />
-              <ToggleActiveButton
-                active={professional.active}
-                deactivateLabel="Inativar"
-                confirmTitle={professional.active ? "Inativar profissional?" : "Ativar profissional?"}
-                confirmDescription={
-                  professional.active
-                    ? "O profissional deixará de aparecer para novos agendamentos."
-                    : "O profissional voltará a aparecer para novos agendamentos."
-                }
-                action={setProfessionalActiveAction.bind(null, professional.id, !professional.active)}
-              />
+            <TableCell>
+              <ProfessionalRowActions professional={professional} specialties={specialties} />
             </TableCell>
           </TableRow>
         ))}

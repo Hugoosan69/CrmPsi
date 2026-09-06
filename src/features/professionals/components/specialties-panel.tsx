@@ -1,7 +1,7 @@
 "use client"
 
-import { useActionState, useState } from "react"
-import { Pencil, Plus } from "lucide-react"
+import { useActionState } from "react"
+import { Pencil, Plus, Power } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +18,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusDot } from "@/components/shared/status-dot"
+import { RowActions } from "@/components/shared/row-actions"
+import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
 import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import type { Specialty } from "@/services/professionals.service"
@@ -72,21 +74,44 @@ export function SpecialtiesPanel({ specialties }: { specialties: Specialty[] }) 
                   <TableCell className="text-muted-foreground">
                     {specialty.description || "—"}
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    <SpecialtyDialog specialty={specialty} />
-                    <ToggleActiveButton
-                      active={specialty.active}
-                      confirmTitle={
-                        specialty.active ? "Desativar especialidade?" : "Ativar especialidade?"
-                      }
-                      confirmDescription={
-                        specialty.active
-                          ? "Ela deixa de aparecer no cadastro de profissionais. Quem já está vinculado a ela não muda."
-                          : "Ela volta a aparecer no cadastro de profissionais."
-                      }
-                      action={async () => {
-                        await setSpecialtyActiveAction(specialty.id, !specialty.active)
-                      }}
+                  <TableCell>
+                    <RowActions
+                      label={`Ações de ${specialty.name}`}
+                      actions={[
+                        {
+                          key: "edit",
+                          label: "Editar",
+                          icon: Pencil,
+                          render: (control) => (
+                            <SpecialtyDialog specialty={specialty} {...control} />
+                          ),
+                        },
+                        {
+                          key: "toggle",
+                          label: specialty.active ? "Desativar" : "Ativar",
+                          icon: Power,
+                          danger: specialty.active,
+                          render: (control) => (
+                            <ToggleActiveButton
+                              active={specialty.active}
+                              confirmTitle={
+                                specialty.active
+                                  ? "Desativar especialidade?"
+                                  : "Ativar especialidade?"
+                              }
+                              confirmDescription={
+                                specialty.active
+                                  ? "Ela deixa de aparecer no cadastro de profissionais. Quem já está vinculado a ela não muda."
+                                  : "Ela volta a aparecer no cadastro de profissionais."
+                              }
+                              action={async () => {
+                                await setSpecialtyActiveAction(specialty.id, !specialty.active)
+                              }}
+                              {...control}
+                            />
+                          ),
+                        },
+                      ]}
                     />
                   </TableCell>
                 </TableRow>
@@ -103,9 +128,12 @@ export function SpecialtiesPanel({ specialties }: { specialties: Specialty[] }) 
  * Um diálogo só para criar e editar: os campos são os mesmos e as duas ações compartilham o
  * mesmo schema de validação, então duas telas separadas só criariam a chance de divergirem.
  */
-function SpecialtyDialog({ specialty }: { specialty?: Specialty }) {
+function SpecialtyDialog({
+  specialty,
+  ...dialogProps
+}: { specialty?: Specialty } & DialogOpenProps) {
   const isEdit = Boolean(specialty)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useDialogOpen(dialogProps)
 
   const [state, formAction, isPending] = useActionState(
     isEdit ? updateSpecialtyAction.bind(null, specialty!.id) : createSpecialtyAction,
@@ -115,20 +143,22 @@ function SpecialtyDialog({ specialty }: { specialty?: Specialty }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          isEdit ? (
-            <Button variant="ghost" size="sm" aria-label={`Editar ${specialty!.name}`}>
-              <Pencil className="size-3.5" />
-            </Button>
-          ) : (
-            <Button size="sm">
-              <Plus className="size-4" />
-              Nova especialidade
-            </Button>
-          )
-        }
-      />
+      {!dialogProps.hideTrigger && (
+        <DialogTrigger
+          render={
+            isEdit ? (
+              <Button variant="ghost" size="sm" aria-label={`Editar ${specialty!.name}`}>
+                <Pencil className="size-3.5" />
+              </Button>
+            ) : (
+              <Button size="sm">
+                <Plus className="size-4" />
+                Nova especialidade
+              </Button>
+            )
+          }
+        />
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar especialidade" : "Nova especialidade"}</DialogTitle>
