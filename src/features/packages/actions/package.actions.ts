@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { createClient } from "@/lib/supabase/server"
-import { requirePermission } from "@/lib/auth/session"
+import { hasPermission, requirePermission } from "@/lib/auth/session"
 import { PERMISSIONS } from "@/config/permissions"
 import { sessionPackageSchema, sellPackageSchema, retroactiveLinkSchema } from "@/schemas/package.schema"
 import {
@@ -17,6 +17,7 @@ import {
   listActivePatientPackages,
   listSessionPackages,
   settlePendingChargesForAppointment,
+  syncPackageSessionCharges,
   syncPatientPackagesWithCatalog,
   takenSessionNumbers,
 } from "@/services/packages.service"
@@ -80,7 +81,9 @@ export async function updateSessionPackageAction(
   }
 
   const supabase = await createClient()
+  const podeMexerEmPago = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)
   let sync: Awaited<ReturnType<typeof syncPatientPackagesWithCatalog>>
+  let charges: Awaited<ReturnType<typeof syncPackageSessionCharges>> | null = null
   try {
     await updateSessionPackage(supabase, membership.clinicId, packageId, parsed.data)
     // Corrigir o catálogo tem de chegar em quem já comprou: o pacote cadastrado com 1
@@ -88,6 +91,12 @@ export async function updateSessionPackageAction(
     // do paciente. Quem já usou mais sessões do que o novo total fica de fora (ver
     // syncPatientPackagesWithCatalog) e é reprocessado à mão pelo botão do catálogo.
     sync = await syncPatientPackagesWithCatalog(supabase, membership.clinicId, packageId)
+    // E tem de chegar no dinheiro também. Trocar o modo de cobrança aqui e deixar os
+    // lançamentos das sessões como estavam é o que fazia a mesma receita ser contada duas
+    // vezes: valor cheio na venda E a parte de cada sessão.
+    if (podeMexerEmPago) {
+      charges = await syncPackageSessionCharges(supabase, membership.clinicId, packageId)
+    }
   } catch (err) {
     return { error: describeDbError(err) }
   }
@@ -98,32 +107,47 @@ export async function updateSessionPackageAction(
     action: "package.catalog.update",
     entityType: "session_package",
     entityId: packageId,
-    after: { ...parsed.data, saldosAtualizados: sync.updated, saldosIgnorados: sync.skipped },
+    after: { ...parsed.data, saldos: sync, financeiro: charges },
   })
 
   revalidatePackages()
   revalidatePath("/recepcao/agenda")
   revalidatePath("/profissional/agenda")
+  revalidatePath("/gestao/financeiro")
+  revalidatePath("/recepcao/financeiro")
   return { success: true }
 }
 
 /**
- * Reprocessa os saldos já vendidos deste pacote, sob demanda.
+ * Reprocessa este pacote em duas frentes: os **saldos** já vendidos e os **lançamentos**
+ * das sessões.
  *
  * A atualização do catálogo já faz isso sozinha, mas nem todo desencontro veio de uma
  * edição: pacotes criados na conversão retroativa, importações e ajustes feitos direto no
  * banco também deixam saldos com o número de sessões antigo. O botão existe para alinhar
  * tudo sem precisar reabrir e salvar o cadastro.
+ *
+ * A parte financeira mexe em linha JÁ PAGA — é a definição de `financial.edit_paid`
+ * (migrations/020). Quem não tem a permissão continua podendo reprocessar os saldos; o
+ * financeiro é pulado e a mensagem diz isso, em vez de falhar inteiro ou, pior, alterar
+ * dinheiro sem a permissão que existe para esse fim.
  */
 export async function reprocessPackageBalancesAction(
   packageId: string
 ): Promise<PackageActionState & { message?: string }> {
   const membership = await requirePermission(PERMISSIONS.PACKAGES_MANAGE)
+  const podeMexerEmPago = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)
   const supabase = await createClient()
 
   let sync: Awaited<ReturnType<typeof syncPatientPackagesWithCatalog>>
+  let charges: Awaited<ReturnType<typeof syncPackageSessionCharges>> | null = null
   try {
+    // Saldos primeiro: o valor por sessão sai do snapshot do saldo, então o financeiro
+    // precisa enxergar o total já corrigido para calcular a parte de cada sessão.
     sync = await syncPatientPackagesWithCatalog(supabase, membership.clinicId, packageId)
+    if (podeMexerEmPago) {
+      charges = await syncPackageSessionCharges(supabase, membership.clinicId, packageId)
+    }
   } catch (err) {
     return { error: describeDbError(err) }
   }
@@ -134,19 +158,54 @@ export async function reprocessPackageBalancesAction(
     action: "package.catalog.reprocess",
     entityType: "session_package",
     entityId: packageId,
-    after: sync,
+    after: { saldos: sync, financeiro: charges },
   })
 
   revalidatePackages()
   revalidatePath("/recepcao/agenda")
   revalidatePath("/profissional/agenda")
+  revalidatePath("/gestao/financeiro")
+  revalidatePath("/recepcao/financeiro")
 
+  return { success: true, message: describeReprocess(sync, charges, podeMexerEmPago) }
+}
+
+/** A frase do toast: o que mudou no saldo, o que mudou no dinheiro, e o que sobrou para
+ *  alguém olhar à mão. */
+function describeReprocess(
+  sync: Awaited<ReturnType<typeof syncPatientPackagesWithCatalog>>,
+  charges: Awaited<ReturnType<typeof syncPackageSessionCharges>> | null,
+  podeMexerEmPago: boolean
+): string {
   const partes = [`${sync.updated} saldo(s) atualizado(s)`]
   if (sync.unchanged > 0) partes.push(`${sync.unchanged} já estava(m) em dia`)
   if (sync.skipped > 0) {
     partes.push(`${sync.skipped} com mais sessões usadas do que o pacote tem agora — revise à mão`)
   }
-  return { success: true, message: partes.join(", ") + "." }
+
+  if (!podeMexerEmPago) {
+    partes.push("financeiro não reprocessado (exige a permissão de alterar lançamento já pago)")
+    return partes.join(", ") + "."
+  }
+
+  if (charges) {
+    const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+    partes.push(
+      charges.updated > 0
+        ? `${charges.updated} lançamento(s) de sessão corrigido(s) (${
+            charges.delta >= 0 ? "+" : ""
+          }${moeda.format(charges.delta)})`
+        : "nenhum lançamento de sessão precisou de correção"
+    )
+    if (charges.missing > 0) {
+      partes.push(`${charges.missing} sessão(ões) consumida(s) sem lançamento — revise à mão`)
+    }
+    if (charges.duplicates > 0) {
+      partes.push(`${charges.duplicates} lançamento(s) duplicado(s) no mesmo atendimento — revise à mão`)
+    }
+  }
+
+  return partes.join(", ") + "."
 }
 
 export async function setSessionPackageActiveAction(packageId: string, active: boolean) {

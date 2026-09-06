@@ -119,12 +119,12 @@ export async function syncPatientPackagesWithCatalog(
 
     const status = balance.sessions_used >= pkg.total_sessions ? "completed" : "active"
 
-    // Em `por_sessao` o preço muda com o total de sessões: `total_price = total_sessions * price_per_session`.
-    // Em `unico` o preço foi pago tudo junto na venda e não muda com reprocessamento de saldos.
+    // Em `por_sessao` o saldo acompanha o catálogo: o valor é reconhecido sessão a sessão,
+    // então mudar preço ou número de sessões no catálogo tem de chegar em quem já comprou.
+    // Em `unico` o dinheiro entrou de uma vez na venda, e reescrever o snapshot do que já
+    // foi cobrado seria falsear a venda — o valor do saldo fica como está.
     const newPrice =
-      pkg.billing_mode === "por_sessao"
-        ? (pkg.total_price / pkg.total_sessions) * pkg.total_sessions
-        : Number(balance.total_price)
+      pkg.billing_mode === "por_sessao" ? Number(pkg.total_price) : Number(balance.total_price)
 
     const sameSessions = balance.total_sessions === pkg.total_sessions
     const samePrice = Number(balance.total_price) === newPrice
@@ -144,6 +144,148 @@ export async function syncPatientPackagesWithCatalog(
       .eq("id", balance.id)
     if (updateError) throw updateError
     result.updated += 1
+  }
+
+  return result
+}
+
+export type PackageChargeSyncResult = {
+  /** Lançamentos de sessão que tiveram o valor corrigido. */
+  updated: number
+  /** Já estavam com o valor que o modo de cobrança manda. */
+  unchanged: number
+  /** Sessões já consumidas sem nenhum lançamento. Apontadas, nunca criadas. */
+  missing: number
+  /** Mais de um lançamento de sessão no mesmo agendamento — precisa de decisão humana. */
+  duplicates: number
+  /** Quanto de receita a correção moveu, com sinal. Vai para a auditoria. */
+  delta: number
+}
+
+/**
+ * Reprocessa os LANÇAMENTOS das sessões deste pacote, alinhando cada um ao modo de cobrança.
+ *
+ * `syncPatientPackagesWithCatalog` cuida do saldo (quantas sessões, quanto vale, se ainda
+ * está ativo). Só que o saldo e o dinheiro são duas coisas, e alinhar um deixava o outro
+ * para trás: um pacote cadastrado como "dividido por sessão" e corrigido depois para
+ * "valor total na venda" continuava com cada sessão lançando a sua parte, contando a mesma
+ * receita duas vezes. É esse desencontro que esta função fecha.
+ *
+ * O valor esperado sai do **snapshot do saldo** (`patient_packages`), não do catálogo — é o
+ * mesmo número que `packageSessionAmount` usa quando a cobrança nasce, então reprocessar
+ * duas vezes seguidas não muda nada na segunda.
+ *
+ * Duas coisas que esta função deliberadamente NÃO faz:
+ *
+ * - **Não cria lançamento que falta.** Sessão sem cobrança pode ser sessão que ainda não
+ *   passou pelo check-in; inventar a linha seria inventar faturamento. São contadas em
+ *   `missing` para a tela pedir revisão.
+ * - **Não toca na venda.** A cobrança da venda tem `payments` conciliado atrás dela;
+ *   reescrevê-la mudaria um recebimento que já fechou caixa.
+ */
+export async function syncPackageSessionCharges(
+  supabase: DB,
+  clinicId: string,
+  sessionPackageId: string
+): Promise<PackageChargeSyncResult> {
+  const result: PackageChargeSyncResult = {
+    updated: 0,
+    unchanged: 0,
+    missing: 0,
+    duplicates: 0,
+    delta: 0,
+  }
+
+  const { data: pkg, error: pkgError } = await supabase
+    .from("session_packages")
+    .select("billing_mode")
+    .eq("clinic_id", clinicId)
+    .eq("id", sessionPackageId)
+    .single()
+  if (pkgError) throw pkgError
+
+  const { data: balances, error: balError } = await supabase
+    .from("patient_packages")
+    .select("id, total_price, total_sessions")
+    .eq("clinic_id", clinicId)
+    .eq("session_package_id", sessionPackageId)
+    .neq("status", "cancelled")
+  if (balError) throw balError
+  if (!balances || balances.length === 0) return result
+
+  // `unico` → R$ 0,00 na sessão (o dinheiro está na venda). `por_sessao` → a parte dela.
+  const expectedByBalance = new Map<string, number>()
+  for (const balance of balances) {
+    expectedByBalance.set(
+      balance.id,
+      pkg.billing_mode === "por_sessao" && balance.total_sessions > 0
+        ? Math.round((Number(balance.total_price) / balance.total_sessions) * 100) / 100
+        : 0
+    )
+  }
+
+  const { data: sessions, error: sessionError } = await supabase
+    .from("patient_package_sessions")
+    .select("id, patient_package_id, appointment_id, status")
+    .in("patient_package_id", [...expectedByBalance.keys()])
+    .not("appointment_id", "is", null)
+  if (sessionError) throw sessionError
+  if (!sessions || sessions.length === 0) return result
+
+  const appointmentIds = sessions
+    .map((s) => s.appointment_id)
+    .filter((id): id is string => Boolean(id))
+
+  // O prefixo da descrição é o que separa o lançamento de sessão de um avulso lançado no
+  // mesmo agendamento — mesma regra que `packageTransactionIds` usa no financeiro.
+  const { data: charges, error: chargeError } = await supabase
+    .from("financial_transactions")
+    .select("id, appointment_id, amount")
+    .eq("clinic_id", clinicId)
+    .in("appointment_id", appointmentIds)
+    .neq("status", "cancelado")
+    .ilike("description", "Sessão de pacote —%")
+    .order("created_at", { ascending: true })
+  if (chargeError) throw chargeError
+
+  const chargesByAppointment = new Map<string, { id: string; amount: number }[]>()
+  for (const charge of charges ?? []) {
+    if (!charge.appointment_id) continue
+    const list = chargesByAppointment.get(charge.appointment_id) ?? []
+    list.push({ id: charge.id, amount: Number(charge.amount) })
+    chargesByAppointment.set(charge.appointment_id, list)
+  }
+
+  for (const session of sessions) {
+    const expected = expectedByBalance.get(session.patient_package_id) ?? 0
+    const list = chargesByAppointment.get(session.appointment_id!) ?? []
+
+    if (list.length === 0) {
+      // Reservada ainda não passou pelo check-in — não ter cobrança é o esperado. Só a
+      // sessão já consumida sem lançamento é um buraco de verdade.
+      if (session.status === "consumed") result.missing += 1
+      continue
+    }
+
+    // Duplicidade: corrigir todas para o mesmo valor multiplicaria a receita em
+    // `por_sessao`. Ajusta a primeira e reporta as demais para alguém decidir.
+    if (list.length > 1) result.duplicates += list.length - 1
+
+    const [charge] = list
+    if (charge.amount === expected) {
+      result.unchanged += 1
+      continue
+    }
+
+    const { error: updateError } = await supabase
+      .from("financial_transactions")
+      .update({ amount: expected })
+      .eq("clinic_id", clinicId)
+      .eq("id", charge.id)
+    if (updateError) throw updateError
+
+    result.updated += 1
+    result.delta = Math.round((result.delta + (expected - charge.amount)) * 100) / 100
   }
 
   return result
