@@ -22,7 +22,9 @@ export default async function RecepcaoFilaPage() {
     <div className="grid gap-6">
       <PageHeader
         title="Fila"
-        description="Pagamento confirmado libera o paciente para a fila."
+        // Dois passos, ditos como dois: confirmar o pagamento não põe ninguém na fila. A
+        // redação anterior ("pagamento confirmado libera o paciente") sugeria que sim.
+        description="Confirme o pagamento e depois envie o paciente para a fila do profissional."
         actions={
           <AddToQueueDialog
             professionals={professionals.filter((p) => p.active)}
