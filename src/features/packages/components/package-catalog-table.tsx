@@ -34,10 +34,10 @@ export function PackageCatalogTable({
       <TableHeader>
         <TableRow>
           <TableHead>Nome</TableHead>
-          <TableHead>Especialidade</TableHead>
-          <TableHead>Sessões</TableHead>
-          <TableHead>Valor total</TableHead>
-          <TableHead>Valor por sessão</TableHead>
+          <TableHead className="hidden md:table-cell">Especialidade</TableHead>
+          <TableHead className="text-right">Sessões</TableHead>
+          <TableHead className="text-right">Valor total</TableHead>
+          <TableHead className="hidden text-right lg:table-cell">Valor por sessão</TableHead>
           <TableHead className="w-1" />
         </TableRow>
       </TableHeader>
@@ -52,11 +52,21 @@ export function PackageCatalogTable({
                 </Badge>
               )}
             </TableCell>
-            <TableCell>{p.specialtyName}</TableCell>
-            <TableCell>{p.total_sessions}x</TableCell>
-            <TableCell>{formatCurrency(Number(p.total_price))}</TableCell>
-            <TableCell>{formatCurrency(Number(p.price_per_session))}</TableCell>
-            <TableCell className="flex justify-end gap-1 text-right">
+            <TableCell className="hidden md:table-cell">{p.specialtyName}</TableCell>
+            <TableCell className="text-right tabular-nums">{p.total_sessions}x</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatCurrency(Number(p.total_price))}
+              {/* O valor por sessão perde a coluna abaixo de `lg`, mas não a relevância:
+                  é ele que a recepção confere ao vender. */}
+              <p className="text-xs font-normal text-muted-foreground lg:hidden">
+                {formatCurrency(Number(p.price_per_session))}/sessão
+              </p>
+            </TableCell>
+            <TableCell className="hidden text-right tabular-nums lg:table-cell">
+              {formatCurrency(Number(p.price_per_session))}
+            </TableCell>
+            <TableCell>
+              <div className="flex flex-wrap items-center justify-end gap-1">
               <EditPackageDialog sessionPackage={p} specialties={specialties} />
               <ReprocessBalancesButton packageId={p.id} />
               <ToggleActiveButton
@@ -70,6 +80,7 @@ export function PackageCatalogTable({
                 }
                 action={setSessionPackageActiveAction.bind(null, p.id, !p.active)}
               />
+              </div>
             </TableCell>
           </TableRow>
         ))}

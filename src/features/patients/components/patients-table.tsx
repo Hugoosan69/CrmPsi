@@ -79,8 +79,7 @@ export function PatientsTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <Table>
+    <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Paciente</TableHead>
@@ -198,7 +197,6 @@ export function PatientsTable({
             )
           })}
         </TableBody>
-      </Table>
-    </div>
+    </Table>
   )
 }

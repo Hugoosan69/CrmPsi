@@ -60,7 +60,7 @@ export type PackageLink = {
  *
  * Nada de embed: `src/types/supabase.ts` é escrito à mão com `Relationships: []`.
  */
-async function packageLinks(supabase: DB, clinicId: string): Promise<Map<string, PackageLink>> {
+export async function packageLinks(supabase: DB, clinicId: string): Promise<Map<string, PackageLink>> {
   const [{ data: catalog }, { data: balances }] = await Promise.all([
     supabase.from("session_packages").select("id, name").eq("clinic_id", clinicId),
     supabase

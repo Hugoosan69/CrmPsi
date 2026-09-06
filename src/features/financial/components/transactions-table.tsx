@@ -14,6 +14,7 @@ import { RegisterPaymentDialog } from "./register-payment-dialog"
 import { CancelTransactionButton } from "./cancel-transaction-button"
 import { LinkRetroactivePackageDialog } from "@/features/packages/components/link-retroactive-package-dialog"
 import { EditAmountDialog } from "./edit-amount-dialog"
+import { TransactionDetailDialog } from "./transaction-detail-dialog"
 
 type PaymentMethod = { id: string; name: string }
 
@@ -80,11 +81,10 @@ export function TransactionsTable({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Descrição</TableHead>
-          <TableHead>Paciente</TableHead>
-          <TableHead>Vencimento</TableHead>
-          <TableHead>Valor</TableHead>
-          <TableHead>Status</TableHead>
+          <TableHead>Lançamento</TableHead>
+          <TableHead className="hidden md:table-cell">Paciente</TableHead>
+          <TableHead className="text-right">Valor</TableHead>
+          <TableHead className="hidden sm:table-cell">Status</TableHead>
           <TableHead className="w-1" />
         </TableRow>
       </TableHeader>
@@ -108,17 +108,38 @@ export function TransactionsTable({
               {t.packageLink?.kind === "sessao" && t.category && (
                 <p className="text-xs font-normal text-muted-foreground">{t.category}</p>
               )}
+              {t.patientName && (
+                <p className="text-xs font-normal text-muted-foreground md:hidden">
+                  {t.patientName}
+                </p>
+              )}
             </TableCell>
-            <TableCell>{t.patientName || "—"}</TableCell>
-            <TableCell>{formatDueDate(t.due_date)}</TableCell>
-            <TableCell className={t.type === "despesa" ? "text-destructive" : ""}>
-              {t.type === "despesa" ? "− " : ""}
-              {formatCurrency(Number(t.amount))}
+            <TableCell className="hidden md:table-cell">{t.patientName || "—"}</TableCell>
+            <TableCell className="text-right whitespace-nowrap">
+              <span className={t.type === "despesa" ? "text-destructive" : ""}>
+                {t.type === "despesa" ? "− " : ""}
+                {formatCurrency(Number(t.amount))}
+              </span>
+              {t.due_date && (
+                <p className="text-xs font-normal text-muted-foreground">
+                  vence {formatDueDate(t.due_date)}
+                </p>
+              )}
+              {/* Abaixo de `sm` a coluna de situação some; o selo desce para cá em vez de
+                  sumir junto — situação é o que decide se a linha precisa de ação. */}
+              <span className="mt-1 flex justify-end sm:hidden">
+                <TransactionStatusBadge status={t.status} />
+              </span>
             </TableCell>
-            <TableCell>
+            <TableCell className="hidden sm:table-cell">
               <TransactionStatusBadge status={t.status} />
             </TableCell>
-            <TableCell className="flex justify-end gap-1 text-right">
+            <TableCell>
+              <div className="flex flex-wrap items-center justify-end gap-1">
+              <TransactionDetailDialog
+                transactionId={t.id}
+                label={describeTransaction(t)}
+              />
               {canManage && (t.status === "pendente" || t.status === "atrasado") && (
                 <>
                   <RegisterPaymentDialog transactionId={t.id} amount={Number(t.amount)} paymentMethods={paymentMethods} />
@@ -143,6 +164,7 @@ export function TransactionsTable({
                     isPaid={t.status === "pago"}
                   />
                 )}
+              </div>
             </TableCell>
           </TableRow>
         ))}

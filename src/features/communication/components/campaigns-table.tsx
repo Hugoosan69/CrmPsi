@@ -46,7 +46,7 @@ export function CampaignsTable({ campaigns }: { campaigns: Campaign[] }) {
         <TableHeader>
           <TableRow>
             <TableHead>Campanha</TableHead>
-            <TableHead>Público</TableHead>
+            <TableHead className="hidden md:table-cell">Público</TableHead>
             <TableHead>Quando</TableHead>
             <TableHead>Resultado</TableHead>
             <TableHead className="w-1" />
@@ -66,7 +66,7 @@ export function CampaignsTable({ campaigns }: { campaigns: Campaign[] }) {
                     {campaign.channel}
                   </p>
                 </TableCell>
-                <TableCell>{AUDIENCE_LABEL[campaign.audience]}</TableCell>
+                <TableCell className="hidden md:table-cell">{AUDIENCE_LABEL[campaign.audience]}</TableCell>
                 <TableCell className="text-[0.82rem] text-muted-foreground">
                   {campaign.scheduled_for ? formatDateTime(campaign.scheduled_for) : "—"}
                 </TableCell>

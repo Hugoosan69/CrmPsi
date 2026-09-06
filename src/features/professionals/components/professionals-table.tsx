@@ -48,9 +48,9 @@ export function ProfessionalsTable({
         <TableRow>
           <TableHead>Nome</TableHead>
           <TableHead>Especialidade</TableHead>
-          <TableHead>Registro</TableHead>
-          <TableHead>Contato</TableHead>
-          <TableHead>Acesso</TableHead>
+          <TableHead className="hidden xl:table-cell">Registro</TableHead>
+          <TableHead className="hidden lg:table-cell">Contato</TableHead>
+          <TableHead className="hidden md:table-cell">Acesso</TableHead>
           <TableHead className="w-1" />
         </TableRow>
       </TableHeader>
@@ -65,13 +65,20 @@ export function ProfessionalsTable({
                   Inativo
                 </Badge>
               )}
+              {/* Contato tem coluna própria só a partir de `lg`; abaixo disso desce para
+                  cá, porque é o dado que a gestão usa para falar com a pessoa. */}
+              {(professional.phone || professional.email) && (
+                <p className="text-xs font-normal text-muted-foreground lg:hidden">
+                  {professional.phone || professional.email}
+                </p>
+              )}
             </TableCell>
             <TableCell>
               {professional.specialty_id ? specialtyName.get(professional.specialty_id) ?? "—" : "—"}
             </TableCell>
-            <TableCell>{professional.professional_register || "—"}</TableCell>
-            <TableCell>{professional.phone || professional.email || "—"}</TableCell>
-            <TableCell>
+            <TableCell className="hidden xl:table-cell">{professional.professional_register || "—"}</TableCell>
+            <TableCell className="hidden lg:table-cell">{professional.phone || professional.email || "—"}</TableCell>
+            <TableCell className="hidden md:table-cell">
               {professional.user_id ? (
                 <Badge variant="secondary">Tem login</Badge>
               ) : canManageUsers ? (

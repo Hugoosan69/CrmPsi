@@ -33,9 +33,24 @@ export function ReprocessBalancesButton({ packageId }: { packageId: string }) {
   }
 
   return (
-    <Button variant="ghost" size="sm" onClick={reprocess} disabled={isPending}>
+    // O rótulo inteiro só cabe em tela larga; abaixo disso fica "Reprocessar", que já diz
+    // o suficiente ao lado de Editar e Inativar. `title` mantém o alcance completo para
+    // quem passar o mouse, e o leitor de tela recebe o texto do title.
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={reprocess}
+      disabled={isPending}
+      title="Reprocessar saldos e financeiro deste pacote"
+    >
       <RefreshCw aria-hidden />
-      {isPending ? "Reprocessando..." : "Reprocessar saldos e financeiro"}
+      {isPending ? (
+        "Reprocessando..."
+      ) : (
+        <>
+          Reprocessar<span className="hidden xl:inline">&nbsp;saldos e financeiro</span>
+        </>
+      )}
     </Button>
   )
 }

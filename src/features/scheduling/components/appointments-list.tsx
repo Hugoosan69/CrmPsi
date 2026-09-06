@@ -41,7 +41,7 @@ export function AppointmentsList({
           <TableHead>Horário</TableHead>
           <TableHead>Paciente</TableHead>
           <TableHead>Profissional</TableHead>
-          <TableHead>Procedimento</TableHead>
+          <TableHead className="hidden lg:table-cell">Procedimento</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="w-1" />
         </TableRow>
@@ -64,9 +64,16 @@ export function AppointmentsList({
                   {appointment.packageSessionIsLast ? " · última sessão" : ""}
                 </p>
               )}
+              {/* Procedimento tem coluna só a partir de `lg`; abaixo disso desce para cá,
+                  junto do paciente a que se refere. */}
+              {appointment.procedureName && (
+                <p className="text-xs text-muted-foreground lg:hidden">
+                  {appointment.procedureName}
+                </p>
+              )}
             </TableCell>
             <TableCell>{appointment.professionalName}</TableCell>
-            <TableCell>{appointment.procedureName || "—"}</TableCell>
+            <TableCell className="hidden lg:table-cell">{appointment.procedureName || "—"}</TableCell>
             <TableCell>
               <AppointmentStatusBadge status={appointment.status} />
             </TableCell>

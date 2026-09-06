@@ -46,7 +46,7 @@ export function UsersTable({
       <TableHeader>
         <TableRow>
           <TableHead>Nome</TableHead>
-          <TableHead>E-mail</TableHead>
+          <TableHead className="hidden md:table-cell">E-mail</TableHead>
           <TableHead>Papel</TableHead>
           <TableHead className="w-1" />
         </TableRow>
@@ -61,8 +61,13 @@ export function UsersTable({
                   Inativo
                 </Badge>
               )}
+              {/* O e-mail perde a coluna abaixo de `md`, mas é ele que identifica a conta
+                  quando há dois nomes iguais — desce para cá em vez de sumir. */}
+              <p className="text-xs font-normal text-muted-foreground md:hidden">
+                {member.email}
+              </p>
             </TableCell>
-            <TableCell>{member.email}</TableCell>
+            <TableCell className="hidden md:table-cell">{member.email}</TableCell>
             <TableCell>
               <MemberRoleSelect membershipId={member.membershipId} roleId={member.roleId} roles={roles} />
             </TableCell>
