@@ -34,7 +34,7 @@ export type PatientPackageStatus = Database["public"]["Enums"]["patient_package_
 export type PatientPackageSessionStatus = Database["public"]["Enums"]["patient_package_session_status"]
 export type VideoCallStatus = Database["public"]["Enums"]["video_call_status"]
 export type VideoCallRole = Database["public"]["Enums"]["video_call_role"]
-export type BillingPayer = Database["public"]["Enums"]["billing_payer"]
+export type AppointmentBillingKind = Database["public"]["Enums"]["appointment_billing_kind"]
 
 /**
  * Reason codes returned by the appointment_slot_problem SQL function
@@ -69,6 +69,8 @@ export type Database = {
           no_show_justified: boolean | null
           notes: string | null
           patient_id: string
+          billing_kind: Database["public"]["Enums"]["appointment_billing_kind"]
+          insurer_id: string | null
           patient_package_session_id: string | null
           procedure_id: string | null
           professional_id: string
@@ -109,6 +111,8 @@ export type Database = {
           no_show_justified?: boolean | null
           notes?: string | null
           patient_id?: string
+          billing_kind?: Database["public"]["Enums"]["appointment_billing_kind"]
+          insurer_id?: string | null
           patient_package_session_id?: string | null
           procedure_id?: string | null
           professional_id?: string
@@ -3036,102 +3040,45 @@ export type Database = {
         }
         Relationships: []
       }
-      billing_types: {
+      insurers: {
         Row: {
           active: boolean
-          amount_per_guide: number | null
+          amount_per_guide: number
           clinic_id: string
           contact_email: string | null
           contact_name: string | null
           contact_phone: string | null
           created_at: string
-          fallback_amount: number | null
           id: string
           name: string
           notes: string | null
-          payer: Database["public"]["Enums"]["billing_payer"]
           updated_at: string
         }
         Insert: {
           active?: boolean
-          amount_per_guide?: number | null
+          amount_per_guide?: number
           clinic_id: string
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
-          fallback_amount?: number | null
           id?: string
           name: string
           notes?: string | null
-          payer?: Database["public"]["Enums"]["billing_payer"]
           updated_at?: string
         }
         Update: {
           active?: boolean
-          amount_per_guide?: number | null
+          amount_per_guide?: number
           clinic_id?: string
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
-          fallback_amount?: number | null
           id?: string
           name?: string
           notes?: string | null
-          payer?: Database["public"]["Enums"]["billing_payer"]
           updated_at?: string
-        }
-        Relationships: []
-      }
-      patient_guide_authorizations: {
-        Row: {
-          billing_type_id: string
-          clinic_id: string
-          created_at: string
-          created_by: string | null
-          file_id: string | null
-          guide_number: string | null
-          id: string
-          notes: string | null
-          patient_id: string
-          total_guides: number
-          updated_at: string
-          used_guides: number
-          valid_from: string | null
-          valid_until: string | null
-        }
-        Insert: {
-          billing_type_id: string
-          clinic_id: string
-          created_at?: string
-          created_by?: string | null
-          file_id?: string | null
-          guide_number?: string | null
-          id?: string
-          notes?: string | null
-          patient_id: string
-          total_guides: number
-          updated_at?: string
-          used_guides?: number
-          valid_from?: string | null
-          valid_until?: string | null
-        }
-        Update: {
-          billing_type_id?: string
-          clinic_id?: string
-          created_at?: string
-          created_by?: string | null
-          file_id?: string | null
-          guide_number?: string | null
-          id?: string
-          notes?: string | null
-          patient_id?: string
-          total_guides?: number
-          updated_at?: string
-          used_guides?: number
-          valid_from?: string | null
-          valid_until?: string | null
         }
         Relationships: []
       }
@@ -3216,7 +3163,7 @@ export type Database = {
       }
     }
     Enums: {
-      billing_payer: "paciente" | "convenio" | "ninguem"
+      appointment_billing_kind: "particular" | "convenio" | "cortesia"
       video_call_status: "aguardando" | "em_andamento" | "encerrada" | "cancelada"
       video_call_role: "atendente" | "cliente" | "supervisor"
       appointment_status:

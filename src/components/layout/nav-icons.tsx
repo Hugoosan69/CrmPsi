@@ -7,7 +7,6 @@ import {
   MessagesSquare,
   Package,
   Settings,
-  ReceiptText,
   ShieldCheck,
   Siren,
   Users,
@@ -38,8 +37,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   // Camadas em vez de outra caixa: "pacote" aqui é um conjunto de sessões, e reusar o
   // ícone de Procedimentos deixaria os dois itens indistinguíveis na barra estreita.
   "/gestao/pacotes": Layers,
-  // Recibo: o assunto aqui é de quem vem o dinheiro de cada atendimento.
-  "/gestao/cobranca": ReceiptText,
   "/gestao/usuarios": Users,
   "/gestao/permissoes": ShieldCheck,
   "/gestao/configuracoes": Settings,

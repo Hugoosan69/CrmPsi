@@ -1,40 +1,28 @@
 import { z } from "zod"
 
 /** Vírgula decimal do teclado brasileiro — "60,00" chega assim do formulário. */
-const valorOpcional = z
+const valor = z
   .string()
   .trim()
-  .optional()
   .transform((v) => {
-    if (!v) return null
     const n = Number(v.replace(/\./g, "").replace(",", "."))
-    return Number.isFinite(n) ? n : null
+    return Number.isFinite(n) ? n : NaN
   })
-  .refine((v) => v === null || v >= 0, "Informe um valor válido")
+  .refine((v) => !Number.isNaN(v) && v >= 0, "Informe um valor válido")
 
 /**
- * Tipo de cobrança.
+ * Convênio.
  *
- * `payer` é o campo que manda: os valores e os contatos só são exigidos — e só são
- * gravados — no modo convênio, onde significam alguma coisa.
+ * `amount_per_guide` é obrigatório: um convênio sem valor por guia não consegue gerar
+ * protocolo, e descobrir isso no fim do mês, com os atendimentos já feitos, é tarde.
  */
-export const billingTypeSchema = z
-  .object({
-    name: z.string().trim().min(1, "Informe o nome").max(120, "Nome muito longo"),
-    payer: z.enum(["paciente", "convenio", "ninguem"]),
-    amount_per_guide: valorOpcional,
-    fallback_amount: valorOpcional,
-    contact_name: z.string().trim().max(160).optional().nullable(),
-    contact_email: z.string().trim().max(160).optional().nullable(),
-    contact_phone: z.string().trim().max(40).optional().nullable(),
-    notes: z.string().trim().max(1000).optional().nullable(),
-  })
-  .refine(
-    (v) => v.payer !== "convenio" || (v.amount_per_guide !== null && v.amount_per_guide > 0),
-    {
-      message: "No convênio, informe quanto ele paga por guia",
-      path: ["amount_per_guide"],
-    }
-  )
+export const insurerSchema = z.object({
+  name: z.string().trim().min(1, "Informe o nome").max(120, "Nome muito longo"),
+  amount_per_guide: valor,
+  contact_name: z.string().trim().max(160).optional().nullable(),
+  contact_email: z.string().trim().max(160).optional().nullable(),
+  contact_phone: z.string().trim().max(40).optional().nullable(),
+  notes: z.string().trim().max(1000).optional().nullable(),
+})
 
-export type BillingTypeFormInput = z.infer<typeof billingTypeSchema>
+export type InsurerFormInput = z.infer<typeof insurerSchema>

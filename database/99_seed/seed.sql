@@ -42,8 +42,8 @@ insert into permissions (slug, module, description) values
   ('agenda.appearance', 'agenda', 'Personalizar as cores da agenda por situação'),
   ('telehealth.view', 'telehealth', 'Ver teleconsultas e o histórico da chamada'),
   ('telehealth.manage', 'telehealth', 'Abrir teleconsulta, convidar o paciente e encerrar'),
-  ('billing.view', 'billing', 'Ver tipos de cobrança, guias e protocolos'),
-  ('billing.manage', 'billing', 'Cadastrar tipos de cobrança, emitir guias e fechar protocolos');
+  ('billing.view', 'billing', 'Ver convênios, guias e protocolos'),
+  ('billing.manage', 'billing', 'Cadastrar convênios, emitir guias e fechar protocolos');
 
 insert into role_permissions (role_id, permission_id)
 -- Proprietário: tudo, integrações inclusive.
