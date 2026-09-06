@@ -8,6 +8,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import { describeDbError } from "@/lib/db-errors"
 import { recordAudit } from "@/services/audit.service"
 import { getQueueEntry } from "@/services/queue.service"
+import { setTelehealthMonthlyLimit } from "@/services/clinic-settings.service"
 import { getServiceSessionForQueueEntry } from "@/services/service.service"
 import { isLiveKitConfigured } from "@/lib/livekit/env"
 import { closeRoom, issueAccessToken } from "@/lib/livekit/livekit.service"
@@ -143,6 +144,18 @@ export async function issueProfessionalTokenAction(
       return { error: "Esta chamada já foi encerrada." }
     }
 
+    // A entrada do profissional é o começo da consulta, e é aqui que ele entra.
+    //
+    // O certo seria o webhook `room_started` do LiveKit dizer isto — ele conhece o momento
+    // real em que a sala subiu. Enquanto o webhook não existe (fase 4), marcar na primeira
+    // emissão de token é a melhor aproximação disponível, e sem ela `started_at` ficaria
+    // sempre nulo: não haveria duração nenhuma para somar nem para mostrar.
+    if (!call.started_at) {
+      await setCallStatus(supabase, membership.clinicId, callId, "em_andamento", {
+        startedAt: new Date().toISOString(),
+      })
+    }
+
     const token = await issueAccessToken({
       roomName: call.room_name,
       identity: `user:${membership.userId}`,
@@ -226,6 +239,45 @@ export async function endCallAction(callId: string): Promise<TelehealthActionSta
     })
 
     revalidatePath(`/profissional/atendimento/${call.queue_entry_id}`)
+    return { success: true }
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
+}
+
+/**
+ * Teto mensal de minutos de sala.
+ *
+ * `settings.manage` e não `telehealth.manage`: quem conduz uma consulta não decide quanto a
+ * clínica pode gastar de teleconsulta no mês — isso é da administração, como o resto das
+ * configurações.
+ */
+export async function setTelehealthLimitAction(
+  _prev: TelehealthActionState,
+  formData: FormData
+): Promise<TelehealthActionState> {
+  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+
+  const bruto = Number(formData.get("monthly_minutes"))
+  if (!Number.isFinite(bruto) || bruto < 0) {
+    return { error: "Informe um número de minutos válido (0 para não limitar)." }
+  }
+  if (bruto > 1_000_000) {
+    return { error: "Valor acima do razoável. Use 0 para não limitar." }
+  }
+
+  const supabase = await createClient()
+  try {
+    await setTelehealthMonthlyLimit(supabase, membership.clinicId, bruto)
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "telehealth.limit.update",
+      entityType: "clinic_settings",
+      entityId: membership.clinicId,
+      after: { monthlyMinutesLimit: Math.floor(bruto) },
+    })
+    revalidatePath("/gestao/configuracoes")
     return { success: true }
   } catch (err) {
     return { error: describeDbError(err) }

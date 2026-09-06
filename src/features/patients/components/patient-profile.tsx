@@ -15,6 +15,7 @@ import { getPatient, getPatientClinicalInfo } from "@/services/patients.service"
 import { EditPatientDialog } from "./edit-patient-dialog"
 import { ClinicalInfoCard } from "./clinical-info-card"
 import { PatientTimeline } from "./patient-timeline"
+import { PatientCallsPanel } from "@/features/telehealth/components/patient-calls-panel"
 import { PatientPrescriptionsPanel } from "@/features/prescriptions/components/patient-prescriptions-panel"
 import { PatientDocumentsPanel } from "@/features/documents/components/patient-documents-panel"
 import { PrescriptionBuilder } from "@/features/prescriptions/components/prescription-builder"
@@ -75,6 +76,7 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
   // paciente veio e o que ficou em aberto, mesmo sem acesso ao conteúdo clínico.
   const canViewAppointments =
     hasPermission(membership, PERMISSIONS.AGENDA_VIEW) || canViewRecords
+  const canViewTelehealth = hasPermission(membership, PERMISSIONS.TELEHEALTH_VIEW)
   const canViewPackages = hasPermission(membership, PERMISSIONS.PACKAGES_VIEW)
   const canManagePackages = hasPermission(membership, PERMISSIONS.PACKAGES_MANAGE)
   const canMessage = hasPermission(membership, PERMISSIONS.PATIENTS_MANAGE)
@@ -157,6 +159,9 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
           <TabsContent value="historico" className="mt-4">
             <div className="grid gap-6">
               <PatientAppointments clinicId={membership.clinicId} patientId={patientId} />
+              {canViewTelehealth && (
+                <PatientCallsPanel clinicId={membership.clinicId} patientId={patientId} />
+              )}
               {canViewRecords && (
                 <div className="grid gap-2">
                   <h3 className="text-sm font-medium text-muted-foreground">Prontuários</h3>

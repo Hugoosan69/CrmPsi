@@ -13,6 +13,7 @@ import { AgendaColorsSettings } from "@/features/settings/components/agenda-colo
 import { BrandingSettings } from "@/features/settings/components/branding-settings"
 import { N8nSettings } from "@/features/settings/components/n8n-settings"
 import { WahaSettings } from "@/features/settings/components/waha-settings"
+import { TelehealthUsagePanel } from "@/features/telehealth/components/telehealth-usage-panel"
 
 export default async function ConfiguracoesPage() {
   const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
@@ -62,6 +63,7 @@ export default async function ConfiguracoesPage() {
         <TabsList>
           <TabsTrigger value="identidade">Identidade visual</TabsTrigger>
           {canSetAgendaColors ? <TabsTrigger value="agenda">Cores da agenda</TabsTrigger> : null}
+          <TabsTrigger value="teleconsulta">Teleconsulta</TabsTrigger>
           {canManageIntegrations ? (
             <>
               <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
@@ -70,6 +72,9 @@ export default async function ConfiguracoesPage() {
           ) : null}
         </TabsList>
 
+        <TabsContent value="teleconsulta" className="mt-5">
+          <TelehealthUsagePanel />
+        </TabsContent>
         <TabsContent value="identidade" className="mt-5">
           <BrandingSettings logoUrl={branding.logoUrl} />
         </TabsContent>

@@ -42,6 +42,10 @@ export type ClinicSettingsShape = {
     /** Cor de cada situação no card da agenda — ver config/agenda.ts. */
     statusColors?: Record<string, string>
   }
+  telehealth?: {
+    /** Teto mensal de minutos de sala, para controle interno. 0 = sem teto. */
+    monthlyMinutesLimit?: number
+  }
 }
 
 export const DEFAULT_N8N: N8nIntegration = {
@@ -268,4 +272,49 @@ export async function updateClinicBranding(
   if (!data || data.length === 0) {
     throw new Error("Não foi possível atualizar a identidade visual desta clínica.")
   }
+}
+
+/**
+ * Teto mensal de minutos de teleconsulta.
+ *
+ * Fica em `clinic_settings` — e não no ambiente, como as credenciais — porque é preferência
+ * de operação, não segredo: quem administra a clínica decide quanto quer gastar de sala, e
+ * muda isso numa tela. Zero significa "sem teto": o consumo continua sendo medido e
+ * mostrado, só não há nada para comparar.
+ */
+export async function getTelehealthMonthlyLimit(
+  supabase: DB,
+  clinicId: string
+): Promise<number> {
+  try {
+    const settings = await getClinicSettings(supabase, clinicId)
+    const raw = settings.telehealth?.monthlyMinutesLimit
+    const valor = typeof raw === "number" && Number.isFinite(raw) ? Math.floor(raw) : 0
+    return valor > 0 ? valor : 0
+  } catch {
+    // Preferência de tela: sem ela o painel mostra o consumo sem teto, em vez de quebrar.
+    return 0
+  }
+}
+
+export async function setTelehealthMonthlyLimit(
+  supabase: DB,
+  clinicId: string,
+  minutes: number
+): Promise<void> {
+  const current = await getClinicSettings(supabase, clinicId)
+  const next: ClinicSettingsShape = {
+    ...current,
+    telehealth: {
+      ...current.telehealth,
+      monthlyMinutesLimit: Math.max(0, Math.floor(minutes)),
+    },
+  }
+
+  const { data, error } = await supabase
+    .from("clinic_settings")
+    .upsert({ clinic_id: clinicId, settings: next as unknown as Json })
+    .select("clinic_id")
+  if (error) throw error
+  if (!data || data.length === 0) throw new Error("Não foi possível salvar o limite de minutos.")
 }

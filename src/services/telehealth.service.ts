@@ -372,3 +372,149 @@ export async function getCallByRoomName(admin: DB, roomName: string) {
   if (error) throw error
   return data
 }
+
+// ---------------------------------------------------------------------------
+// Histórico e consumo
+// ---------------------------------------------------------------------------
+
+export type PatientCall = {
+  id: string
+  status: VideoCallStatus
+  createdAt: string
+  startedAt: string | null
+  endedAt: string | null
+  /** Duração em segundos. `null` enquanto a chamada não terminou. */
+  durationSeconds: number | null
+  participants: { displayName: string | null; papel: VideoCallRole }[]
+  messageCount: number
+}
+
+/**
+ * A duração de uma chamada.
+ *
+ * `started_at` é a entrada do profissional e `ended_at` o encerramento. Uma chamada aberta
+ * e nunca encerrada não tem duração — devolver "até agora" a faria crescer para sempre num
+ * histórico, o que é pior do que não informar.
+ */
+function callDuration(startedAt: string | null, endedAt: string | null): number | null {
+  if (!startedAt || !endedAt) return null
+  const segundos = Math.round(
+    (new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000
+  )
+  return segundos >= 0 ? segundos : null
+}
+
+/**
+ * As teleconsultas de um paciente, para a ficha.
+ *
+ * O caminho é `patient → queue_entries → video_calls`: a chamada pertence ao atendimento,
+ * e é o atendimento que sabe de quem é. Sem embed, como no resto do projeto.
+ */
+export async function listCallsForPatient(
+  supabase: DB,
+  clinicId: string,
+  patientId: string
+): Promise<PatientCall[]> {
+  const { data: entries, error: entryError } = await supabase
+    .from("queue_entries")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+  if (entryError) throw entryError
+
+  const entryIds = (entries ?? []).map((e) => e.id)
+  if (entryIds.length === 0) return []
+
+  const { data: calls, error } = await supabase
+    .from("video_calls")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .in("queue_entry_id", entryIds)
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  if (!calls || calls.length === 0) return []
+
+  const callIds = calls.map((c) => c.id)
+  const [{ data: participants }, { data: messages }] = await Promise.all([
+    supabase
+      .from("video_call_participants")
+      .select("call_id, display_name, papel")
+      .in("call_id", callIds),
+    supabase.from("video_call_messages").select("call_id").in("call_id", callIds),
+  ])
+
+  const porChamada = new Map<string, { displayName: string | null; papel: VideoCallRole }[]>()
+  for (const p of participants ?? []) {
+    const lista = porChamada.get(p.call_id) ?? []
+    lista.push({ displayName: p.display_name, papel: p.papel })
+    porChamada.set(p.call_id, lista)
+  }
+
+  const mensagensPorChamada = new Map<string, number>()
+  for (const m of messages ?? []) {
+    mensagensPorChamada.set(m.call_id, (mensagensPorChamada.get(m.call_id) ?? 0) + 1)
+  }
+
+  return calls.map((c) => ({
+    id: c.id,
+    status: c.status,
+    createdAt: c.created_at,
+    startedAt: c.started_at,
+    endedAt: c.ended_at,
+    durationSeconds: callDuration(c.started_at, c.ended_at),
+    participants: porChamada.get(c.id) ?? [],
+    messageCount: mensagensPorChamada.get(c.id) ?? 0,
+  }))
+}
+
+export type TelehealthUsage = {
+  /** Minutos consumidos no período, arredondados para cima por chamada. */
+  usedMinutes: number
+  /** Chamadas encerradas que entraram na conta. */
+  countedCalls: number
+  /** Abertas e ainda sem desfecho: não somam, mas precisam aparecer. */
+  openCalls: number
+  periodStart: string
+  periodEnd: string
+}
+
+/**
+ * Consumo de teleconsulta num período.
+ *
+ * **É a medida do CSIB, não a fatura do LiveKit.** Conta o tempo entre a entrada do
+ * profissional e o encerramento, por chamada. O provedor cobra por participante-minuto e
+ * arredonda pelas suas próprias regras, então este número serve para controle interno —
+ * saber quanto a clínica está usando — e não para conferir cobrança.
+ *
+ * Arredonda cada chamada para cima: uma consulta de 40 segundos consome um minuto de sala,
+ * e somar segundos exatos daria um total otimista demais para servir de aviso.
+ */
+export async function getTelehealthUsage(
+  supabase: DB,
+  clinicId: string,
+  period: { from: string; to: string }
+): Promise<TelehealthUsage> {
+  const { data, error } = await supabase
+    .from("video_calls")
+    .select("started_at, ended_at, status")
+    .eq("clinic_id", clinicId)
+    .gte("created_at", period.from)
+    .lte("created_at", period.to)
+  if (error) throw error
+
+  let usedMinutes = 0
+  let countedCalls = 0
+  let openCalls = 0
+
+  for (const call of data ?? []) {
+    const segundos = callDuration(call.started_at, call.ended_at)
+    if (segundos === null) {
+      if (call.status === "aguardando" || call.status === "em_andamento") openCalls += 1
+      continue
+    }
+    usedMinutes += Math.ceil(segundos / 60)
+    countedCalls += 1
+  }
+
+  return { usedMinutes, countedCalls, openCalls, periodStart: period.from, periodEnd: period.to }
+}
