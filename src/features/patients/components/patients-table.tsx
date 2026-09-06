@@ -10,12 +10,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import type { Database } from "@/types/supabase"
+import type { PatientWithStats } from "@/services/patients.service"
 import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import { setPatientActiveAction } from "../actions/patient.actions"
 import { EditPatientDialog } from "./edit-patient-dialog"
-
-type PatientRow = Database["public"]["Tables"]["patients"]["Row"]
 
 function formatDate(value: string | null) {
   if (!value) return "—"
@@ -23,11 +21,17 @@ function formatDate(value: string | null) {
   return `${day}/${month}/${year}`
 }
 
+function formatDateTime(isoString: string | null | undefined) {
+  if (!isoString) return "—"
+  const date = new Date(isoString)
+  return date.toLocaleDateString("pt-BR")
+}
+
 export function PatientsTable({
   patients,
   profileBasePath,
 }: {
-  patients: PatientRow[]
+  patients: PatientWithStats[]
   profileBasePath: string
 }) {
   if (patients.length === 0) {
@@ -41,10 +45,10 @@ export function PatientsTable({
       <TableHeader>
         <TableRow>
           <TableHead>Nome</TableHead>
-          <TableHead>CPF</TableHead>
-          <TableHead>Nascimento</TableHead>
           <TableHead>Telefone</TableHead>
-          <TableHead>WhatsApp</TableHead>
+          <TableHead>Pacotes ativos</TableHead>
+          <TableHead>Último atendimento</TableHead>
+          <TableHead>Especialidade</TableHead>
           <TableHead className="w-1" />
         </TableRow>
       </TableHeader>
@@ -61,10 +65,22 @@ export function PatientsTable({
                 </Badge>
               )}
             </TableCell>
-            <TableCell>{patient.cpf || "—"}</TableCell>
-            <TableCell>{formatDate(patient.birth_date)}</TableCell>
-            <TableCell>{patient.phone || "—"}</TableCell>
-            <TableCell>{patient.whatsapp || "—"}</TableCell>
+            <TableCell className="text-sm text-muted-foreground">
+              {patient.phone || patient.whatsapp || "—"}
+            </TableCell>
+            <TableCell>
+              {patient.activePackagesCount > 0 ? (
+                <Badge variant="outline">{patient.activePackagesCount} ativo(s)</Badge>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </TableCell>
+            <TableCell className="text-sm text-muted-foreground">
+              {formatDateTime(patient.lastAppointmentAt)}
+            </TableCell>
+            <TableCell className="text-sm">
+              {patient.lastAppointmentSpecialty || "—"}
+            </TableCell>
             <TableCell className="flex justify-end gap-1 text-right">
               <EditPatientDialog patient={patient} />
               <ToggleActiveButton

@@ -149,3 +149,106 @@ export async function setPatientActive(
     .eq("id", patientId)
   if (error) throw error
 }
+
+export type PatientWithStats = Database["public"]["Tables"]["patients"]["Row"] & {
+  activePackagesCount: number
+  lastAppointmentAt?: string
+  lastAppointmentSpecialty?: string
+  specialtiesCount: number
+}
+
+/**
+ * Pacientes com estatísticas: pacotes ativos, último agendamento, especialidades.
+ */
+export async function listPatientsWithStats(
+  supabase: DB,
+  clinicId: string,
+  opts: {
+    search?: string
+    activeOnly?: boolean
+    specialtyId?: string
+    offset?: number
+    rangeEnd?: number
+  } = {}
+): Promise<{ rows: PatientWithStats[]; total: number }> {
+  // Constrói a query base
+  const construir = () => {
+    let query = supabase
+      .from("patients")
+      .select("*", { count: "exact" })
+      .eq("clinic_id", clinicId)
+      .order("full_name")
+
+    if (opts.activeOnly ?? true) {
+      query = query.eq("active", true)
+    }
+
+    const search = opts.search?.trim()
+    if (search) {
+      const digits = search.replace(/\D/g, "")
+      const orFilters = [
+        `full_name.ilike.%${search}%`,
+        `phone.ilike.%${search}%`,
+        `whatsapp.ilike.%${search}%`,
+      ]
+      if (digits) orFilters.push(`cpf.ilike.%${digits}%`)
+      query = query.or(orFilters.join(","))
+    }
+    return query
+  }
+
+  const { rows: patients, total } = await fetchPage(construir, opts)
+
+  // Enriquece com pacotes e atendimentos
+  const patientIds = patients.map((p) => p.id)
+  if (patientIds.length === 0) return { rows: [], total: 0 }
+
+  const [{ data: packageData }, { data: appointmentData }] = await Promise.all([
+    // Contar pacotes ativos por paciente
+    supabase
+      .from("patient_packages")
+      .select("patient_id, id")
+      .in("patient_id", patientIds)
+      .eq("status", "active"),
+
+    // Último agendamento + especialidade
+    supabase
+      .from("appointments")
+      .select(
+        `
+        patient_id,
+        scheduled_at,
+        procedure:procedures(specialty:specialties(name))
+      `
+      )
+      .in("patient_id", patientIds)
+      .in("status", ["completed", "confirmed", "scheduled"])
+      .order("scheduled_at", { ascending: false })
+      .limit(1),
+  ])
+
+  // Mapeia em dicts para O(1) lookup
+  const packagesByPatient = new Map<string, number>()
+  ;(packageData ?? []).forEach((pkg: any) => {
+    packagesByPatient.set(pkg.patient_id, (packagesByPatient.get(pkg.patient_id) ?? 0) + 1)
+  })
+
+  const lastAppointmentByPatient = new Map<string, any>()
+  ;(appointmentData ?? []).forEach((apt: any) => {
+    if (!lastAppointmentByPatient.has(apt.patient_id)) {
+      lastAppointmentByPatient.set(apt.patient_id, apt)
+    }
+  })
+
+  // Enriquece os pacientes
+  const enriched: PatientWithStats[] = patients.map((patient) => ({
+    ...patient,
+    activePackagesCount: packagesByPatient.get(patient.id) ?? 0,
+    lastAppointmentAt: lastAppointmentByPatient.get(patient.id)?.scheduled_at,
+    lastAppointmentSpecialty: lastAppointmentByPatient.get(patient.id)?.procedure
+      ?.specialty?.name,
+    specialtiesCount: 0, // TODO: implementar contagem de especialidades únicas
+  }))
+
+  return { rows: enriched, total }
+}
