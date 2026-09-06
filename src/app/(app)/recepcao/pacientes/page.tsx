@@ -3,7 +3,12 @@ import { Suspense } from "react"
 import { requirePermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
-import { listPatientsWithStats } from "@/services/patients.service"
+import {
+  listPatientsWithStats,
+  type PatientPackageFilter,
+  type PatientSort,
+  type PatientStatusFilter,
+} from "@/services/patients.service"
 import { parsePagination } from "@/config/pagination"
 import { PageHeader } from "@/components/shared/page-header"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
@@ -13,29 +18,42 @@ import { PatientsFilters } from "@/features/patients/components/patients-filters
 import { PaginationBar } from "@/components/shared/pagination-bar"
 import { CreatePatientDialog } from "@/features/patients/components/create-patient-dialog"
 
-async function PatientsList({
-  search,
-  pagina,
-  por,
-  status,
-  especialidade,
-}: {
-  search?: string
+type SearchParams = {
+  busca?: string
   pagina?: string
   por?: string
   status?: string
-  especialidade?: string
-}) {
+  pacote?: string
+  contato?: string
+  ordem?: string
+}
+
+/** Padrão: só ativos. "todos" e "inativos" são escolhas explícitas. */
+function parseStatus(value?: string): PatientStatusFilter {
+  return value === "inativos" || value === "todos" ? value : "ativos"
+}
+
+function parsePackages(value?: string): PatientPackageFilter | undefined {
+  return value === "com" || value === "sem" ? value : undefined
+}
+
+function parseSort(value?: string): PatientSort {
+  return value === "recentes" ? "recentes" : "nome"
+}
+
+async function PatientsList({ busca, pagina, por, status, pacote, contato, ordem }: SearchParams) {
   const membership = await requirePermission(PERMISSIONS.PATIENTS_VIEW)
   const supabase = await createClient()
 
   const { page, pageSize, offset, rangeEnd } = parsePagination({ page: pagina, pageSize: por })
   const { rows, total } = await listPatientsWithStats(supabase, membership.clinicId, {
-    search,
+    search: busca,
+    status: parseStatus(status),
+    packages: parsePackages(pacote),
+    missingContact: contato === "sem",
+    sort: parseSort(ordem),
     offset,
     rangeEnd,
-    specialtyId: especialidade,
-    activeOnly: status !== "inativo",
   })
 
   return (
@@ -49,18 +67,10 @@ async function PatientsList({
 export default async function PatientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; pagina?: string; por?: string; status?: string; especialidade?: string }>
+  searchParams: Promise<SearchParams>
 }) {
-  const { busca, pagina, por, status, especialidade } = await searchParams
-  const membership = await requirePermission(PERMISSIONS.PATIENTS_VIEW)
-  const supabase = await createClient()
-
-  // Busca especialidades para o filtro
-  const { data: specialties } = await supabase
-    .from("specialties")
-    .select("id, name")
-    .eq("clinic_id", membership.clinicId)
-    .order("name")
+  const params = await searchParams
+  const { busca, pagina, por, status, pacote, contato, ordem } = params
 
   return (
     <div className="grid gap-6">
@@ -72,14 +82,18 @@ export default async function PatientsPage({
       <Suspense fallback={null}>
         <PatientSearchInput />
       </Suspense>
-      <PatientsFilters
-        values={{ status, especialidade }}
-        specialties={specialties ?? []}
-      />
-      {/* A chave remonta o Suspense a cada mudança de busca ou de página, para o esqueleto
-          aparecer de novo em vez de a tabela antiga ficar parada esperando a nova. */}
-      <Suspense key={`${busca ?? ""}|${pagina ?? ""}|${por ?? ""}|${status ?? ""}|${especialidade ?? ""}`} fallback={<TableSkeleton columns={5} />}>
-        <PatientsList search={busca} pagina={pagina} por={por} status={status} especialidade={especialidade} />
+      {/* Os filtros são um componente de cliente que só lê a URL — fica fora do Suspense da
+          lista de propósito, para continuar clicável enquanto a tabela recarrega. */}
+      <Suspense fallback={null}>
+        <PatientsFilters values={{ status, pacote, contato, ordem }} />
+      </Suspense>
+      {/* A chave remonta o Suspense a cada mudança de busca, filtro ou página, para o
+          esqueleto aparecer de novo em vez de a tabela antiga ficar parada esperando. */}
+      <Suspense
+        key={[busca, pagina, por, status, pacote, contato, ordem].map((v) => v ?? "").join("|")}
+        fallback={<TableSkeleton columns={7} />}
+      >
+        <PatientsList {...params} />
       </Suspense>
     </div>
   )

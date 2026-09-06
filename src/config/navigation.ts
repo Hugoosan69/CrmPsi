@@ -71,7 +71,10 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Gestão",
     items: [
       { href: "/gestao/financeiro", label: "Financeiro", permission: PERMISSIONS.FINANCIAL_VIEW },
-      { href: "/gestao/anomalias", label: "Anomalias de processo", permission: PERMISSIONS.FINANCIAL_VIEW },
+      // Não é tela financeira: cruza fila, agenda, pacotes e cadastro. `audit.view` já é a
+      // permissão de "olhar o que o sistema registrou sobre si mesmo" — proprietário e
+      // administrador. Quem opera o balcão vê a anomalia crítica da fila na própria Fila.
+      { href: "/gestao/anomalias", label: "Anomalias de processo", permission: PERMISSIONS.AUDIT_VIEW },
       {
         href: "/gestao/profissionais",
         label: "Profissionais",

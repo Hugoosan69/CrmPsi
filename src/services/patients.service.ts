@@ -150,105 +150,184 @@ export async function setPatientActive(
   if (error) throw error
 }
 
+// ---------------------------------------------------------------------------
+// Listagem enriquecida da tela de Pacientes
+// ---------------------------------------------------------------------------
+
+export type PatientStatusFilter = "ativos" | "inativos" | "todos"
+export type PatientPackageFilter = "com" | "sem"
+export type PatientSort = "nome" | "recentes"
+
 export type PatientWithStats = Database["public"]["Tables"]["patients"]["Row"] & {
-  activePackagesCount: number
-  lastAppointmentAt?: string
-  lastAppointmentSpecialty?: string
-  specialtiesCount: number
+  /** Pacotes com saldo em aberto. 0 quando não há nenhum. */
+  activePackages: number
+  /** Sessões ainda disponíveis somando todos os pacotes ativos. */
+  sessionsLeft: number
+  /** Último atendimento efetivamente concluído. */
+  lastVisitAt: string | null
+  /** Próximo horário marcado ainda em aberto. */
+  nextVisitAt: string | null
+}
+
+export type PatientListFilters = {
+  search?: string
+  status?: PatientStatusFilter
+  /** Só quem tem (ou só quem não tem) pacote com saldo. */
+  packages?: PatientPackageFilter
+  /** Só quem está sem telefone E sem WhatsApp — não dá para confirmar nem lembrar. */
+  missingContact?: boolean
+  sort?: PatientSort
+  offset?: number
+  rangeEnd?: number
+}
+
+/** Uuid que não existe: força resultado vazio sem precisar de um caminho especial. */
+const NO_MATCH = "00000000-0000-0000-0000-000000000000"
+
+/**
+ * Janela das leituras de agenda que alimentam "último" e "próximo" atendimento.
+ *
+ * Não dá para pedir "o mais recente POR paciente" ao PostgREST sem uma função no banco, e
+ * uma consulta por paciente seria um N+1 na tela mais usada da recepção. Em vez disso lê-se
+ * uma faixa ordenada e fica-se com a primeira ocorrência de cada paciente. Como a página tem
+ * no máximo algumas dezenas de pacientes, só perderia o valor de alguém cujo atendimento
+ * mais recente estivesse atrás de outras 3000 linhas mais novas destes mesmos pacientes —
+ * o que exigiria centenas de atendimentos por paciente na mesma página.
+ */
+const AGENDA_SCAN_LIMIT = 3000
+
+/** Primeira ocorrência de cada paciente numa lista já ordenada. */
+function firstPerPatient(
+  rows: { patient_id: string; scheduled_at: string }[]
+): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const row of rows) {
+    if (!out.has(row.patient_id)) out.set(row.patient_id, row.scheduled_at)
+  }
+  return out
 }
 
 /**
- * Pacientes com estatísticas: pacotes ativos, último agendamento, especialidades.
+ * A listagem da tela de Pacientes: a página de cadastros mais o que a recepção precisa saber
+ * antes de abrir a ficha — se há pacote com saldo, quando a pessoa veio pela última vez e
+ * quando volta.
+ *
+ * Filtros que dependem de outra tabela viram uma lista de ids ANTES da consulta principal
+ * (mesmo padrão de `financial.service.ts`), e não um recorte depois da paginação: recortar
+ * depois deixaria a contagem mentindo e as páginas com tamanhos diferentes.
  */
 export async function listPatientsWithStats(
   supabase: DB,
   clinicId: string,
-  opts: {
-    search?: string
-    activeOnly?: boolean
-    specialtyId?: string
-    offset?: number
-    rangeEnd?: number
-  } = {}
+  filters: PatientListFilters = {}
 ): Promise<{ rows: PatientWithStats[]; total: number }> {
-  // Constrói a query base
+  // ---- Pré-filtro: quem tem pacote com saldo em aberto -------------------
+  let packageFilterIds: string[] | null = null
+  if (filters.packages) {
+    const { data } = await supabase
+      .from("patient_packages")
+      .select("patient_id")
+      .eq("clinic_id", clinicId)
+      .eq("status", "active")
+    packageFilterIds = [...new Set((data ?? []).map((p) => p.patient_id))]
+  }
+
   const construir = () => {
     let query = supabase
       .from("patients")
       .select("*", { count: "exact" })
       .eq("clinic_id", clinicId)
-      .order("full_name")
 
-    if (opts.activeOnly ?? true) {
-      query = query.eq("active", true)
-    }
+    const status = filters.status ?? "ativos"
+    if (status === "ativos") query = query.eq("active", true)
+    if (status === "inativos") query = query.eq("active", false)
 
-    const search = opts.search?.trim()
+    const search = filters.search?.trim()
     if (search) {
       const digits = search.replace(/\D/g, "")
       const orFilters = [
         `full_name.ilike.%${search}%`,
+        `social_name.ilike.%${search}%`,
         `phone.ilike.%${search}%`,
         `whatsapp.ilike.%${search}%`,
       ]
       if (digits) orFilters.push(`cpf.ilike.%${digits}%`)
       query = query.or(orFilters.join(","))
     }
-    return query
+
+    if (filters.missingContact) {
+      // `.or()` sucessivos são combinados com AND: sem telefone E sem whatsapp. String
+      // vazia conta como ausente — um campo em branco não serve para contatar ninguém.
+      query = query.or("phone.is.null,phone.eq.").or("whatsapp.is.null,whatsapp.eq.")
+    }
+
+    if (packageFilterIds) {
+      if (filters.packages === "com") {
+        query = query.in("id", packageFilterIds.length > 0 ? packageFilterIds : [NO_MATCH])
+      } else if (packageFilterIds.length > 0) {
+        query = query.not("id", "in", `(${packageFilterIds.join(",")})`)
+      }
+    }
+
+    return filters.sort === "recentes"
+      ? query.order("created_at", { ascending: false })
+      : query.order("full_name")
   }
 
-  const { rows: patients, total } = await fetchPage(construir, opts)
+  const { rows: patients, total } = await fetchPage(construir, filters)
+  if (patients.length === 0) return { rows: [], total }
 
-  // Enriquece com pacotes e atendimentos
   const patientIds = patients.map((p) => p.id)
-  if (patientIds.length === 0) return { rows: [], total: 0 }
+  const nowIso = new Date().toISOString()
 
-  const [{ data: packageData }, { data: appointmentData }] = await Promise.all([
-    // Contar pacotes ativos por paciente
+  const [packages, lastVisits, nextVisits] = await Promise.all([
     supabase
       .from("patient_packages")
-      .select("patient_id, id")
-      .in("patient_id", patientIds)
-      .eq("status", "active"),
-
-    // Último agendamento + especialidade
+      .select("patient_id, total_sessions, sessions_used")
+      .eq("clinic_id", clinicId)
+      .eq("status", "active")
+      .in("patient_id", patientIds),
     supabase
       .from("appointments")
-      .select(
-        `
-        patient_id,
-        scheduled_at,
-        procedure:procedures(specialty:specialties(name))
-      `
-      )
+      .select("patient_id, scheduled_at")
+      .eq("clinic_id", clinicId)
       .in("patient_id", patientIds)
-      .in("status", ["completed", "confirmed", "scheduled"])
+      .eq("status", "completed")
       .order("scheduled_at", { ascending: false })
-      .limit(1),
+      .limit(AGENDA_SCAN_LIMIT),
+    supabase
+      .from("appointments")
+      .select("patient_id, scheduled_at")
+      .eq("clinic_id", clinicId)
+      .in("patient_id", patientIds)
+      .in("status", ["scheduled", "confirmed", "triagem"])
+      .gte("scheduled_at", nowIso)
+      .order("scheduled_at", { ascending: true })
+      .limit(AGENDA_SCAN_LIMIT),
   ])
 
-  // Mapeia em dicts para O(1) lookup
-  const packagesByPatient = new Map<string, number>()
-  ;(packageData ?? []).forEach((pkg: any) => {
-    packagesByPatient.set(pkg.patient_id, (packagesByPatient.get(pkg.patient_id) ?? 0) + 1)
-  })
+  const packagesByPatient = new Map<string, { count: number; left: number }>()
+  for (const pkg of packages.data ?? []) {
+    const current = packagesByPatient.get(pkg.patient_id) ?? { count: 0, left: 0 }
+    current.count += 1
+    current.left += Math.max(0, pkg.total_sessions - pkg.sessions_used)
+    packagesByPatient.set(pkg.patient_id, current)
+  }
 
-  const lastAppointmentByPatient = new Map<string, any>()
-  ;(appointmentData ?? []).forEach((apt: any) => {
-    if (!lastAppointmentByPatient.has(apt.patient_id)) {
-      lastAppointmentByPatient.set(apt.patient_id, apt)
-    }
-  })
+  const lastByPatient = firstPerPatient(lastVisits.data ?? [])
+  const nextByPatient = firstPerPatient(nextVisits.data ?? [])
 
-  // Enriquece os pacientes
-  const enriched: PatientWithStats[] = patients.map((patient) => ({
-    ...patient,
-    activePackagesCount: packagesByPatient.get(patient.id) ?? 0,
-    lastAppointmentAt: lastAppointmentByPatient.get(patient.id)?.scheduled_at,
-    lastAppointmentSpecialty: lastAppointmentByPatient.get(patient.id)?.procedure
-      ?.specialty?.name,
-    specialtiesCount: 0, // TODO: implementar contagem de especialidades únicas
-  }))
-
-  return { rows: enriched, total }
+  return {
+    rows: patients.map((patient) => {
+      const pkg = packagesByPatient.get(patient.id)
+      return {
+        ...patient,
+        activePackages: pkg?.count ?? 0,
+        sessionsLeft: pkg?.left ?? 0,
+        lastVisitAt: lastByPatient.get(patient.id) ?? null,
+        nextVisitAt: nextByPatient.get(patient.id) ?? null,
+      }
+    }),
+    total,
+  }
 }

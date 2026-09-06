@@ -88,26 +88,33 @@ export async function listTransactions(
   // têm FK de volta para financial_transactions que dê pra encadear num único `.select`).
   let appointmentIds: string[] | null = null
   if (opts.professionalId || opts.specialtyId) {
-    let query = supabase
-      .from("appointments")
-      .select("id")
-      .eq("clinic_id", clinicId)
-    if (opts.professionalId) query = query.eq("professional_id", opts.professionalId)
+    // A especialidade de um atendimento é a de quem o atende: `professionals.specialty_id`
+    // é o ÚNICO vínculo que existe no schema — `procedures` não tem especialidade nenhuma.
+    // Daí os dois passos: especialidade → profissionais → agendamentos. A versão anterior
+    // tentava `procedures!inner(specialty_id)` sobre uma coluna que não existe.
+    let professionalIds: string[] | null = null
     if (opts.specialtyId) {
-      // Join com procedures para pegar a especialidade
-      query = query.select(
-        "id, procedures!inner(id, specialty_id)"
-      )
+      const { data: professionals } = await supabase
+        .from("professionals")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .eq("specialty_id", opts.specialtyId)
+      professionalIds = (professionals ?? []).map((p) => p.id)
+      // Filtro por profissional junto: a interseção dos dois, não a união.
+      if (opts.professionalId) {
+        professionalIds = professionalIds.filter((id) => id === opts.professionalId)
+      }
+      // Especialidade sem nenhum profissional: o resultado é vazio por definição.
+      if (professionalIds.length === 0) return { rows: [], total: 0 }
+    } else if (opts.professionalId) {
+      professionalIds = [opts.professionalId]
     }
+
+    let query = supabase.from("appointments").select("id").eq("clinic_id", clinicId)
+    if (professionalIds) query = query.in("professional_id", professionalIds)
+
     const { data } = await query
-    if (opts.specialtyId && data) {
-      // Filtrar appointments onde procedures.specialty_id = opts.specialtyId
-      appointmentIds = (data as any)
-        .filter((a: any) => a.procedures?.some((p: any) => p.specialty_id === opts.specialtyId))
-        .map((a: any) => a.id)
-    } else {
-      appointmentIds = (data ?? []).map((a: any) => a.id)
-    }
+    appointmentIds = (data ?? []).map((a) => a.id)
   }
 
   let paymentTransactionIds: string[] | null = null

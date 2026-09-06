@@ -8,6 +8,7 @@ import {
   Package,
   Settings,
   ShieldCheck,
+  Siren,
   Users,
   UsersRound,
   Wallet,
@@ -27,6 +28,9 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/profissional/fila": ListOrdered,
   "/profissional/financeiro": Wallet,
   "/gestao/financeiro": Wallet,
+  // Sirene: a única entrada do menu que existe para dizer "algo saiu do esperado".
+  // Deliberadamente longe de ShieldCheck (Permissões), que na barra estreita ficaria igual.
+  "/gestao/anomalias": Siren,
   "/gestao/profissionais": UsersRound,
   "/gestao/comunicacao": MessageSquare,
   "/gestao/procedimentos": Package,

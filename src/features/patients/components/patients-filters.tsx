@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -14,16 +15,20 @@ import { PAGE_PARAM } from "@/config/pagination"
 
 export type PatientsFilterValues = {
   status?: string
-  especialidade?: string
+  pacote?: string
+  contato?: string
+  ordem?: string
 }
 
-export function PatientsFilters({
-  values,
-  specialties,
-}: {
-  values: PatientsFilterValues
-  specialties: { id: string; name: string }[]
-}) {
+/**
+ * Filtros da tela de Pacientes, todos na URL — mesmo padrão de `FinancialFilters`: quem
+ * filtra é a consulta no servidor, esta barra só empurra os parâmetros.
+ *
+ * Não há filtro por especialidade: paciente não pertence a uma especialidade neste modelo
+ * (o vínculo é do procedimento do atendimento), então o filtro daria a impressão de recortar
+ * um cadastro que na verdade não tem esse campo.
+ */
+export function PatientsFilters({ values }: { values: PatientsFilterValues }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -39,37 +44,57 @@ export function PatientsFilters({
   const hasFilters = Object.values(values).some(Boolean)
 
   return (
-    <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3 sm:grid-cols-4">
       <div className="grid gap-1.5">
-        <label className="text-sm font-medium">Status</label>
+        <Label>Situação</Label>
         <Select value={values.status ?? ""} onValueChange={(v) => set("status", v || null)}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todos" />
+            <SelectValue placeholder="Ativos" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
-            <SelectItem value="ativo">Ativo</SelectItem>
-            <SelectItem value="inativo">Inativo</SelectItem>
+            <SelectItem value="">Ativos</SelectItem>
+            <SelectItem value="inativos">Inativos</SelectItem>
+            <SelectItem value="todos">Todos</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="grid gap-1.5">
-        <label className="text-sm font-medium">Especialidade</label>
-        <Select
-          value={values.especialidade ?? ""}
-          onValueChange={(v) => set("especialidade", v || null)}
-        >
+        <Label>Pacote</Label>
+        <Select value={values.pacote ?? ""} onValueChange={(v) => set("pacote", v || null)}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todas" />
+            <SelectValue placeholder="Todos" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todas</SelectItem>
-            {specialties.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.name}
-              </SelectItem>
-            ))}
+            <SelectItem value="">Todos</SelectItem>
+            <SelectItem value="com">Com saldo em aberto</SelectItem>
+            <SelectItem value="sem">Sem pacote ativo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label>Contato</Label>
+        <Select value={values.contato ?? ""} onValueChange={(v) => set("contato", v || null)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todos</SelectItem>
+            <SelectItem value="sem">Sem telefone e WhatsApp</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label>Ordenar por</Label>
+        <Select value={values.ordem ?? ""} onValueChange={(v) => set("ordem", v || null)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Nome" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Nome</SelectItem>
+            <SelectItem value="recentes">Cadastro mais recente</SelectItem>
           </SelectContent>
         </Select>
       </div>
