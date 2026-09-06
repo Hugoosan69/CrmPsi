@@ -1,13 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { LiveKitRoom, VideoConference } from "@livekit/components-react"
+import { useRouter } from "next/navigation"
+import { LiveKitRoom } from "@livekit/components-react"
 import "@livekit/components-styles"
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { issueProfessionalTokenAction } from "../actions/telehealth.actions"
+import { CallStage, mensagemDeFalhaDeMidia } from "./call-stage"
 
 type Conexao =
   | { estado: "carregando" }
@@ -20,14 +22,11 @@ type Conexao =
  * O token é pedido ao servidor ao montar, e não passado por props do componente de
  * servidor: ele vale 15 minutos para ENTRAR, então buscá-lo no momento em que a sala abre
  * evita a página renderizada e deixada aberta chegar na sala com um token vencido.
- *
- * `VideoConference` traz grade, controles e compartilhamento de tela prontos — a spec
- * recomenda preferi-lo a montar a grade à mão, e é o que evita reimplementar seleção de
- * dispositivo e reconexão. O chat que vem embutido usa o data channel e **não persiste**;
- * a fase 3 o substitui pelo painel próprio, que grava e recarrega o histórico.
  */
-export function CallRoom({ callId }: { callId: string }) {
+export function CallRoom({ callId, queueEntryId }: { callId: string; queueEntryId: string }) {
+  const router = useRouter()
   const [conexao, setConexao] = useState<Conexao>({ estado: "carregando" })
+  const [falhaDeMidia, setFalhaDeMidia] = useState<string | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -48,7 +47,7 @@ export function CallRoom({ callId }: { callId: string }) {
   }, [callId])
 
   if (conexao.estado === "carregando") {
-    return <Skeleton className="h-[70vh] w-full rounded-xl" />
+    return <Skeleton className="h-[75vh] w-full rounded-xl" />
   }
 
   if (conexao.estado === "erro") {
@@ -58,7 +57,7 @@ export function CallRoom({ callId }: { callId: string }) {
         description={conexao.mensagem}
         showMascot={false}
         action={
-          <Button variant="outline" onClick={() => window.location.reload()}>
+          <Button variant="outline" onClick={() => router.refresh()}>
             Tentar novamente
           </Button>
         }
@@ -67,18 +66,27 @@ export function CallRoom({ callId }: { callId: string }) {
   }
 
   return (
-    <div className="h-[75vh] overflow-hidden rounded-xl border border-border">
+    <div className="grid h-[75vh] gap-2">
+      {falhaDeMidia && (
+        <p
+          className="rounded-lg border border-status-warning/40 bg-status-warning/[0.06] px-3 py-2 text-[0.8rem]"
+          role="alert"
+        >
+          {falhaDeMidia}
+        </p>
+      )}
       <LiveKitRoom
         token={conexao.token}
         serverUrl={conexao.serverUrl}
         connect
         video
         audio
-        data-lk-theme="default"
         style={{ height: "100%" }}
-        onDisconnected={() => window.close()}
+        onMediaDeviceFailure={(e) => setFalhaDeMidia(mensagemDeFalhaDeMidia(e))}
       >
-        <VideoConference />
+        {/* Sair devolve ao atendimento, não fecha a janela: o profissional continua
+            trabalhando ali — prontuário, prescrição, encerrar o atendimento. */}
+        <CallStage onLeave={() => router.push(`/profissional/atendimento/${queueEntryId}`)} />
       </LiveKitRoom>
     </div>
   )
