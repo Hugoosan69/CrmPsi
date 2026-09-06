@@ -149,6 +149,96 @@ export async function syncPatientPackagesWithCatalog(
   return result
 }
 
+export type PackageLinkRepairResult = {
+  /** Agendamentos que voltaram a apontar a sessão de pacote. */
+  repaired: number
+  /** Mais de uma sessão reivindica o mesmo agendamento — precisa de decisão humana. */
+  ambiguous: number
+}
+
+/**
+ * Reata o vínculo sessão ⇄ agendamento quando ele foi gravado só de um lado.
+ *
+ * As duas pontas existem e as duas são lidas:
+ *
+ *   `patient_package_sessions.appointment_id`      qual agendamento consome a sessão
+ *   `appointments.patient_package_session_id`      o que a AGENDA lê para o selo "Pacote 3/4"
+ *                                                  e o que o check-in usa para saber quanto
+ *                                                  a sessão lança
+ *
+ * Gravado só na primeira, o pacote some da agenda e a sessão entra a R$ 0,00 mesmo num
+ * pacote dividido por sessão — receita que nunca é lançada. Foi o que aconteceu com as
+ * sessões criadas pelo vínculo retroativo, que preenchia uma ponta só.
+ *
+ * Só reata o que é inequívoco: agendamento sem vínculo nenhum e reivindicado por uma única
+ * sessão. Agendamento que já aponta outra sessão não é tocado, e disputa entre duas sessões
+ * é contada em `ambiguous` para alguém decidir — reatar no chute trocaria a sessão de um
+ * paciente pela de outro.
+ */
+export async function repairPackageSessionLinks(
+  supabase: DB,
+  clinicId: string,
+  sessionPackageId: string
+): Promise<PackageLinkRepairResult> {
+  const result: PackageLinkRepairResult = { repaired: 0, ambiguous: 0 }
+
+  const { data: balances, error: balError } = await supabase
+    .from("patient_packages")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .eq("session_package_id", sessionPackageId)
+    .neq("status", "cancelled")
+  if (balError) throw balError
+
+  const balanceIds = (balances ?? []).map((b) => b.id)
+  if (balanceIds.length === 0) return result
+
+  const { data: sessions, error: sessionError } = await supabase
+    .from("patient_package_sessions")
+    .select("id, appointment_id")
+    .in("patient_package_id", balanceIds)
+    .not("appointment_id", "is", null)
+  if (sessionError) throw sessionError
+  if (!sessions || sessions.length === 0) return result
+
+  // Quantas sessões reivindicam cada agendamento.
+  const claimants = new Map<string, string[]>()
+  for (const session of sessions) {
+    if (!session.appointment_id) continue
+    const list = claimants.get(session.appointment_id) ?? []
+    list.push(session.id)
+    claimants.set(session.appointment_id, list)
+  }
+
+  const { data: appointments, error: apptError } = await supabase
+    .from("appointments")
+    .select("id, patient_package_session_id")
+    .eq("clinic_id", clinicId)
+    .in("id", [...claimants.keys()])
+  if (apptError) throw apptError
+
+  for (const appointment of appointments ?? []) {
+    // Já vinculado — a qualquer sessão — fica como está.
+    if (appointment.patient_package_session_id) continue
+
+    const claiming = claimants.get(appointment.id) ?? []
+    if (claiming.length !== 1) {
+      result.ambiguous += claiming.length
+      continue
+    }
+
+    const { error: updateError } = await supabase
+      .from("appointments")
+      .update({ patient_package_session_id: claiming[0] })
+      .eq("clinic_id", clinicId)
+      .eq("id", appointment.id)
+    if (updateError) throw updateError
+    result.repaired += 1
+  }
+
+  return result
+}
+
 export type PackageChargeSyncResult = {
   /** Lançamentos de sessão que tiveram o valor corrigido. */
   updated: number

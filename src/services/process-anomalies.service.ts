@@ -722,56 +722,6 @@ const brokenPackageSessionLink: Check = async (supabase, clinicId) => {
 // CADASTRO
 // ---------------------------------------------------------------------------
 
-/**
- * Mesmo CPF em mais de um cadastro. É o duplicado que mais custa caro: o histórico clínico
- * fica partido entre duas fichas, o saldo de pacote fica numa e o agendamento na outra.
- */
-const duplicatePatients: Check = async (supabase, clinicId) => {
-  const { data } = await supabase
-    .from("patients")
-    .select("id, full_name, social_name, cpf, active")
-    .eq("clinic_id", clinicId)
-    .not("cpf", "is", null)
-    .neq("cpf", "")
-    .limit(5000)
-
-  // Agrupamento em memória: o PostgREST não faz `group by ... having count(*) > 1`, e são
-  // duas colunas curtas — mais barato que uma função no banco só para isto.
-  const byCpf = new Map<string, { id: string; name: string; active: boolean }[]>()
-  for (const p of data ?? []) {
-    const key = (p.cpf ?? "").replace(/\D/g, "")
-    if (!key) continue
-    const list = byCpf.get(key) ?? []
-    list.push({ id: p.id, name: p.social_name || p.full_name, active: p.active })
-    byCpf.set(key, list)
-  }
-
-  const items: AnomalyItem[] = []
-  for (const [cpf, group_] of byCpf) {
-    if (group_.length < 2) continue
-    items.push({
-      id: `cpf-${cpf}`,
-      subject: group_.map((p) => p.name).join(" · "),
-      detail: `${group_.length} cadastros com o mesmo CPF`,
-      since: null,
-      amount: null,
-      href: `/recepcao/pacientes?busca=${encodeURIComponent(cpf)}`,
-    })
-  }
-
-  return group(
-    {
-      key: "duplicate-patients",
-      domain: "cadastro",
-      severity: "warning",
-      title: "Mesmo CPF em mais de um cadastro",
-      explanation:
-        "O histórico do paciente fica partido entre as fichas: pacote numa, agendamento noutra, prontuário em nenhuma inteira. Unifique mantendo a ficha com mais histórico.",
-    },
-    items
-  )
-}
-
 /** Sem telefone e sem WhatsApp não há como confirmar nem lembrar o paciente. */
 const patientsWithoutContact: Check = async (supabase, clinicId) => {
   const { data } = await supabase
@@ -823,7 +773,6 @@ const CHECKS: Check[] = [
   exhaustedPackages,
   strandedPackageSessions,
   brokenPackageSessionLink,
-  duplicatePatients,
   patientsWithoutContact,
 ]
 

@@ -17,6 +17,7 @@ import {
   listActivePatientPackages,
   listSessionPackages,
   settlePendingChargesForAppointment,
+  repairPackageSessionLinks,
   syncPackageSessionCharges,
   syncPatientPackagesWithCatalog,
   takenSessionNumbers,
@@ -90,6 +91,7 @@ export async function updateSessionPackageAction(
     // sessão por engano e ajustado para 4 precisa virar "1/4" também na agenda e na ficha
     // do paciente. Quem já usou mais sessões do que o novo total fica de fora (ver
     // syncPatientPackagesWithCatalog) e é reprocessado à mão pelo botão do catálogo.
+    await repairPackageSessionLinks(supabase, membership.clinicId, packageId)
     sync = await syncPatientPackagesWithCatalog(supabase, membership.clinicId, packageId)
     // E tem de chegar no dinheiro também. Trocar o modo de cobrança aqui e deixar os
     // lançamentos das sessões como estavam é o que fazia a mesma receita ser contada duas
@@ -140,9 +142,13 @@ export async function reprocessPackageBalancesAction(
   const supabase = await createClient()
 
   let sync: Awaited<ReturnType<typeof syncPatientPackagesWithCatalog>>
+  let repair: Awaited<ReturnType<typeof repairPackageSessionLinks>>
   let charges: Awaited<ReturnType<typeof syncPackageSessionCharges>> | null = null
   try {
-    // Saldos primeiro: o valor por sessão sai do snapshot do saldo, então o financeiro
+    // Vínculo primeiro: é ele que faz a sessão aparecer na agenda e o check-in saber quanto
+    // lançar. Reatar depois de mexer no dinheiro deixaria a ordem sem sentido.
+    repair = await repairPackageSessionLinks(supabase, membership.clinicId, packageId)
+    // Saldos depois: o valor por sessão sai do snapshot do saldo, então o financeiro
     // precisa enxergar o total já corrigido para calcular a parte de cada sessão.
     sync = await syncPatientPackagesWithCatalog(supabase, membership.clinicId, packageId)
     if (podeMexerEmPago) {
@@ -158,7 +164,7 @@ export async function reprocessPackageBalancesAction(
     action: "package.catalog.reprocess",
     entityType: "session_package",
     entityId: packageId,
-    after: { saldos: sync, financeiro: charges },
+    after: { vinculos: repair, saldos: sync, financeiro: charges },
   })
 
   revalidatePackages()
@@ -167,17 +173,22 @@ export async function reprocessPackageBalancesAction(
   revalidatePath("/gestao/financeiro")
   revalidatePath("/recepcao/financeiro")
 
-  return { success: true, message: describeReprocess(sync, charges, podeMexerEmPago) }
+  return { success: true, message: describeReprocess(sync, repair, charges, podeMexerEmPago) }
 }
 
 /** A frase do toast: o que mudou no saldo, o que mudou no dinheiro, e o que sobrou para
  *  alguém olhar à mão. */
 function describeReprocess(
   sync: Awaited<ReturnType<typeof syncPatientPackagesWithCatalog>>,
+  repair: Awaited<ReturnType<typeof repairPackageSessionLinks>>,
   charges: Awaited<ReturnType<typeof syncPackageSessionCharges>> | null,
   podeMexerEmPago: boolean
 ): string {
   const partes = [`${sync.updated} saldo(s) atualizado(s)`]
+  if (repair.repaired > 0) partes.push(`${repair.repaired} vínculo(s) de sessão reatado(s)`)
+  if (repair.ambiguous > 0) {
+    partes.push(`${repair.ambiguous} vínculo(s) em disputa entre sessões — revise à mão`)
+  }
   if (sync.unchanged > 0) partes.push(`${sync.unchanged} já estava(m) em dia`)
   if (sync.skipped > 0) {
     partes.push(`${sync.skipped} com mais sessões usadas do que o pacote tem agora — revise à mão`)
