@@ -48,6 +48,11 @@ export const PERMISSIONS = {
 
   // migration 021 — cor de cada situação no card da agenda.
   AGENDA_APPEARANCE: "agenda.appearance",
+
+  // migration 025 — teleconsulta. `view` acompanha quem já vê a agenda; `manage` — abrir a
+  // sala, convidar o paciente e encerrar — acompanha quem conduz o atendimento e quem marca.
+  TELEHEALTH_VIEW: "telehealth.view",
+  TELEHEALTH_MANAGE: "telehealth.manage",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

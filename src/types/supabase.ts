@@ -32,6 +32,8 @@ export type MessageType = Database["public"]["Enums"]["message_type"]
 export type MessageStatus = Database["public"]["Enums"]["message_status"]
 export type PatientPackageStatus = Database["public"]["Enums"]["patient_package_status"]
 export type PatientPackageSessionStatus = Database["public"]["Enums"]["patient_package_session_status"]
+export type VideoCallStatus = Database["public"]["Enums"]["video_call_status"]
+export type VideoCallRole = Database["public"]["Enums"]["video_call_role"]
 
 /**
  * Reason codes returned by the appointment_slot_problem SQL function
@@ -2892,6 +2894,147 @@ export type Database = {
           },
         ]
       }
+      video_calls: {
+        Row: {
+          appointment_id: string
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          ended_at: string | null
+          id: string
+          room_name: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["video_call_status"]
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          id?: string
+          room_name?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["video_call_status"]
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          id?: string
+          room_name?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["video_call_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      video_call_invites: {
+        Row: {
+          call_id: string
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          display_name: string
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          call_id: string
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          expires_at: string
+          id?: string
+          revoked_at?: string | null
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          call_id?: string
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      video_call_participants: {
+        Row: {
+          call_id: string
+          clinic_id: string
+          display_name: string | null
+          id: string
+          identity: string
+          joined_at: string
+          left_at: string | null
+          papel: Database["public"]["Enums"]["video_call_role"]
+        }
+        Insert: {
+          call_id: string
+          clinic_id: string
+          display_name?: string | null
+          id?: string
+          identity: string
+          joined_at?: string
+          left_at?: string | null
+          papel: Database["public"]["Enums"]["video_call_role"]
+        }
+        Update: {
+          call_id?: string
+          clinic_id?: string
+          display_name?: string | null
+          id?: string
+          identity?: string
+          joined_at?: string
+          left_at?: string | null
+          papel?: Database["public"]["Enums"]["video_call_role"]
+        }
+        Relationships: []
+      }
+      video_call_messages: {
+        Row: {
+          body: string
+          call_id: string
+          clinic_id: string
+          id: string
+          sender_identity: string
+          sender_name: string
+          sent_at: string
+        }
+        Insert: {
+          body: string
+          call_id: string
+          clinic_id: string
+          id?: string
+          sender_identity: string
+          sender_name: string
+          sent_at?: string
+        }
+        Update: {
+          body?: string
+          call_id?: string
+          clinic_id?: string
+          id?: string
+          sender_identity?: string
+          sender_name?: string
+          sent_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -2973,6 +3116,8 @@ export type Database = {
       }
     }
     Enums: {
+      video_call_status: "aguardando" | "em_andamento" | "encerrada" | "cancelada"
+      video_call_role: "atendente" | "cliente" | "supervisor"
       appointment_status:
         | "scheduled"
         | "triagem"
