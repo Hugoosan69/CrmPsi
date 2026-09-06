@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { supabaseEnvStatus } from "@/lib/supabase/env"
 import { isStripeTestMode, stripeEnvStatus } from "@/lib/stripe/env"
 import { livekitEnvStatus } from "@/lib/livekit/env"
+import { r2EnvStatus } from "@/lib/storage/r2"
 
 export const dynamic = "force-dynamic"
 
@@ -29,6 +30,7 @@ export async function GET() {
   const ready = env.url && env.anonKey && env.serviceRoleKey
   const stripe = stripeEnvStatus()
   const livekit = livekitEnvStatus()
+  const r2 = r2EnvStatus()
 
   const h = await headers()
   const host = h.get("x-forwarded-host") ?? h.get("host")
@@ -45,6 +47,14 @@ export async function GET() {
         NEXT_PUBLIC_SUPABASE_ANON_KEY: env.anonKey ? "definida" : "AUSENTE",
         SUPABASE_SERVICE_ROLE_KEY: env.serviceRoleKey ? "definida" : "AUSENTE",
         NEXT_PUBLIC_SITE_URL: siteUrl ?? "(nao definida - deduzida do request)",
+      },
+      // Anexos de guia. Presença apenas: a chave do bucket lê a guia de qualquer paciente.
+      r2: {
+        R2_ACCOUNT_ID: r2.accountId ? "definida" : "AUSENTE",
+        R2_ACCESS_KEY_ID: r2.accessKeyId ? "definida" : "AUSENTE",
+        R2_SECRET_ACCESS_KEY: r2.secretAccessKey ? "definida" : "AUSENTE",
+        bucket: r2.bucket,
+        modo: r2.accountId && r2.accessKeyId && r2.secretAccessKey ? "configurado" : "nao configurado",
       },
       // Teleconsulta, também opcional. Presença apenas: o segredo assina os tokens que dão
       // acesso à sala de uma consulta, e um valor aqui vazaria por qualquer sonda.

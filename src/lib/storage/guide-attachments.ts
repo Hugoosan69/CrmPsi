@@ -1,28 +1,26 @@
 import "server-only"
 
-import { createAdminClient } from "@/lib/supabase/admin"
+import { isR2Configured, r2Delete, r2Get, r2Put, r2SignedUrl } from "./r2"
 
 /**
  * Onde a guia anexada é guardada.
  *
- * Existe como módulo próprio porque o destino ainda vai mudar: hoje é o storage do
- * Supabase, e a clínica decidiu que passará a ser um bucket R2 da Cloudflare ("crm").
- * Isolando aqui, a troca é reescrever ESTE arquivo — a action que emite a guia, a tela que
- * anexa e a ficha do paciente não sabem (nem devem saber) onde o arquivo mora.
+ * O destino é o bucket R2 da Cloudflare. Este módulo existe para ser a única parte do
+ * sistema que sabe disso: a action que emite a guia, a tela que anexa e a ficha do paciente
+ * falam só com estas funções. Se o destino mudar de novo, muda aqui.
  *
- * `service_guides` já guarda as duas formas de referência (`file_id` e `attachment_url`),
- * então o que já foi anexado continua acessível depois da troca.
+ * O bucket NÃO é público, e não deve ser. A guia liga paciente, atendimento e convênio — é
+ * dado de saúde. Ver o arquivo é sempre por link assinado, que expira; nunca por um
+ * endereço fixo que, uma vez vazado, vale para sempre.
  */
 
-const BUCKET = "guides"
 /** 8 MB: a foto de uma guia pelo celular cabe folgada, e um PDF de página única também. */
 export const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
 export const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"]
+/** O que a clínica pediu: um link que vive um dia. */
+export const DEFAULT_LINK_TTL_SECONDS = 60 * 60 * 24
 
-export type AttachmentRef = {
-  /** Chave dentro do bucket. É o que se guarda; a URL é gerada na hora de ver. */
-  key: string
-}
+export { isR2Configured }
 
 export function validateAttachment(file: File): string | null {
   if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -35,57 +33,59 @@ export function validateAttachment(file: File): string | null {
 }
 
 /**
- * Sobe o anexo e devolve a chave.
+ * A chave de um anexo dentro do bucket.
  *
- * O caminho começa pelo `clinicId` porque é o que as policies do bucket conferem — uma
- * clínica não alcança a guia de outra nem sabendo o nome do arquivo. Mantenha essa forma
- * ao trocar para o R2: o isolamento entre clínicas não pode depender de o nome ser difícil
- * de adivinhar.
+ * Começa pelo `clinicId` por dois motivos: separa as clínicas em prefixos distintos (o que
+ * permite política e auditoria por prefixo) e torna óbvio, olhando a chave, a quem o
+ * arquivo pertence. O restante identifica o atendimento e o instante — nunca o nome do
+ * paciente, que não deve aparecer num caminho de arquivo.
  */
+function buildKey(clinicId: string, appointmentId: string, fileName: string) {
+  const extensao = fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase() : "bin"
+  return `guias/${clinicId}/${appointmentId}/${Date.now()}.${extensao}`
+}
+
 export async function uploadGuideAttachment(
   clinicId: string,
   appointmentId: string,
   file: File
-): Promise<AttachmentRef> {
-  const key = `${clinicId}/${appointmentId}-${Date.now()}`
-  const admin = createAdminClient()
-
-  const { error } = await admin.storage
-    .from(BUCKET)
-    .upload(key, file, { contentType: file.type, upsert: false })
-  if (error) throw error
-
+): Promise<{ key: string }> {
+  const key = buildKey(clinicId, appointmentId, file.name)
+  await r2Put(key, await file.arrayBuffer(), file.type)
   return { key }
 }
 
 /**
- * Um endereço temporário para ver o anexo.
+ * Link temporário para ver ou baixar o anexo.
  *
- * Sempre temporário, nunca público: a guia liga paciente, atendimento e convênio — é dado
- * de saúde, e um link permanente vaza para sempre a quem o receber uma vez.
+ * É o que a ficha do paciente usa para "ver a guia" e o que se manda por e-mail. Devolve
+ * `null` quando não há como gerar — a tela mostra o motivo em vez de um link quebrado.
  */
 export async function guideAttachmentUrl(
   key: string,
-  expiresInSeconds = 60 * 60 * 24
+  expiresInSeconds = DEFAULT_LINK_TTL_SECONDS
 ): Promise<string | null> {
-  const admin = createAdminClient()
-  const { data, error } = await admin.storage
-    .from(BUCKET)
-    .createSignedUrl(key, expiresInSeconds)
-  if (error) {
-    console.error("falha ao gerar link do anexo da guia", error)
+  if (!isR2Configured()) return null
+  try {
+    return await r2SignedUrl(key, expiresInSeconds)
+  } catch (err) {
+    console.error("falha ao gerar link do anexo da guia", err)
     return null
   }
-  return data?.signedUrl ?? null
 }
 
 /** Baixa o conteúdo — para anexar num e-mail sem passar pelo navegador de quem envia. */
 export async function downloadGuideAttachment(key: string): Promise<Blob | null> {
-  const admin = createAdminClient()
-  const { data, error } = await admin.storage.from(BUCKET).download(key)
-  if (error) {
-    console.error("falha ao baixar o anexo da guia", error)
+  if (!isR2Configured()) return null
+  try {
+    return await r2Get(key)
+  } catch (err) {
+    console.error("falha ao baixar o anexo da guia", err)
     return null
   }
-  return data
+}
+
+export async function deleteGuideAttachment(key: string): Promise<void> {
+  if (!isR2Configured()) return
+  await r2Delete(key)
 }

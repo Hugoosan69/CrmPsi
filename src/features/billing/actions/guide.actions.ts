@@ -20,7 +20,11 @@ import {
   updateTransactionAmount,
 } from "@/services/financial.service"
 import { markQueueEntriesReleasedForTransaction } from "@/services/queue.service"
-import { uploadGuideAttachment, validateAttachment } from "@/lib/storage/guide-attachments"
+import {
+  isR2Configured,
+  uploadGuideAttachment,
+  validateAttachment,
+} from "@/lib/storage/guide-attachments"
 
 export type GuideActionState = { error?: string; success?: boolean }
 
@@ -89,6 +93,15 @@ export async function registerInsurerGuideAction(
     const arquivo = formData.get("attachment")
     let attachmentPath: string | null = null
     if (arquivo instanceof File && arquivo.size > 0) {
+      // Sem credenciais o anexo é recusado NOMEANDO o motivo, e a guia segue sem ele: o
+      // número da guia é o que o protocolo exige, o anexo é conferência. Barrar a emissão
+      // inteira por falta de uma variável de ambiente seria trocar um problema por outro.
+      if (!isR2Configured()) {
+        return {
+          error:
+            "O armazenamento de anexos não está configurado neste ambiente. Emita a guia sem anexo ou configure as credenciais do R2.",
+        }
+      }
       const invalido = validateAttachment(arquivo)
       if (invalido) return { error: invalido }
       try {
