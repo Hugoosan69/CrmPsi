@@ -15,11 +15,12 @@ import {
 } from "@livekit/components-react"
 import { ConnectionState, Track } from "livekit-client"
 import type { ToggleSource } from "@livekit/components-core"
-import { Mic, MicOff, MonitorUp, PhoneOff, Video, VideoOff } from "lucide-react"
+import { MessageSquare, Mic, MicOff, MonitorUp, PhoneOff, Video, VideoOff } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { StatusDot } from "@/components/shared/status-dot"
 import { cn } from "@/lib/utils"
+import { CallChat, type ChatMessage } from "./call-chat"
 
 /**
  * O palco da consulta: grade de vídeo + controles, no estilo do sistema.
@@ -36,14 +37,24 @@ import { cn } from "@/lib/utils"
 export function CallStage({
   onLeave,
   canShareScreen = true,
+  chat,
 }: {
   onLeave: () => void
   /** O paciente não compartilha tela — é ruído numa consulta, e um risco a menos. */
   canShareScreen?: boolean
+  /** Sem isto a sala funciona só com vídeo — é o que mantém o palco reaproveitável. */
+  chat?: {
+    loadHistory: () => Promise<ChatMessage[]>
+    persist: (body: string) => Promise<ChatMessage | null>
+    selfIdentity: string
+    selfName: string
+  }
 }) {
   const room = useRoomContext()
   const { localParticipant } = useLocalParticipant()
   const [saindo, setSaindo] = useState(false)
+  const [chatAberto, setChatAberto] = useState(false)
+  const [naoLidas, setNaoLidas] = useState(0)
 
   // `onlySubscribed: false` inclui a própria câmera antes de publicar, então a pessoa se vê
   // na tela desde o primeiro instante em vez de olhar para um retângulo vazio.
@@ -69,7 +80,7 @@ export function CallStage({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-[#0d1117]">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-[#0d1117]">
       {/* Reconexão é o estado que mais assusta em chamada: dizer o que está havendo evita
           que a pessoa desligue achando que caiu. */}
       {conectando && (
@@ -86,6 +97,7 @@ export function CallStage({
         </div>
       )}
 
+      <div className="flex min-h-0 flex-1">
       <div className="min-h-0 flex-1 p-2">
         {emApresentacao ? (
           // Alguém compartilhando tela: ela domina, e as câmeras viram uma fita ao lado.
@@ -100,6 +112,27 @@ export function CallStage({
             <ParticipantTile />
           </GridLayout>
         )}
+      </div>
+
+      {/* Lateral no desktop, gaveta por cima no celular: numa tela estreita o chat e o
+          vídeo lado a lado deixariam os dois pequenos demais para servir. */}
+      {chat && chatAberto && (
+        <aside className="absolute inset-0 z-10 border-l border-white/10 bg-[#0d1117] sm:static sm:z-auto sm:w-80 sm:shrink-0">
+          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+            <p className="text-[0.8rem] font-medium text-white">Mensagens</p>
+            <button
+              type="button"
+              onClick={() => setChatAberto(false)}
+              className="rounded px-2 py-1 text-[0.75rem] text-white/70 hover:bg-white/10"
+            >
+              Fechar
+            </button>
+          </div>
+          <div className="h-[calc(100%-2.5rem)]">
+            <CallChat {...chat} visible={chatAberto} onUnreadChange={setNaoLidas} />
+          </div>
+        </aside>
+      )}
       </div>
 
       {/* O áudio dos outros participantes não sai de lugar nenhum sem isto. */}
@@ -129,6 +162,26 @@ export function CallStage({
             IconeDesligado={MonitorUp}
             rotulo="Tela"
           />
+        )}
+
+        {chat && (
+          <button
+            type="button"
+            onClick={() => setChatAberto((v) => !v)}
+            className={cn(
+              "relative inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[0.85rem] font-medium text-white transition-colors",
+              chatAberto ? "bg-white/15" : "bg-white/10 hover:bg-white/15"
+            )}
+            aria-label={`Mensagens${naoLidas > 0 ? `, ${naoLidas} não lida(s)` : ""}`}
+          >
+            <MessageSquare className="size-4" aria-hidden />
+            <span className="hidden sm:inline">Mensagens</span>
+            {naoLidas > 0 && !chatAberto && (
+              <span className="absolute -top-1 -right-1 grid size-4.5 min-w-4.5 place-items-center rounded-full bg-status-danger px-1 text-[0.65rem] font-semibold tabular-nums">
+                {naoLidas > 9 ? "9+" : naoLidas}
+              </span>
+            )}
+          </button>
         )}
 
         <Button variant="destructive" onClick={sair} disabled={saindo} className="ml-2">

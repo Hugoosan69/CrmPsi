@@ -8,7 +8,11 @@ import "@livekit/components-styles"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { issueProfessionalTokenAction } from "../actions/telehealth.actions"
+import {
+  issueProfessionalTokenAction,
+  listMessagesAction,
+  sendMessageAction,
+} from "../actions/telehealth.actions"
 import { CallStage, mensagemDeFalhaDeMidia } from "./call-stage"
 
 type Conexao =
@@ -23,7 +27,19 @@ type Conexao =
  * servidor: ele vale 15 minutos para ENTRAR, então buscá-lo no momento em que a sala abre
  * evita a página renderizada e deixada aberta chegar na sala com um token vencido.
  */
-export function CallRoom({ callId, queueEntryId }: { callId: string; queueEntryId: string }) {
+export function CallRoom({
+  callId,
+  queueEntryId,
+  selfIdentity,
+  selfName,
+}: {
+  callId: string
+  queueEntryId: string
+  /** Do servidor: é a mesma identidade que vai no token, e é o que separa "minha
+   *  mensagem" da do outro lado. */
+  selfIdentity: string
+  selfName: string
+}) {
   const router = useRouter()
   const [conexao, setConexao] = useState<Conexao>({ estado: "carregando" })
   const [falhaDeMidia, setFalhaDeMidia] = useState<string | null>(null)
@@ -86,7 +102,27 @@ export function CallRoom({ callId, queueEntryId }: { callId: string; queueEntryI
       >
         {/* Sair devolve ao atendimento, não fecha a janela: o profissional continua
             trabalhando ali — prontuário, prescrição, encerrar o atendimento. */}
-        <CallStage onLeave={() => router.push(`/profissional/atendimento/${queueEntryId}`)} />
+        <CallStage
+          onLeave={() => router.push(`/profissional/atendimento/${queueEntryId}`)}
+          chat={{
+            selfIdentity,
+            selfName,
+            loadHistory: async () =>
+              (await listMessagesAction(callId)).map((m) => ({
+                id: m.id,
+                senderIdentity: m.sender_identity,
+                senderName: m.sender_name,
+                body: m.body,
+                sentAt: m.sent_at,
+              })),
+            persist: async (body) => {
+              const r = await sendMessageAction(callId, body)
+              if (r.error) throw new Error(r.error)
+              // A action não devolve a linha; o histórico a traz na próxima abertura.
+              return null
+            },
+          }}
+        />
       </LiveKitRoom>
     </div>
   )

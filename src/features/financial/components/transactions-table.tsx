@@ -38,6 +38,9 @@ function describeTransaction(t: TransactionView): string {
     const prefixo = t.packageLink.kind === "venda" ? "Venda de pacote" : "Sessão de pacote"
     return `${prefixo} — ${t.packageLink.packageName}`
   }
+  // Veio de um atendimento: o nome do procedimento sai do cadastro, não do texto gravado.
+  if (t.procedureName) return `Atendimento — ${t.procedureName}`
+  // Sobra o lançamento avulso, cujo texto foi digitado à mão e não espelha entidade nenhuma.
   return t.description || t.category || "—"
 }
 
@@ -96,12 +99,10 @@ export function TransactionsTable({
                   </Badge>
                 )}
               </span>
-              {/* Numa linha de pacote o título já é o nome atual do pacote; repetir a
-                  categoria congelada embaixo era justamente o que mostrava o nome antigo. */}
-              {t.category && t.description && !t.packageLink && (
-                <p className="text-xs font-normal text-muted-foreground">{t.category}</p>
-              )}
-              {t.packageLink?.kind === "sessao" && t.category && (
+              {/* A categoria só aparece quando é informação de verdade: no lançamento
+                  avulso, onde foi digitada. Sob um título já derivado do cadastro ela seria
+                  o nome antigo repetido embaixo do novo — exatamente o que se corrigiu. */}
+              {!t.packageLink && !t.procedureName && t.category && t.description && (
                 <p className="text-xs font-normal text-muted-foreground">{t.category}</p>
               )}
               {t.patientName && (

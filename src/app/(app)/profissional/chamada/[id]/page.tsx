@@ -56,7 +56,13 @@ export default async function ChamadaPage({ params }: { params: Promise<{ id: st
         <ChevronLeft className="size-4" aria-hidden />
         Voltar ao atendimento
       </Link>
-      <CallRoom callId={call.id} queueEntryId={call.queue_entry_id} />
+      <CallRoom
+        callId={call.id}
+        queueEntryId={call.queue_entry_id}
+        // A mesma identidade que a action põe no token — montada no servidor, nunca de input.
+        selfIdentity={`user:${membership.userId}`}
+        selfName={membership.fullName}
+      />
     </div>
   )
 }

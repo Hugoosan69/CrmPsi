@@ -252,7 +252,9 @@ export async function getTransactionDetail(
     id: tx.id,
     title: link
       ? `${link.kind === "venda" ? "Venda de pacote" : "Sessão de pacote"} — ${link.packageName}`
-      : tx.description || tx.category || "Lançamento",
+      : procedure?.name
+        ? `Atendimento — ${procedure.name}`
+        : tx.description || tx.category || "Lançamento",
     category: tx.category,
     description: tx.description,
     type: tx.type,

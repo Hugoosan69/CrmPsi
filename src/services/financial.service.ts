@@ -36,6 +36,10 @@ export type TransactionView = Database["public"]["Tables"]["financial_transactio
   /** Vínculo com o pacote, resolvido agora. `packageName` é o nome ATUAL do catálogo, para
    *  renomear o pacote refletir em toda tela sem reprocessar nada. */
   packageLink: PackageLink | null
+  /** Nome ATUAL do procedimento do atendimento que gerou este lançamento, pelo caminho
+   *  `appointment_id → procedure_id → procedures.name`. Mesma razão do pacote: `category`
+   *  guarda o nome do dia do lançamento e não acompanha uma renomeação no catálogo. */
+  procedureName: string | null
 }
 
 /** O que liga um lançamento a um pacote, resolvido na LEITURA. */
@@ -118,6 +122,56 @@ export async function packageLinks(supabase: DB, clinicId: string): Promise<Map<
   }
 
   return links
+}
+
+/**
+ * Mapa `transação → nome atual do procedimento`.
+ *
+ * O caminho existe e é estável a renomeações: a transação aponta o agendamento, o
+ * agendamento aponta o procedimento, e o procedimento tem o nome de agora. `category` e
+ * `description` continuam gravados como estavam — servem de histórico e de rótulo para o
+ * lançamento avulso, que não vem de atendimento nenhum e cujo texto é digitado à mão.
+ */
+async function procedureNamesByTransaction(
+  supabase: DB,
+  clinicId: string,
+  transactions: { id: string; appointment_id: string | null }[]
+): Promise<Map<string, string>> {
+  const appointmentIds = [
+    ...new Set(transactions.map((t) => t.appointment_id).filter((v): v is string => Boolean(v))),
+  ]
+  if (appointmentIds.length === 0) return new Map()
+
+  const { data: appointments } = await supabase
+    .from("appointments")
+    .select("id, procedure_id")
+    .eq("clinic_id", clinicId)
+    .in("id", appointmentIds)
+
+  const procedureByAppointment = new Map(
+    (appointments ?? [])
+      .filter((a) => a.procedure_id)
+      .map((a) => [a.id, a.procedure_id as string])
+  )
+  const procedureIds = [...new Set(procedureByAppointment.values())]
+  if (procedureIds.length === 0) return new Map()
+
+  const { data: procedures } = await supabase
+    .from("procedures")
+    .select("id, name")
+    .eq("clinic_id", clinicId)
+    .in("id", procedureIds)
+
+  const nameById = new Map((procedures ?? []).map((p) => [p.id, p.name]))
+
+  const out = new Map<string, string>()
+  for (const t of transactions) {
+    if (!t.appointment_id) continue
+    const procedureId = procedureByAppointment.get(t.appointment_id)
+    const nome = procedureId ? nameById.get(procedureId) : undefined
+    if (nome) out.set(t.id, nome)
+  }
+  return out
 }
 
 /**
@@ -221,6 +275,8 @@ export async function listTransactions(
     return query
   }, opts)
 
+  const procedureNames = await procedureNamesByTransaction(supabase, clinicId, data ?? [])
+
   const patientIds = [...new Set((data ?? []).map((t) => t.patient_id).filter(Boolean))] as string[]
   const patientById = new Map<string, string>()
   if (patientIds.length > 0) {
@@ -237,6 +293,7 @@ export async function listTransactions(
       patientName: t.patient_id ? patientById.get(t.patient_id) ?? null : null,
       isPackage: links.has(t.id),
       packageLink: links.get(t.id) ?? null,
+      procedureName: procedureNames.get(t.id) ?? null,
     })),
     total,
   }

@@ -10,7 +10,14 @@ import { CallStage, mensagemDeFalhaDeMidia } from "./call-stage"
 
 type Acesso =
   | { estado: "carregando" }
-  | { estado: "pronto"; token: string; serverUrl: string; displayName: string }
+  | {
+      estado: "pronto"
+      token: string
+      serverUrl: string
+      displayName: string
+      /** `invite:<id>` — a mesma identidade que o servidor pôs no token. */
+      identity: string
+    }
   | { estado: "recusado"; mensagem: string }
   | { estado: "encerrado" }
 
@@ -42,11 +49,21 @@ export function PatientRoom({ token: inviteToken }: { token: string }) {
           })
           return
         }
+        // A identidade sai do próprio token: é o servidor quem a define, e lê-la daqui
+        // evita uma segunda fonte de verdade sobre quem é este participante.
+        let identity = "eu"
+        try {
+          identity = JSON.parse(atob(body.token.split(".")[1])).sub ?? "eu"
+        } catch {
+          // Token em formato inesperado: o chat ainda funciona, só não destaca as próprias
+          // mensagens. Não é motivo para barrar a consulta.
+        }
         setAcesso({
           estado: "pronto",
           token: body.token,
           serverUrl: body.serverUrl,
           displayName: body.displayName,
+          identity,
         })
       })
       .catch(() => {
@@ -110,7 +127,33 @@ export function PatientRoom({ token: inviteToken }: { token: string }) {
         >
           {/* Sem compartilhamento de tela: numa consulta o paciente não apresenta nada, e
               cada botão a menos é uma dúvida a menos para quem abriu isto pela primeira vez. */}
-          <CallStage canShareScreen={false} onLeave={() => setAcesso({ estado: "encerrado" })} />
+          <CallStage
+            canShareScreen={false}
+            onLeave={() => setAcesso({ estado: "encerrado" })}
+            chat={{
+              selfIdentity: acesso.identity,
+              selfName: acesso.displayName,
+              loadHistory: async () => {
+                const res = await fetch(
+                  `/api/telehealth/c/${encodeURIComponent(inviteToken)}/mensagens`
+                )
+                if (!res.ok) throw new Error("historico")
+                return (await res.json()).messages
+              },
+              persist: async (body) => {
+                const res = await fetch(
+                  `/api/telehealth/c/${encodeURIComponent(inviteToken)}/mensagens`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ body }),
+                  }
+                )
+                if (!res.ok) throw new Error("envio")
+                return (await res.json()).message
+              },
+            }}
+          />
         </LiveKitRoom>
       </div>
 
