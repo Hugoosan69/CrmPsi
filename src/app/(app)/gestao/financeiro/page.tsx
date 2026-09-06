@@ -44,6 +44,7 @@ export default async function GestaoFinanceiroPage({
     de?: string
     ate?: string
     profissional?: string
+    especialidade?: string
     origem?: string
     formaPagamento?: string
   }>
