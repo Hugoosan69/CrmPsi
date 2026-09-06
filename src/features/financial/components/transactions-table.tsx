@@ -27,6 +27,23 @@ function formatDueDate(value: string | null) {
   return `${day}/${month}/${year}`
 }
 
+/**
+ * O rótulo de um lançamento de pacote é MONTADO na leitura, com o nome que o pacote tem
+ * agora — não lido de `description`, que guarda o nome do dia em que a linha nasceu.
+ *
+ * Era isso que deixava o financeiro com vários nomes para o mesmo pacote: renomear o
+ * cadastro não alcançava o texto já gravado, e não havia como alcançar sem reescrever
+ * lançamento. Derivando na leitura, renomear reflete em toda tela na hora, e o
+ * reprocessamento fica só para o que é de fato dado: valores e sessões.
+ */
+function describeTransaction(t: TransactionView): string {
+  if (t.packageLink) {
+    const prefixo = t.packageLink.kind === "venda" ? "Venda de pacote" : "Sessão de pacote"
+    return `${prefixo} — ${t.packageLink.packageName}`
+  }
+  return t.description || t.category || "—"
+}
+
 export function TransactionsTable({
   transactions,
   paymentMethods,
@@ -76,14 +93,19 @@ export function TransactionsTable({
           <TableRow key={t.id}>
             <TableCell className="font-medium">
               <span className="inline-flex flex-wrap items-center gap-1.5">
-                {t.description || t.category || "—"}
+                {describeTransaction(t)}
                 {t.isPackage && (
                   <Badge variant="secondary" className="font-normal">
                     Pacote
                   </Badge>
                 )}
               </span>
-              {t.category && t.description && (
+              {/* Numa linha de pacote o título já é o nome atual do pacote; repetir a
+                  categoria congelada embaixo era justamente o que mostrava o nome antigo. */}
+              {t.category && t.description && !t.packageLink && (
+                <p className="text-xs font-normal text-muted-foreground">{t.category}</p>
+              )}
+              {t.packageLink?.kind === "sessao" && t.category && (
                 <p className="text-xs font-normal text-muted-foreground">{t.category}</p>
               )}
             </TableCell>

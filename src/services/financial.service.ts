@@ -33,6 +33,91 @@ export type TransactionView = Database["public"]["Tables"]["financial_transactio
   /** Venda de pacote ou sessão consumida de um — a tabela marca a linha para o valor
    * (zero, nas sessões) não parecer um lançamento errado. */
   isPackage: boolean
+  /** Vínculo com o pacote, resolvido agora. `packageName` é o nome ATUAL do catálogo, para
+   *  renomear o pacote refletir em toda tela sem reprocessar nada. */
+  packageLink: PackageLink | null
+}
+
+/** O que liga um lançamento a um pacote, resolvido na LEITURA. */
+export type PackageLink = {
+  kind: "venda" | "sessao"
+  /** Nome que o pacote tem AGORA no catálogo, não o que tinha quando a linha nasceu. */
+  packageName: string
+}
+
+/**
+ * Mapa `transação → pacote`, montado por chave estrangeira.
+ *
+ * Antes isto era uma lista de ids em que a parte das sessões saía de
+ * `ilike(description, 'Sessão de pacote —%')`. Classificar por texto tem dois problemas, e
+ * os dois apareceram na tela: o nome do pacote fica **congelado** dentro da descrição, de
+ * modo que renomear o cadastro deixa o financeiro mostrando o nome antigo para sempre; e
+ * qualquer lançamento que alguém descreva com essas palavras vira "pacote" sem ser.
+ *
+ * O vínculo real já existe e é estável a renomeações:
+ *   venda   → `patient_packages.financial_transaction_id`
+ *   sessão  → `patient_package_sessions.appointment_id` = `financial_transactions.appointment_id`
+ *
+ * Nada de embed: `src/types/supabase.ts` é escrito à mão com `Relationships: []`.
+ */
+async function packageLinks(supabase: DB, clinicId: string): Promise<Map<string, PackageLink>> {
+  const [{ data: catalog }, { data: balances }] = await Promise.all([
+    supabase.from("session_packages").select("id, name").eq("clinic_id", clinicId),
+    supabase
+      .from("patient_packages")
+      .select("id, session_package_id, financial_transaction_id")
+      .eq("clinic_id", clinicId),
+  ])
+
+  const nameByCatalog = new Map((catalog ?? []).map((c) => [c.id, c.name]))
+  const links = new Map<string, PackageLink>()
+
+  // Venda: o saldo aponta a cobrança que o pagou.
+  const nameByBalance = new Map<string, string>()
+  for (const balance of balances ?? []) {
+    const name = nameByCatalog.get(balance.session_package_id)
+    if (!name) continue
+    nameByBalance.set(balance.id, name)
+    if (balance.financial_transaction_id) {
+      links.set(balance.financial_transaction_id, { kind: "venda", packageName: name })
+    }
+  }
+
+  const balanceIds = [...nameByBalance.keys()]
+  if (balanceIds.length === 0) return links
+
+  // Sessão: a sessão aponta o agendamento, e o lançamento carrega o mesmo agendamento.
+  const { data: sessions } = await supabase
+    .from("patient_package_sessions")
+    .select("patient_package_id, appointment_id")
+    .in("patient_package_id", balanceIds)
+    .not("appointment_id", "is", null)
+
+  const nameByAppointment = new Map<string, string>()
+  for (const session of sessions ?? []) {
+    const name = nameByBalance.get(session.patient_package_id)
+    if (name && session.appointment_id) nameByAppointment.set(session.appointment_id, name)
+  }
+
+  const appointmentIds = [...nameByAppointment.keys()]
+  if (appointmentIds.length === 0) return links
+
+  const { data: sessionCharges } = await supabase
+    .from("financial_transactions")
+    .select("id, appointment_id")
+    .eq("clinic_id", clinicId)
+    .in("appointment_id", appointmentIds)
+
+  for (const charge of sessionCharges ?? []) {
+    if (!charge.appointment_id) continue
+    const name = nameByAppointment.get(charge.appointment_id)
+    // A venda tem precedência: já classificada, não vira sessão.
+    if (name && !links.has(charge.id)) {
+      links.set(charge.id, { kind: "sessao", packageName: name })
+    }
+  }
+
+  return links
 }
 
 /**
@@ -42,28 +127,6 @@ export type TransactionView = Database["public"]["Tables"]["financial_transactio
  * via a lista parar num ponto arbitrário, e um relatório informal de "quanto entrou" saía
  * errado sem nada indicar que faltava linha.
  */
-/** ids de transações que são "pacote" — a compra (patient_packages.financial_transaction_id)
- * ou uma sessão individual já paga (marcada com o prefixo de descrição fixo usado em
- * createPackageSessionCharge). Usado tanto pelo filtro avulsa/pacote quanto pelo resumo. */
-async function packageTransactionIds(supabase: DB, clinicId: string): Promise<string[]> {
-  const [{ data: purchases }, { data: sessions }] = await Promise.all([
-    supabase
-      .from("patient_packages")
-      .select("financial_transaction_id")
-      .eq("clinic_id", clinicId)
-      .not("financial_transaction_id", "is", null),
-    supabase
-      .from("financial_transactions")
-      .select("id")
-      .eq("clinic_id", clinicId)
-      .ilike("description", "Sessão de pacote —%"),
-  ])
-  const ids = new Set<string>()
-  for (const p of purchases ?? []) if (p.financial_transaction_id) ids.add(p.financial_transaction_id)
-  for (const s of sessions ?? []) ids.add(s.id)
-  return [...ids]
-}
-
 export async function listTransactions(
   supabase: DB,
   clinicId: string,
@@ -130,8 +193,8 @@ export async function listTransactions(
   // "pacote" filtra por inclusão nesta lista; "avulsa" filtra por exclusão dela. Sempre
   // carregada (não só quando há filtro) porque cada linha também precisa saber se é de
   // pacote para exibir o selo.
-  const packageIds = await packageTransactionIds(supabase, clinicId)
-  const packageIdSet = new Set(packageIds)
+  const links = await packageLinks(supabase, clinicId)
+  const packageIds = [...links.keys()]
 
   const { rows: data, total } = await fetchPage(() => {
     let query = supabase
@@ -172,7 +235,8 @@ export async function listTransactions(
     rows: (data ?? []).map((t) => ({
       ...t,
       patientName: t.patient_id ? patientById.get(t.patient_id) ?? null : null,
-      isPackage: packageIdSet.has(t.id),
+      isPackage: links.has(t.id),
+      packageLink: links.get(t.id) ?? null,
     })),
     total,
   }
@@ -334,7 +398,7 @@ export async function getFinancialSummary(
   clinicId: string,
   opts: { dateFrom?: string; dateTo?: string; professionalId?: string } = {}
 ): Promise<FinancialSummary> {
-  const packageIds = await packageTransactionIds(supabase, clinicId)
+  const packageIds = [...(await packageLinks(supabase, clinicId)).keys()]
 
   // Recorte por profissional: chega pelo agendamento vinculado, o mesmo caminho da quebra
   // "receita avulsa por profissional" abaixo. É o que sustenta a tela "Meu financeiro".

@@ -44,7 +44,11 @@ export async function GET(request: NextRequest) {
     lines.push(
       [
         new Date(t.created_at).toLocaleDateString("pt-BR"),
-        t.description ?? "",
+        // Mesmo rótulo da tela: numa linha de pacote vale o nome ATUAL do catálogo, não o
+        // que ficou congelado em `description` no dia do lançamento.
+        t.packageLink
+          ? `${t.packageLink.kind === "venda" ? "Venda de pacote" : "Sessão de pacote"} — ${t.packageLink.packageName}`
+          : t.description ?? "",
         t.category ?? "",
         t.patientName ?? "",
         t.type,
