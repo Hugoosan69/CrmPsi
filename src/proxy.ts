@@ -6,7 +6,12 @@ import { CANONICAL_HOST, shouldRedirectToCanonical } from "@/config/site"
 
 // /redefinir-senha is reachable without a session on purpose — the recovery link puts the
 // caller here before any session cookie exists.
-const PUBLIC_PATHS = ["/login", "/recuperar-senha", "/redefinir-senha"]
+//
+// /c/ é a sala do paciente na teleconsulta, e pelo mesmo motivo: ele NÃO tem conta no CRM.
+// A credencial dele é o token do link, conferido em `resolveInvite` — validade, revogação e
+// a consulta a que dá direito. Deixar esta rota sob o gate de sessão mandaria todo paciente
+// para a tela de login, onde ele não tem o que fazer.
+const PUBLIC_PATHS = ["/login", "/recuperar-senha", "/redefinir-senha", "/c/"]
 
 /**
  * Supabase can return a recovery callback in either of two shapes, and which one depends on
@@ -133,7 +138,12 @@ export const config = {
   // máquina-a-máquina, autenticados por token próprio no cabeçalho. Deixá-los sob o proxy
   // faz o n8n receber um 307 para a tela de login em vez da fila de mensagens, o que se
   // parece com endpoint fora do ar.
+  //
+  // /api/telehealth/* entra na mesma lista e pela mesma razão: quem chama é o paciente, que
+  // não tem sessão no CRM. A credencial dele é o token do convite, conferido dentro do
+  // endpoint. Sob o proxy, a resposta era um 307 para /login — o paciente batia na porta e
+  // era mandado para um formulário de funcionário.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|branding/|api/health|api/integrations).*)",
+    "/((?!_next/static|_next/image|favicon.ico|branding/|api/health|api/integrations|api/telehealth).*)",
   ],
 }

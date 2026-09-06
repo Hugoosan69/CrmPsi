@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 
 import { supabaseEnvStatus } from "@/lib/supabase/env"
 import { isStripeTestMode, stripeEnvStatus } from "@/lib/stripe/env"
+import { livekitEnvStatus } from "@/lib/livekit/env"
 
 export const dynamic = "force-dynamic"
 
@@ -27,6 +28,7 @@ export async function GET() {
   const env = supabaseEnvStatus()
   const ready = env.url && env.anonKey && env.serviceRoleKey
   const stripe = stripeEnvStatus()
+  const livekit = livekitEnvStatus()
 
   const h = await headers()
   const host = h.get("x-forwarded-host") ?? h.get("host")
@@ -43,6 +45,14 @@ export async function GET() {
         NEXT_PUBLIC_SUPABASE_ANON_KEY: env.anonKey ? "definida" : "AUSENTE",
         SUPABASE_SERVICE_ROLE_KEY: env.serviceRoleKey ? "definida" : "AUSENTE",
         NEXT_PUBLIC_SITE_URL: siteUrl ?? "(nao definida - deduzida do request)",
+      },
+      // Teleconsulta, também opcional. Presença apenas: o segredo assina os tokens que dão
+      // acesso à sala de uma consulta, e um valor aqui vazaria por qualquer sonda.
+      livekit: {
+        LIVEKIT_URL: livekit.url ? "definida" : "AUSENTE",
+        LIVEKIT_API_KEY: livekit.apiKey ? "definida" : "AUSENTE",
+        LIVEKIT_API_SECRET: livekit.apiSecret ? "definida" : "AUSENTE",
+        modo: livekit.url && livekit.apiKey && livekit.apiSecret ? "configurado" : "nao configurado",
       },
       // Pagamentos online são opcionais: sua ausência não deixa a sonda vermelha. Aparecem
       // aqui só como presença — todas as três movem dinheiro ou autenticam quem o move.

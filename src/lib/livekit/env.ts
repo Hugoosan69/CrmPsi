@@ -6,12 +6,12 @@
  * da clínica, como qualquer pessoa, sem passar por login nenhum — é credencial de nível de
  * deploy, não de tela, e por isso não mora em `clinic_settings`.
  *
- * A URL é a única que o navegador precisa conhecer (é para onde o cliente WebRTC conecta),
- * e por isso é exposta como `NEXT_PUBLIC_`. Lida como literal estático de propósito:
- * `process.env[nome]` NÃO é substituído pelo bundler e chegaria `undefined` no navegador —
- * o mesmo defeito que já derrubou a tela de redefinição de senha.
+ * As TRÊS são server-only, a URL inclusive. O navegador precisa dela para conectar, mas
+ * recebe-a do servidor junto com o token (é o `serverUrl` que a action e o endpoint do
+ * convite devolvem) — assim ela não entra no bundle, e um `NEXT_PUBLIC_` a menos é uma
+ * coisa a menos que alguém pode confundir com "pode ser público".
  */
-const PUBLIC_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL
+const URL_SINALIZACAO = process.env.LIVEKIT_URL
 
 function required(value: string | undefined, name: string): string {
   if (!value) {
@@ -23,7 +23,7 @@ function required(value: string | undefined, name: string): string {
 /** Presença, nunca valores — pode ser exposto pelo /api/health. */
 export function livekitEnvStatus() {
   return {
-    url: Boolean(PUBLIC_URL),
+    url: Boolean(URL_SINALIZACAO),
     apiKey: Boolean(process.env.LIVEKIT_API_KEY),
     apiSecret: Boolean(process.env.LIVEKIT_API_SECRET),
     webhookConfigured: Boolean(process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET),
@@ -36,13 +36,13 @@ export function livekitEnvStatus() {
  * usando o resto do sistema normalmente.
  */
 export function isLiveKitConfigured() {
-  return Boolean(PUBLIC_URL && process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET)
+  return Boolean(URL_SINALIZACAO && process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET)
 }
 
 // Lidas só quando alguém realmente vai falar com o LiveKit, nunca na importação.
 export const livekitEnv = {
   get url() {
-    return required(PUBLIC_URL, "NEXT_PUBLIC_LIVEKIT_URL")
+    return required(URL_SINALIZACAO, "LIVEKIT_URL")
   },
   get apiKey() {
     return required(process.env.LIVEKIT_API_KEY, "LIVEKIT_API_KEY")
@@ -52,7 +52,10 @@ export const livekitEnv = {
   },
 }
 
-/** A URL pública, para o componente de sala. `null` quando não configurada. */
+/**
+ * A URL de sinalização, para o componente de sala receber junto com o token.
+ * `null` quando não configurada. Chamada só do servidor.
+ */
 export function livekitPublicUrl(): string | null {
-  return PUBLIC_URL ?? null
+  return URL_SINALIZACAO ?? null
 }
