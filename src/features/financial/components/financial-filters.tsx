@@ -18,6 +18,7 @@ export type FinancialFilterValues = {
   de?: string
   ate?: string
   profissional?: string
+  especialidade?: string
   origem?: string
   formaPagamento?: string
 }
@@ -30,10 +31,12 @@ export type FinancialFilterValues = {
 export function FinancialFilters({
   values,
   professionals,
+  specialties,
   paymentMethods,
 }: {
   values: FinancialFilterValues
   professionals: { id: string; full_name: string }[]
+  specialties: { id: string; name: string }[]
   paymentMethods: { id: string; name: string }[]
 }) {
   const router = useRouter()
@@ -51,7 +54,7 @@ export function FinancialFilters({
   const hasFilters = Object.values(values).some(Boolean)
 
   return (
-    <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3 sm:grid-cols-3 lg:grid-cols-6">
       <div className="grid gap-1.5">
         <Label htmlFor="filter-de">De</Label>
         <Input
@@ -81,6 +84,22 @@ export function FinancialFilters({
             {professionals.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.full_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>Especialidade</Label>
+        <Select value={values.especialidade ?? ""} onValueChange={(v) => set("especialidade", v || null)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todas</SelectItem>
+            {specialties.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
               </SelectItem>
             ))}
           </SelectContent>

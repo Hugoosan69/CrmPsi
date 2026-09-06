@@ -53,7 +53,7 @@ export default async function GestaoFinanceiroPage({
   const canEditAmount = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_AMOUNT)
   const canEditPaid = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)
 
-  const { aba, pagina, por, de, ate, profissional, origem, formaPagamento } = await searchParams
+  const { aba, pagina, por, de, ate, profissional, especialidade, origem, formaPagamento } = await searchParams
   const abaAtiva: FinancialTab = ABAS.includes(aba as FinancialTab)
     ? (aba as FinancialTab)
     : "pendentes"
@@ -67,12 +67,13 @@ export default async function GestaoFinanceiroPage({
     dateFrom: de || undefined,
     dateTo: ate || undefined,
     professionalId: profissional || undefined,
+    specialtyId: especialidade || undefined,
     sourceType: parseSourceType(origem),
     paymentMethodId: formaPagamento || undefined,
   }
 
   const supabase = await createClient()
-  const [{ rows, total }, paymentMethods, professionals, pendentesCount, summary] = await Promise.all([
+  const [{ rows, total }, paymentMethods, professionals, specialties, pendentesCount, summary] = await Promise.all([
     listTransactions(supabase, membership.clinicId, {
       ...filtroDaAba(abaAtiva),
       ...filtrosGerenciais,
@@ -81,6 +82,7 @@ export default async function GestaoFinanceiroPage({
     }),
     listPaymentMethods(supabase, membership.clinicId),
     listProfessionals(supabase, membership.clinicId),
+    supabase.from("specialties").select("id, name").eq("clinic_id", membership.clinicId).order("name"),
     // Contagem à parte: o número na aba tem de ser o total de pendentes, não o tamanho da
     // página aberta.
     countTransactions(supabase, membership.clinicId, { statuses: PENDENTES }),
@@ -124,8 +126,9 @@ export default async function GestaoFinanceiroPage({
       <div className="grid gap-4">
         <FinancialTabs active={abaAtiva} pendentesCount={pendentesCount} />
         <FinancialFilters
-          values={{ de, ate, profissional, origem, formaPagamento }}
+          values={{ de, ate, profissional, especialidade, origem, formaPagamento }}
           professionals={professionals ?? []}
+          specialties={specialties.data ?? []}
           paymentMethods={paymentMethods}
         />
         <div className="grid gap-3">
