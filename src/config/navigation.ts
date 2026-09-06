@@ -83,6 +83,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/gestao/comunicacao", label: "Comunicação", permission: PERMISSIONS.COMMUNICATION_MANAGE },
       { href: "/gestao/procedimentos", label: "Procedimentos", permission: PERMISSIONS.CATALOG_MANAGE },
       { href: "/gestao/pacotes", label: "Pacotes", permission: PERMISSIONS.PACKAGES_MANAGE },
+      { href: "/gestao/cobranca", label: "Tipos de cobrança", permission: PERMISSIONS.BILLING_MANAGE },
       { href: "/gestao/usuarios", label: "Usuários", permission: PERMISSIONS.USERS_MANAGE },
       { href: "/gestao/permissoes", label: "Permissões", permission: PERMISSIONS.USERS_MANAGE },
       { href: "/gestao/configuracoes", label: "Configurações", permission: PERMISSIONS.SETTINGS_MANAGE },

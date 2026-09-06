@@ -53,6 +53,12 @@ export const PERMISSIONS = {
   // sala, convidar o paciente e encerrar — acompanha quem conduz o atendimento e quem marca.
   TELEHEALTH_VIEW: "telehealth.view",
   TELEHEALTH_MANAGE: "telehealth.manage",
+
+  // migration 028 — tipos de cobrança, guias de convênio e protocolo mensal. É assunto de
+  // dinheiro, não de catálogo clínico: quem cadastra procedimento não decide com quem a
+  // clínica fatura.
+  BILLING_VIEW: "billing.view",
+  BILLING_MANAGE: "billing.manage",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

@@ -35,6 +35,7 @@ const MODULE_LABELS: Record<string, string> = {
   audit: "Auditoria",
   packages: "Pacotes",
   telehealth: "Teleconsulta",
+  billing: "Cobrança e convênios",
 }
 
 const OPTIONS: { value: OverrideState; label: string }[] = [
