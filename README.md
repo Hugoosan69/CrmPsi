@@ -58,10 +58,40 @@ Todas as 5 fases do MVP estão implementadas:
   WhatsApp/SMS/e-mail reais é implementar uma classe nova em
   `src/services/communication.service.ts`, sem tocar em mais nada.
 
+Depois do MVP, entraram em produção:
+
+- **Pacotes de sessões** — catálogo por especialidade, venda vinculada ao paciente,
+  consumo da sessão ao concluir o atendimento e reprocessamento de saldos e do financeiro.
+  A cobrança de cada sessão segue o modo de faturamento do pacote (valor de uma vez na
+  primeira sessão, ou dividido entre elas).
+- **Financeiro gerencial** — filtros combináveis (período, profissional, especialidade,
+  avulsa/pacote, forma de pagamento) e modal de detalhe do lançamento, que responde "de
+  onde veio este valor": qual atendimento, qual sessão de qual pacote, o que já foi
+  recebido e as correções de valor feitas na linha.
+- **Triagem** como situação própria de agendamento, que ocupa o horário como qualquer
+  outra.
+- **Menu de ações por linha** em todas as tabelas (ver `docs/ARCHITECTURE.md` § 8).
+- **Varredura de anomalias** — 12 verificações sobre fila, agenda, financeiro, pacotes e
+  cadastro.
+- **Teleconsulta** (LiveKit) — vídeo e chat presos ao atendimento, sala do paciente por
+  link sem login, histórico de chamadas na ficha e consumo de minutos nas configurações.
+
 O fluxo ponta a ponta do item 35 do briefing (cadastrar → agendar → chegada → check-in →
 fila → chamada → atendimento com cronômetro → CID → prescrição/atestado → finalizar →
 pagamento) está todo implementado. `npm run build` e `npm run lint` estão limpos.
 
-Sem um projeto Supabase real conectado, só foi possível validar visualmente o fluxo de
-login (proxy → Server Action → erro amigável) contra um projeto fictício — o restante das
-telas foi validado por build/lint, não por teste manual com dados reais.
+## Ambientes
+
+Dois projetos Supabase: **produção** (`xyibvthdlbhnuwqvwfsj`) e **homologação**
+(`hlaqagoxkwqrwaoubhpg`). O deploy é na Vercel (projeto `crm-psi`), a partir de `main`,
+servindo <https://csibrasilia.club>.
+
+As migrations de `database/migrations/` são aplicadas **à mão, em ordem numérica**, e
+homologação costuma estar à frente da produção. Subir código que depende de uma migration
+ainda não aplicada derruba a tela correspondente — já aconteceu com a agenda, quando o
+enum `triagem` existia só em homologação. Confira antes de cada subida.
+
+Variáveis de ambiente: ver `.env.example`. As de teleconsulta e pagamento são de nível de
+deploy (Vercel › Settings › Environment Variables) e **nunca** levam prefixo
+`NEXT_PUBLIC_`. Variável nova só passa a valer no próximo build — depois de salvar,
+redeploy.

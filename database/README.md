@@ -81,7 +81,7 @@ psql "$DATABASE_URL" -f 00_core/schema.sql          # ... through 15_audit/schem
 
 # 2. migrations, in numeric order
 psql "$DATABASE_URL" -f migrations/001_payment_gate_and_timer.sql
-# ... through migrations/019_amount_edit_and_package_billing.sql, em ordem numérica
+# ... through migrations/027_participant_join_idempotent.sql, em ordem numérica
 
 # 3. reference + demo data
 psql "$DATABASE_URL" -f 08_records/seed_cid.sql
@@ -117,6 +117,9 @@ Or paste each file into the Supabase SQL Editor in the same order.
 | `021_agenda_appearance.sql` | `agenda.appearance`: a cor de cada situação no card da agenda passa a ser da clínica, gravada em `clinic_settings.settings.agenda.statusColors` (sem coluna nova). Permissão à parte de `settings.manage` — trocar a logo é identidade visual, mudar as cores altera a leitura da tela em que a equipe trabalha o dia inteiro |
 
 | `022_appointment_status_triagem.sql` | Valor `triagem` no enum `appointment_status`. Só o valor: o Postgres não deixa usar um valor de enum recém-criado em predicado de índice na mesma transação, e é o que a 023 faz — por isso são dois arquivos |
+| `023_triagem_occupies_slot.sql` | Triagem passa a **ocupar o horário**: o índice de dupla marcação (001), as duas restrições de sobreposição (002), `appointment_slot_problem` e `professional_free_slots` (002/012) trocam `status in ('scheduled','confirmed')` por `(... ,'triagem')`. Sem isto a triagem apareceria na agenda e continuaria invisível para quem verifica se o horário está livre. **Aplicar depois da 022, em transações separadas** |
+| `024_fix_slot_problem_overload.sql` | Derruba a sobrecarga de `appointment_slot_problem` que a 023 criou sem querer. A 002 declarou os seis parâmetros na ordem (`p_clinic, p_professional, p_room, p_start, p_duration, p_exclude`); a 023 os redeclarou como (`…, p_start, p_duration, p_room, p_exclude`) — mesmos nomes e tipos, **ordem diferente**. `create or replace function` casa por assinatura, então em vez de substituir ela criou uma segunda função. Como o app chama por nome (`supabase.rpc("appointment_slot_problem", { p_clinic: … })`), a chamada vira ambígua e o Postgres responde `function … is not unique` (42725): a validação de horário inteira — conflito de profissional, de sala, fora de disponibilidade — para de funcionar em silêncio. A 023 foi corrigida para já derrubar a antiga; esta migration é para os bancos que aplicaram a versão anterior |
+
 ## Teleconsulta: migrations 025 a 027
 
 | Migration | Adiciona |
@@ -124,6 +127,10 @@ Or paste each file into the Supabase SQL Editor in the same order.
 | `025_telehealth.sql` | `video_calls`, `video_call_invites`, `video_call_participants`, `video_call_messages` + permissões `telehealth.view` / `telehealth.manage`. `token_hash` guarda só o SHA-256 do token do link, pelo mesmo motivo de uma tabela de senhas: um dump não abre a consulta de ninguém |
 | `026_telehealth_bind_to_service.sql` | A chamada passa de `appointments` para `queue_entries` — a sala tem de viver o mesmo intervalo que o cronômetro mede, senão o tempo da consulta não é o tempo que o sistema conta. Índice único parcial garante uma sala viva por atendimento |
 | `027_participant_join_idempotent.sql` | Deduplica reenvio de `participant_joined`. O índice da 025 cobria só `left_at is null` e parava de valer depois que a pessoa saía: o reenvio inseria uma segunda linha e o histórico mostrava duas entradas onde houve uma |
+
+Aplicadas em produção em 2026-09-06, junto com a subida da teleconsulta. A 024 não foi
+necessária lá: produção nunca chegou a ter a função duplicada, conferido em `pg_proc`
+antes de aplicar.
 
 ## Vínculo de sessão de pacote: as duas pontas importam
 
@@ -138,9 +145,6 @@ sessão entra a R$ 0,00 mesmo num pacote `por_sessao`, ou seja, receita que nunc
 "Reprocessar saldos e financeiro") reata o que é inequívoco: agendamento sem vínculo nenhum
 e reivindicado por uma única sessão. Agendamento que já aponta outra sessão não é tocado, e
 disputa entre duas sessões é reportada em vez de resolvida no chute.
-
-| `023_triagem_occupies_slot.sql` | Triagem passa a **ocupar o horário**: o índice de dupla marcação (001), as duas restrições de sobreposição (002), `appointment_slot_problem` e `professional_free_slots` (002/012) trocam `status in ('scheduled','confirmed')` por `(... ,'triagem')`. Sem isto a triagem apareceria na agenda e continuaria invisível para quem verifica se o horário está livre. **Aplicar depois da 022, em transações separadas** |
-| `024_fix_slot_problem_overload.sql` | Derruba a sobrecarga de `appointment_slot_problem` que a 023 criou sem querer. A 002 declarou os seis parâmetros na ordem (`p_clinic, p_professional, p_room, p_start, p_duration, p_exclude`); a 023 os redeclarou como (`…, p_start, p_duration, p_room, p_exclude`) — mesmos nomes e tipos, **ordem diferente**. `create or replace function` casa por assinatura, então em vez de substituir ela criou uma segunda função. Como o app chama por nome (`supabase.rpc("appointment_slot_problem", { p_clinic: … })`), a chamada vira ambígua e o Postgres responde `function … is not unique` (42725): a validação de horário inteira — conflito de profissional, de sala, fora de disponibilidade — para de funcionar em silêncio. A 023 foi corrigida para já derrubar a antiga; esta migration é para os bancos que aplicaram a versão anterior |
 
 `99_seed/seed.sql` requires demo `auth.users` to be created first (Supabase Auth cannot be
 seeded with plain SQL inserts) — see the comments at the top of that file. For a set of

@@ -323,6 +323,12 @@ a lista de participantes fica vazia. Precisa ser configurado à mão em
 cloud.livekit.io › Settings › Webhooks, apontando para
 `https://<dominio>/api/integrations/livekit/webhook` — nenhum código faz isso sozinho.
 
+**O par de chaves que assina o webhook tem de ser o mesmo das variáveis de ambiente.** O
+painel do LiveKit deixa cadastrar o webhook assinando com uma chave e o deploy rodar com
+outra: aí `parseWebhookEvent` recusa tudo com 401, o LiveKit reenvia em laço, e o sintoma é
+uma consulta que acontece normalmente mas não registra nem participante, nem `started_at`
+real, nem minuto consumido. Não há erro na tela — é preciso ir olhar os logs.
+
 Duas armadilhas que o endpoint já cobre e que voltam se alguém o reescrever:
 
 - **Corpo cru.** A assinatura cobre os bytes exatos enviados; um `JSON.parse` seguido de
