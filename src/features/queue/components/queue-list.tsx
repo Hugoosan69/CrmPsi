@@ -37,7 +37,7 @@ function waitClass(minutes: number) {
 }
 
 type PaymentMethod = { id: string; name: string }
-type Insurer = { id: string; name: string; amount_per_guide: number }
+import type { InsurerOption } from "@/features/billing/components/insurer-guide-fields"
 
 /** Uma leitura do balcão inteiro em quatro números, antes de qualquer lista. */
 function QueueSummary({ entries }: { entries: QueueEntryView[] }) {
@@ -88,7 +88,7 @@ export function QueueList({
   insurers = [],
 }: {
   paymentMethods: PaymentMethod[]
-  insurers?: Insurer[]
+  insurers?: InsurerOption[]
 }) {
   const queryClient = useQueryClient()
   const { data: all, isLoading, error } = useQuery({

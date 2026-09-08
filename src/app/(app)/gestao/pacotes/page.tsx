@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { listSessionPackages } from "@/services/packages.service"
 import { listSpecialties } from "@/services/professionals.service"
+import { listProcedures } from "@/services/procedures.service"
 import { listInsurers } from "@/services/billing.service"
 import { PageHeader } from "@/components/shared/page-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -27,11 +28,21 @@ export default async function PacotesEConveniosPage() {
   const canInsurers = hasPermission(membership, PERMISSIONS.BILLING_MANAGE)
 
   const supabase = await createClient()
-  const [packages, specialties, insurers] = await Promise.all([
+  const [packages, specialties, insurers, procedures] = await Promise.all([
     canPackages ? listSessionPackages(supabase, membership.clinicId) : Promise.resolve([]),
     listSpecialties(supabase, membership.clinicId),
     canInsurers ? listInsurers(supabase, membership.clinicId) : Promise.resolve([]),
+    canInsurers ? listProcedures(supabase, membership.clinicId) : Promise.resolve([]),
   ])
+
+  // Sem especialidade ao lado do nome: `procedures` não tem `specialty_id` — no schema o
+  // vínculo com especialidade é do PROFISSIONAL, não do procedimento. Foi essa mesma
+  // suposição que já quebrou, em silêncio, o filtro por especialidade do financeiro.
+  const procedureOptions = (procedures ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    specialtyName: null,
+  }))
 
   const abaInicial = canPackages ? "pacotes" : "convenios"
 
@@ -60,9 +71,9 @@ export default async function PacotesEConveniosPage() {
         {canInsurers && (
           <TabsContent value="convenios" className="grid gap-3">
             <div className="flex justify-end">
-              <CreateInsurerDialog />
+              <CreateInsurerDialog procedures={procedureOptions} />
             </div>
-            <InsurersTable insurers={insurers} />
+            <InsurersTable insurers={insurers} procedures={procedureOptions} />
           </TabsContent>
         )}
       </Tabs>

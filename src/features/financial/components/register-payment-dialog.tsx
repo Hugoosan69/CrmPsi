@@ -23,7 +23,10 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
-import { InsurerGuideFields } from "@/features/billing/components/insurer-guide-fields"
+import {
+  InsurerGuideFields,
+  type InsurerOption,
+} from "@/features/billing/components/insurer-guide-fields"
 import {
   registerInsurerGuideAction,
   type GuideActionState,
@@ -40,13 +43,16 @@ export function RegisterPaymentDialog({
   amount,
   paymentMethods,
   insurers = [],
+  procedureId = null,
   ...dialogProps
 }: {
   transactionId: string
   amount: number
   paymentMethods: PaymentMethod[]
   /** Convênios ativos. Vazio quando não há nenhum — a tela avisa em vez de sumir. */
-  insurers?: { id: string; name: string; amount_per_guide: number }[]
+  insurers?: InsurerOption[]
+  /** Procedimento do atendimento: filtra os convênios oferecidos (migration 032). */
+  procedureId?: string | null
 } & DialogOpenProps) {
   const [open, setOpen] = useDialogOpen(dialogProps)
   const queryClient = useQueryClient()
@@ -112,6 +118,7 @@ export function RegisterPaymentDialog({
                   (m) => !m.name.toLowerCase().includes("conv")
                 )}
                 procedureAmount={amount}
+                procedureId={procedureId}
               />
             ) : (
               <div className="grid gap-1.5">

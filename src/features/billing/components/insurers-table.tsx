@@ -17,12 +17,15 @@ import { ToggleActiveButton } from "@/components/shared/toggle-active-button"
 import type { InsurerView } from "@/services/billing.service"
 import { setInsurerActiveAction } from "../actions/billing.actions"
 import { EditInsurerDialog } from "./insurer-dialogs"
+import type { ProcedureOption } from "./insurer-form-fields"
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
-}
-
-function InsurerRowActions({ insurer }: { insurer: InsurerView }) {
+function InsurerRowActions({
+  insurer,
+  procedures,
+}: {
+  insurer: InsurerView
+  procedures: ProcedureOption[]
+}) {
   const emUso = insurer.appointmentsCount > 0
 
   const actions: RowAction[] = [
@@ -30,7 +33,9 @@ function InsurerRowActions({ insurer }: { insurer: InsurerView }) {
       key: "edit",
       label: "Editar",
       icon: Pencil,
-      render: (control) => <EditInsurerDialog insurer={insurer} {...control} />,
+      render: (control) => (
+        <EditInsurerDialog insurer={insurer} procedures={procedures} {...control} />
+      ),
     },
     {
       key: "toggle",
@@ -60,22 +65,31 @@ function InsurerRowActions({ insurer }: { insurer: InsurerView }) {
   return <RowActions actions={actions} label={`Ações de ${insurer.name}`} />
 }
 
-export function InsurersTable({ insurers }: { insurers: InsurerView[] }) {
+export function InsurersTable({
+  insurers,
+  procedures,
+}: {
+  insurers: InsurerView[]
+  procedures: ProcedureOption[]
+}) {
   if (insurers.length === 0) {
     return (
       <EmptyState
         title="Nenhum convênio cadastrado"
-        description="Cadastre os convênios com quem a clínica fatura, com o valor que cada um paga por guia."
+        description="Cadastre os convênios com quem a clínica fatura, o limite de guias por paciente no mês e os procedimentos que cada um cobre."
       />
     )
   }
+
+  const nomePorProcedimento = new Map(procedures.map((p) => [p.id, p.name]))
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Convênio</TableHead>
-          <TableHead className="text-right">Valor por guia</TableHead>
+          <TableHead>Cobre</TableHead>
+          <TableHead className="text-right">Guias/mês</TableHead>
           <TableHead className="hidden text-right sm:table-cell">Atendimentos</TableHead>
           <TableHead className="hidden lg:table-cell">Contato</TableHead>
           <TableHead className="w-1" />
@@ -90,8 +104,18 @@ export function InsurersTable({ insurers }: { insurers: InsurerView[] }) {
                 {!i.active && <Badge variant="secondary">Inativo</Badge>}
               </div>
             </TableCell>
+            <TableCell className="text-[0.8rem] text-muted-foreground">
+              {i.procedureIds.length === 0
+                ? "Qualquer procedimento"
+                : i.procedureIds
+                    .map((id) => nomePorProcedimento.get(id))
+                    .filter(Boolean)
+                    .join(", ")}
+            </TableCell>
             <TableCell className="text-right tabular-nums">
-              {formatCurrency(Number(i.amount_per_guide))}
+              {i.max_guides_per_patient_month ?? (
+                <span className="text-muted-foreground">sem limite</span>
+              )}
             </TableCell>
             <TableCell className="hidden text-right tabular-nums text-muted-foreground sm:table-cell">
               {i.appointmentsCount}
@@ -100,7 +124,7 @@ export function InsurersTable({ insurers }: { insurers: InsurerView[] }) {
               {i.contact_name || i.contact_email || i.contact_phone || "—"}
             </TableCell>
             <TableCell>
-              <InsurerRowActions insurer={i} />
+              <InsurerRowActions insurer={i} procedures={procedures} />
             </TableCell>
           </TableRow>
         ))}

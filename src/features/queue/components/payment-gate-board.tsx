@@ -13,7 +13,7 @@ import type { QueueEntryView } from "@/services/queue.service"
 import { releaseToQueueAction } from "../actions/queue.actions"
 
 type PaymentMethod = { id: string; name: string }
-type Insurer = { id: string; name: string; amount_per_guide: number }
+import type { InsurerOption } from "@/features/billing/components/insurer-guide-fields"
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
@@ -91,7 +91,7 @@ export function PaymentGateBoard({
 }: {
   entries: QueueEntryView[]
   paymentMethods: PaymentMethod[]
-  insurers?: Insurer[]
+  insurers?: InsurerOption[]
 }) {
   const queryClient = useQueryClient()
   const [isPending, startTransition] = useTransition()
@@ -205,6 +205,7 @@ export function PaymentGateBoard({
                         amount={entry.charge.amount}
                         paymentMethods={paymentMethods}
                         insurers={insurers}
+                        procedureId={entry.procedureId}
                       />
                     ) : (
                       <span className="flex items-center gap-1.5 text-sm text-muted-foreground">

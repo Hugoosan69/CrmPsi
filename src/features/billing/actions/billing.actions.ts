@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { describeDbError } from "@/lib/db-errors"
 import { recordAudit } from "@/services/audit.service"
-import { insurerSchema } from "@/schemas/billing.schema"
+import { insurerSchema, parseProcedureIds } from "@/schemas/billing.schema"
 import {
   createInsurer,
   getInsurer,
@@ -28,16 +28,18 @@ export async function createInsurerAction(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
   }
 
+  const procedureIds = parseProcedureIds(formData.getAll("procedure_ids"))
+
   const supabase = await createClient()
   try {
-    const id = await createInsurer(supabase, membership.clinicId, parsed.data)
+    const id = await createInsurer(supabase, membership.clinicId, parsed.data, procedureIds)
     await recordAudit({
       clinicId: membership.clinicId,
       userId: membership.userId,
       action: "billing.insurer.create",
       entityType: "insurer",
       entityId: id,
-      after: parsed.data,
+      after: { ...parsed.data, procedureIds },
     })
     revalidatePath("/gestao/pacotes")
     return { success: true }
@@ -58,20 +60,24 @@ export async function updateInsurerAction(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
   }
 
+  const procedureIds = parseProcedureIds(formData.getAll("procedure_ids"))
+
   const supabase = await createClient()
   try {
     const antes = await getInsurer(supabase, membership.clinicId, id)
-    await updateInsurer(supabase, membership.clinicId, id, parsed.data)
+    await updateInsurer(supabase, membership.clinicId, id, parsed.data, procedureIds)
     await recordAudit({
       clinicId: membership.clinicId,
       userId: membership.userId,
       action: "billing.insurer.update",
       entityType: "insurer",
       entityId: id,
-      // O valor por guia muda o faturamento do mês: a trilha precisa dizer de quanto para
-      // quanto, e quem mudou.
-      before: antes ? { amount_per_guide: antes.amount_per_guide } : null,
-      after: parsed.data,
+      // O limite mensal decide quem passa a pagar do próprio bolso: a trilha precisa dizer
+      // de quanto para quanto, e quem mudou.
+      before: antes
+        ? { max_guides_per_patient_month: antes.max_guides_per_patient_month }
+        : null,
+      after: { ...parsed.data, procedureIds },
     })
     revalidatePath("/gestao/pacotes")
     return { success: true }

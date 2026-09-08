@@ -705,7 +705,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          amount?: number
+          amount?: number | null
           appointment_id?: string | null
           category?: string | null
           clinic_id?: string
@@ -3043,48 +3043,69 @@ export type Database = {
       insurers: {
         Row: {
           active: boolean
-          amount_per_guide: number
           clinic_id: string
           contact_email: string | null
           contact_name: string | null
           contact_phone: string | null
           created_at: string
           id: string
+          max_guides_per_patient_month: number | null
           name: string
           notes: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
-          amount_per_guide?: number
           clinic_id: string
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
           id?: string
+          max_guides_per_patient_month?: number | null
           name: string
           notes?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
-          amount_per_guide?: number
           clinic_id?: string
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
           id?: string
+          max_guides_per_patient_month?: number | null
           name?: string
           notes?: string | null
           updated_at?: string
         }
         Relationships: []
       }
+      insurer_procedures: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          insurer_id: string
+          procedure_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          insurer_id: string
+          procedure_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          insurer_id?: string
+          procedure_id?: string
+        }
+        Relationships: []
+      }
       service_guides: {
         Row: {
-          amount: number
+          amount: number | null
           appointment_id: string
           attachment_url: string | null
           batch_id: string | null
@@ -3102,7 +3123,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          amount: number
+          amount?: number | null
           appointment_id: string
           attachment_url?: string | null
           batch_id?: string | null
@@ -3144,6 +3165,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      insurer_guides_used_in_month: {
+        Args: {
+          p_clinic: string
+          p_insurer: string
+          p_patient: string
+          p_reference: string
+        }
+        Returns: number
+      }
       appointment_slot_problem: {
         Args: {
           p_clinic: string

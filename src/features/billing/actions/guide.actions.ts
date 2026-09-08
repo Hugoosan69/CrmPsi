@@ -11,6 +11,7 @@ import { insurerPaymentSchema } from "@/schemas/financial.schema"
 import {
   getInsurer,
   getGuideForAppointment,
+  guidesUsedInMonth,
   issueServiceGuide,
   markAppointmentAsInsured,
 } from "@/services/billing.service"
@@ -37,16 +38,20 @@ export type GuideActionState = { error?: string; success?: boolean }
  *
  * O que acontece, nesta ordem:
  *
- *  1. A guia é emitida com o valor que o convênio paga (cópia do cadastro).
- *  2. O atendimento passa a ser `convenio`, apontando QUAL.
- *  3. A cobrança do PACIENTE é reescrita: R$ 0,00 quando a guia cobre tudo, ou a diferença
- *     quando o procedimento custa mais do que o convênio paga.
- *  4. O recebimento do avulso, quando existe, é registrado normalmente.
+ *  1. O limite mensal do convênio é conferido para ESTE paciente. Estourado, para aqui.
+ *  2. A guia é emitida — sem valor: quanto o convênio paga só se sabe no acerto.
+ *  3. O atendimento passa a ser `convenio`, apontando QUAL.
+ *  4. A cobrança do PACIENTE vai a R$ 0,00, ou fica com o valor avulso quando a recepção
+ *     marcou que há cobrança por fora.
  *  5. Zerada ou paga, a cobrança satisfaz o gate e a fila libera.
  *
  * O passo 5 é o que faz isto funcionar sem tocar no trigger da migration 001: o paciente
  * não deve nada porque de fato não deve — quem deve é o convênio, e essa dívida vive na
  * guia, não na conta dele.
+ *
+ * O passo 1 é conferido AQUI mesmo tendo sido mostrado na tela. A tela informa; só o
+ * servidor decide. Duas recepcionistas atendendo o mesmo paciente veem, cada uma, um saldo
+ * calculado antes da outra gravar.
  */
 export async function registerInsurerGuideAction(
   transactionId: string,
@@ -89,6 +94,26 @@ export async function registerInsurerGuideAction(
     const insurer = await getInsurer(supabase, membership.clinicId, dados.insurer_id)
     if (!insurer) return { error: "Convênio não encontrado." }
 
+    // --- limite mensal de guias ------------------------------------------
+    // Bloqueia, e diz o número: "não pode" sem o porquê faz a recepção tentar de novo. Com
+    // a contagem à vista, quem está no balcão já sabe que a saída é cobrar como particular.
+    const limite = insurer.max_guides_per_patient_month
+    if (limite !== null && charge.patient_id) {
+      const referencia = new Date().toISOString().slice(0, 10)
+      const usadas = await guidesUsedInMonth(
+        supabase,
+        membership.clinicId,
+        charge.patient_id,
+        insurer.id,
+        referencia
+      )
+      if (usadas >= limite) {
+        return {
+          error: `Este paciente já usou ${usadas} de ${limite} guias do ${insurer.name} neste mês. Cobre como particular ou registre a guia no mês seguinte.`,
+        }
+      }
+    }
+
     // --- anexo (opcional) ------------------------------------------------
     const arquivo = formData.get("attachment")
     let attachmentPath: string | null = null
@@ -122,7 +147,6 @@ export async function registerInsurerGuideAction(
       appointmentId: charge.appointment_id,
       insurerId: insurer.id,
       guideNumber: dados.guide_number,
-      amount: Number(insurer.amount_per_guide),
       attachmentUrl: attachmentPath ?? (dados.attachment_url || null),
       createdBy: membership.userId,
     })
@@ -131,8 +155,13 @@ export async function registerInsurerGuideAction(
 
     // --- a cobrança do paciente ------------------------------------------
     const valorAvulso = dados.has_extra_charge ? dados.amount : 0
-    // O valor da cobrança do paciente passa a ser só a diferença — ou zero. A auditoria
-    // logo abaixo guarda de quanto para quanto, com o número da guia que motivou a troca.
+    // Com guia, o paciente não deve nada — quem deve é o convênio. O avulso existe para o
+    // caso em que a clínica combina uma cobrança por fora no mesmo atendimento; ele NÃO é
+    // mais uma diferença calculada, porque o convênio não declara mais quanto paga. Quem
+    // estourou o limite não chega aqui: é cobrado como particular, pelo preço do
+    // procedimento, no fluxo normal de pagamento.
+    //
+    // A auditoria logo abaixo guarda de quanto para quanto, com o número da guia.
     await updateTransactionAmount(supabase, membership.clinicId, transactionId, valorAvulso)
 
     if (valorAvulso > 0) {
@@ -165,7 +194,6 @@ export async function registerInsurerGuideAction(
       after: {
         insurer: insurer.name,
         guideNumber: dados.guide_number,
-        insurerAmount: Number(insurer.amount_per_guide),
         patientAmount: valorAvulso,
         hasAttachment: Boolean(attachmentPath),
       },

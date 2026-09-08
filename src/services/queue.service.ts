@@ -17,6 +17,11 @@ export type QueueEntryView = QueueEntryRow & {
   waitingMinutes: number
   /** Gating charge, when there is one — drives the "PAGAMENTO PENDENTE" card. */
   charge: { id: string; amount: number; status: FinancialTransactionStatus; description: string | null } | null
+  /**
+   * O procedimento do agendamento, quando a entrada veio de um. É o que decide quais
+   * convênios a tela de pagamento oferece (migration 032) — sem ele, todos.
+   */
+  procedureId: string | null
 }
 
 /**
@@ -49,6 +54,11 @@ async function hydrate(supabase: DB, entries: QueueEntryRow[]): Promise<QueueEnt
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
   ])
 
+  const appointmentIds = [...new Set(entries.map((e) => e.appointment_id).filter(Boolean))] as string[]
+  const { data: appointments } = appointmentIds.length > 0
+    ? await supabase.from("appointments").select("id, procedure_id").in("id", appointmentIds)
+    : { data: [] as { id: string; procedure_id: string | null }[] }
+
   const chargeIds = [...new Set(entries.map((e) => e.financial_transaction_id).filter(Boolean))] as string[]
   const { data: charges } = chargeIds.length > 0
     ? await supabase
@@ -61,6 +71,9 @@ async function hydrate(supabase: DB, entries: QueueEntryRow[]): Promise<QueueEnt
   const professionalById = new Map((professionals ?? []).map((p) => [p.id, p.full_name]))
   const specialtyById = new Map((specialties ?? []).map((s) => [s.id, s.name]))
   const chargeById = new Map((charges ?? []).map((c) => [c.id, c]))
+  const procedureByAppointment = new Map(
+    (appointments ?? []).map((a) => [a.id, a.procedure_id])
+  )
   const now = Date.now()
 
   return entries.map((entry) => {
@@ -79,6 +92,9 @@ async function hydrate(supabase: DB, entries: QueueEntryRow[]): Promise<QueueEnt
       ),
       charge: charge
         ? { id: charge.id, amount: Number(charge.amount), status: charge.status, description: charge.description }
+        : null,
+      procedureId: entry.appointment_id
+        ? procedureByAppointment.get(entry.appointment_id) ?? null
         : null,
     }
   })

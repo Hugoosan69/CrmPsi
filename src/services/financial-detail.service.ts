@@ -41,11 +41,12 @@ export type TransactionDetail = {
     /** O que a sessão deve lançar segundo o modo — para conferir com o valor real. */
     expectedAmount: number
   } | null
-  /** Guia de convênio deste atendimento — número, convênio e o que ele paga. */
+  /** Guia de convênio deste atendimento — número, convênio e situação. */
   guide: {
     guideNumber: string | null
     insurerName: string
-    amount: number
+    /** Só as guias emitidas antes da migration 032 têm valor. */
+    amount: number | null
     status: string
     attachmentUrl: string | null
   } | null

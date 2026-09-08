@@ -14,17 +14,17 @@ import {
 } from "@/components/ui/dialog"
 import { useCloseOnSuccess } from "@/hooks/use-close-on-success"
 import { useDialogOpen, type DialogOpenProps } from "@/hooks/use-dialog-open"
-import type { Insurer } from "@/services/billing.service"
+import type { InsurerView } from "@/services/billing.service"
 import {
   createInsurerAction,
   updateInsurerAction,
   type BillingActionState,
 } from "../actions/billing.actions"
-import { InsurerFormFields } from "./insurer-form-fields"
+import { InsurerFormFields, type ProcedureOption } from "./insurer-form-fields"
 
 const initialState: BillingActionState = {}
 
-export function CreateInsurerDialog() {
+export function CreateInsurerDialog({ procedures }: { procedures: ProcedureOption[] }) {
   const [open, setOpen] = useState(false)
   const [state, formAction, isPending] = useActionState(createInsurerAction, initialState)
   useCloseOnSuccess(state, Boolean(state.success), () => setOpen(false))
@@ -45,7 +45,7 @@ export function CreateInsurerDialog() {
           <DialogHeader>
             <DialogTitle>Novo convênio</DialogTitle>
           </DialogHeader>
-          <InsurerFormFields />
+          <InsurerFormFields procedures={procedures} />
           {state.error && (
             <p
               className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -67,8 +67,9 @@ export function CreateInsurerDialog() {
 
 export function EditInsurerDialog({
   insurer,
+  procedures,
   ...dialogProps
-}: { insurer: Insurer } & DialogOpenProps) {
+}: { insurer: InsurerView; procedures: ProcedureOption[] } & DialogOpenProps) {
   const [open, setOpen] = useDialogOpen(dialogProps)
   const [state, formAction, isPending] = useActionState(
     updateInsurerAction.bind(null, insurer.id),
@@ -93,7 +94,11 @@ export function EditInsurerDialog({
           <DialogHeader>
             <DialogTitle>Editar {insurer.name}</DialogTitle>
           </DialogHeader>
-          <InsurerFormFields insurer={insurer} />
+          <InsurerFormFields
+            insurer={insurer}
+            procedures={procedures}
+            selectedProcedureIds={insurer.procedureIds}
+          />
           {state.error && (
             <p
               className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"

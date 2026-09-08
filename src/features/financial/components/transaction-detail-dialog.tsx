@@ -209,15 +209,19 @@ function DetailBody({ detail }: { detail: TransactionDetail }) {
             <Row label="Número da guia">
               <span className="tabular-nums">{detail.guide.guideNumber ?? "—"}</span>
             </Row>
-            <Row label="O convênio paga">
-              <span className="tabular-nums">{formatCurrency(detail.guide.amount)}</span>
-            </Row>
+            {/* Só as guias anteriores à migration 032 têm valor: o convênio deixou de
+                declarar quanto paga, porque isso só se sabe no acerto. */}
+            {detail.guide.amount !== null && (
+              <Row label="Valor combinado na emissão">
+                <span className="tabular-nums">{formatCurrency(detail.guide.amount)}</span>
+              </Row>
+            )}
             <Row label="Situação da guia">{GUIDE_STATUS[detail.guide.status] ?? detail.guide.status}</Row>
           </div>
           {detail.amount === 0 && (
             <p className="text-[0.78rem] text-muted-foreground">
-              R$ 0,00 para o paciente é o esperado: a guia cobre o atendimento inteiro. O
-              valor acima é o que o convênio deve, e entra no protocolo do mês.
+              R$ 0,00 para o paciente é o esperado: quem deve por este atendimento é o
+              convênio, e a guia entra no protocolo do mês.
             </p>
           )}
         </Section>
