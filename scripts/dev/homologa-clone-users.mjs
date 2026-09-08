@@ -7,7 +7,7 @@
 // tabela, para não duplicar a inserção do profile.
 //
 // Requer .env.homologa.local (gitignored) com:
-//   NEXT_PUBLIC_SUPABASE_URL=https://hlaqagoxkwqrwaoubhpg.supabase.co
+//   NEXT_PUBLIC_SUPABASE_URL=<url do projeto de homologacao>
 //   SUPABASE_SERVICE_ROLE_KEY=<service_role secret do painel do projeto de homologação>
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 

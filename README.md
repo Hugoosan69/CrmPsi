@@ -79,7 +79,3 @@ Depois do MVP, entraram em produção:
 O fluxo ponta a ponta do item 35 do briefing (cadastrar → agendar → chegada → check-in →
 fila → chamada → atendimento com cronômetro → CID → prescrição/atestado → finalizar →
 pagamento) está todo implementado. `npm run build` e `npm run lint` estão limpos.
-
-## Ambientes
-
-
