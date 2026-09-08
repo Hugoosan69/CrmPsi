@@ -82,16 +82,4 @@ pagamento) está todo implementado. `npm run build` e `npm run lint` estão limp
 
 ## Ambientes
 
-Dois projetos Supabase: **produção** (`xyibvthdlbhnuwqvwfsj`) e **homologação**
-(`hlaqagoxkwqrwaoubhpg`). O deploy é na Vercel (projeto `crm-psi`), a partir de `main`,
-servindo <https://csibrasilia.club>.
 
-As migrations de `database/migrations/` são aplicadas **à mão, em ordem numérica**, e
-homologação costuma estar à frente da produção. Subir código que depende de uma migration
-ainda não aplicada derruba a tela correspondente — já aconteceu com a agenda, quando o
-enum `triagem` existia só em homologação. Confira antes de cada subida.
-
-Variáveis de ambiente: ver `.env.example`. As de teleconsulta e pagamento são de nível de
-deploy (Vercel › Settings › Environment Variables) e **nunca** levam prefixo
-`NEXT_PUBLIC_`. Variável nova só passa a valer no próximo build — depois de salvar,
-redeploy.
