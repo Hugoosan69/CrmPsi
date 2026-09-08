@@ -156,9 +156,31 @@ um seletor de clínica quando houver mais de uma (SaaS futuro) sem mudança de s
 `settings.manage`, `audit.view`, …). Papéis iniciais: `owner`, `admin`, `receptionist`,
 `professional`, `financial` (seed em `database/99_seed/seed.sql`).
 
+**Duas espécies de permissão, e confundi-las é o erro** (migration 031). A maioria diz o
+que a pessoa PODE FAZER. Três dizem ONDE ela trabalha — `reception.access`,
+`professional.access`, `management.access` (módulo `areas`) — e não autorizam ação nenhuma.
+
+Elas existem porque a capacidade não consegue responder "esta pessoa trabalha no balcão?".
+O profissional precisa de `patients.view` para abrir a ficha de quem vai atender, de
+`agenda.view` para a própria agenda e de `queue.manage` para chamar o próximo da própria
+fila — as mesmas três da recepção. Enquanto o menu foi filtrado só por capacidade, ele
+enxergou o balcão inteiro, e não havia como corrigir isso tirando permissão sem quebrar o
+atendimento.
+
+A regra de uso, que é onde se erra:
+
+- **Página e menu** exigem ÁREA + CAPACIDADE (`requireAreaAccess`, `visibleNavSections`).
+- **Server Action** exige só a CAPACIDADE. Chamar o próximo paciente é a mesma ação venha
+  do balcão ou do consultório; exigir a área ali quebraria a fila do profissional, que é
+  exatamente o que a separação existe para preservar.
+
+O mesmo par guarda os blocos do Painel. Não é enfeite: sem a área, um cartão continuaria
+oferecendo um atalho para uma tela que a pessoa não abre mais.
+
 Checagem em três pontos, nunca menos que os dois primeiros:
-1. **Middleware/layout de rota**: bloqueia navegação para `/gestao/**`, `/recepcao/**`,
-   `/profissional/**` conforme o papel — evita flash de conteúdo indevido.
+1. **Página**: `requireAreaAccess` em `/gestao/**`, `/recepcao/**` e `/profissional/**`.
+   Esconder o item de menu nunca foi a proteção — a rota digitada à mão precisa recusar, e
+   é ela que recusa.
 2. **Server Action**: revalida `has_permission(clinicId, slug)` antes de qualquer mutação,
    independente do que a UI permitiu chegar até ali.
 3. **RLS**: garante isolamento por clínica como rede de segurança final (ver

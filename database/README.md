@@ -132,6 +132,37 @@ Aplicadas em produção em 2026-09-06, junto com a subida da teleconsulta. A 024
 necessária lá: produção nunca chegou a ter a função duplicada, conferido em `pg_proc`
 antes de aplicar.
 
+## Convênios: o que o cadastro sabe e o que ele não sabe
+
+| Migration | Adiciona |
+|---|---|
+| `031_area_access.sql` | `reception.access`, `professional.access`, `management.access` (módulo `areas`). Não autorizam ação nenhuma — dizem em que parte do sistema a pessoa trabalha. Existem porque a capacidade não respondia "trabalha no balcão?": o profissional precisa de `patients.view`, `agenda.view` e `queue.manage` iguais às da recepção, para atender a própria fila, e enquanto o menu foi filtrado por capacidade ele enxergou o balcão inteiro. Página e menu exigem área + capacidade; Server Action exige só a capacidade |
+| `032_insurer_limits_and_procedures.sql` | Tira `insurers.amount_per_guide`, põe `max_guides_per_patient_month` (NULL = sem limite) e cria `insurer_procedures`. Mais `insurer_guides_used_in_month()`, a contagem que sustenta o bloqueio |
+
+O convênio **não sabe quanto paga**, e é deliberado: só se sabe no acerto, e é o que
+`service_guides.paid_amount` sempre guardou. Com um valor no cadastro, a tela de pagamento
+fazia "procedimento − valor da guia = sobra para o paciente" e sugeria o resultado como
+cobrança — um número que ninguém conferia contra o extrato do convênio. Sem guia
+disponível, o atendimento é cobrado pelo preço cheio do procedimento, como qualquer
+particular.
+
+`service_guides.amount` ficou nulável em vez de ser apagada: as guias emitidas antes da 032
+têm valor, e ele continua no detalhe do lançamento rotulado como o que é — o combinado na
+emissão, não o que entrou.
+
+Duas armadilhas do limite mensal, se alguém for reescrevê-lo:
+
+- **Guia cancelada não conta.** Foi emitida por engano e desfeita; incluí-la gastaria uma
+  guia que o convênio nunca viu.
+- **A contagem que vale é a do servidor.** A tela mostra o teto configurado, não o saldo:
+  buscar a contagem ao abrir o modal exibiria um número que a outra pessoa no balcão pode
+  invalidar no meio. Quem bloqueia é a Server Action, e a mensagem de erro carrega o número
+  contado no instante de gravar.
+
+Procedimento **sem nenhuma linha** em `insurer_procedures` aceita qualquer convênio.
+Ausência de vínculo é "ainda não configurado", não "proibido" — o contrário fecharia o
+convênio para todo procedimento no dia em que a tabela nasceu vazia.
+
 ## Vínculo de sessão de pacote: as duas pontas importam
 
 `patient_package_sessions.appointment_id` e `appointments.patient_package_session_id` são
