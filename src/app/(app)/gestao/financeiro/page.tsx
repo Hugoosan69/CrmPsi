@@ -1,4 +1,4 @@
-import { hasPermission, requirePermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { parsePagination } from "@/config/pagination"
@@ -49,7 +49,7 @@ export default async function GestaoFinanceiroPage({
     formaPagamento?: string
   }>
 }) {
-  const membership = await requirePermission(PERMISSIONS.FINANCIAL_VIEW)
+  const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, PERMISSIONS.FINANCIAL_VIEW)
   const canManage = hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
   const canEditAmount = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_AMOUNT)
   const canEditPaid = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)

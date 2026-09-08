@@ -2,7 +2,7 @@ import { requireMembership, hasPermission } from "@/lib/auth/session"
 import { isSupabaseConfigured } from "@/lib/supabase/env"
 import { ConfigurationRequired } from "@/components/shared/configuration-required"
 import { AppShell } from "@/components/layout/app-shell"
-import { NAV_SECTIONS, navItemVisible } from "@/config/navigation"
+import { visibleNavSections } from "@/config/navigation"
 import { PERMISSIONS } from "@/config/permissions"
 import { createClient } from "@/lib/supabase/server"
 import { getPublicBranding } from "@/services/clinic-settings.service"
@@ -20,12 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // sidebar cai no SVG embutido — a navegação nunca depende de a logo carregar.
   const branding = await getPublicBranding(await createClient())
 
-  const sections = NAV_SECTIONS.map((section) => ({
-    title: section.title,
-    items: section.items.filter((item) =>
-      navItemVisible(item, (slug) => hasPermission(membership, slug))
-    ),
-  }))
+  const sections = visibleNavSections((slug) => hasPermission(membership, slug))
 
   return (
     <AppShell
@@ -35,13 +30,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       fullName={membership.fullName}
       avatarUrl={membership.avatarUrl}
       roleName={membership.roleName}
-      // Mesmo critério do aviso no servidor: operar a fila E o caixa é o que caracteriza o
-      // balcão. Só `queue.manage` incluiria os profissionais, e cada um ouviria o toque
-      // quando um colega chamasse um paciente.
-      isFrontDesk={
-        hasPermission(membership, PERMISSIONS.QUEUE_MANAGE) &&
-        hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
-      }
+      // Quem ouve o toque de chamada é quem está no balcão — agora dito por uma permissão
+      // em vez de deduzido de duas. Era `queue.manage && financial.manage`, uma aproximação
+      // que existia só porque não havia como perguntar diretamente: `queue.manage` sozinha
+      // incluiria os profissionais, e cada um ouviria o toque quando um colega chamasse um
+      // paciente. A área responde a pergunta que aquele AND tentava responder.
+      isFrontDesk={hasPermission(membership, PERMISSIONS.RECEPTION_ACCESS)}
     >
       {children}
     </AppShell>

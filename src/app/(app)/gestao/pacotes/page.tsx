@@ -1,4 +1,4 @@
-import { hasPermission, requireAnyPermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { listSessionPackages } from "@/services/packages.service"
@@ -19,7 +19,7 @@ import { CreateInsurerDialog } from "@/features/billing/components/insurer-dialo
  * lembrar em qual delas está o que se procura.
  */
 export default async function PacotesEConveniosPage() {
-  const membership = await requireAnyPermission([
+  const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, [
     PERMISSIONS.PACKAGES_MANAGE,
     PERMISSIONS.BILLING_MANAGE,
   ])

@@ -186,26 +186,22 @@ export async function profileIdsWithPermission(
 /**
  * Quem está no balcão da recepção.
  *
- * "Recepção" não é um papel neste modelo — é uma função, e `queue.manage` sozinha não a
- * identifica: o profissional TAMBÉM opera a fila (é ele quem chama o paciente). Endereçar o
- * aviso de chamada por `queue.manage` faria cada médico ouvir o toque quando um colega
- * chamasse alguém, o que é exatamente o ruído que faz as pessoas ignorarem alertas.
+ * Uma permissão só, desde a migration 031. Antes era a interseção de `queue.manage` com
+ * `financial.manage`, e a razão está registrada porque a armadilha continua real: "recepção"
+ * não era um conceito no modelo, e `queue.manage` sozinha não servia — o profissional
+ * TAMBÉM opera a fila, é ele quem chama o paciente. Endereçar o aviso por ela fazia cada
+ * profissional ouvir o toque quando um colega chamasse alguém, que é o ruído que ensina as
+ * pessoas a ignorar alerta.
  *
- * O que separa o balcão da equipe clínica é o caixa: quem atende no balcão opera a fila E
- * recebe o pagamento. Proprietário, administrador e recepcionista têm as duas; o
- * profissional tem só a fila, e o papel financeiro só o caixa.
+ * `reception.access` responde diretamente o que aquela interseção aproximava, e de quebra
+ * passa a valer para o papel Financeiro, que operava caixa sem fila e ficava de fora.
  *
- * A interseção é feita sobre as duas listas justamente para respeitar exceção por pessoa —
- * quem recebeu ou perdeu uma das duas permissões individualmente entra ou sai do aviso junto.
+ * Continua lendo permissão efetiva (papel + exceção por pessoa): quem recebeu ou perdeu a
+ * área individualmente entra ou sai do aviso junto.
  */
 export async function frontDeskProfileIds(
   supabase: DB,
   clinicId: string
 ): Promise<string[]> {
-  const [naFila, noCaixa] = await Promise.all([
-    profileIdsWithPermission(supabase, clinicId, "queue.manage"),
-    profileIdsWithPermission(supabase, clinicId, "financial.manage"),
-  ])
-  const caixa = new Set(noCaixa)
-  return naFila.filter((id) => caixa.has(id))
+  return profileIdsWithPermission(supabase, clinicId, "reception.access")
 }

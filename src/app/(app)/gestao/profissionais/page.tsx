@@ -1,4 +1,4 @@
-import { hasPermission, requireAnyPermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { parsePagination } from "@/config/pagination"
@@ -48,7 +48,7 @@ export default async function ProfessionalsPage({
 }: {
   searchParams: Promise<{ aba?: string; pagina?: string; por?: string }>
 }) {
-  const membership = await requireAnyPermission([
+  const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, [
     PERMISSIONS.PROFESSIONALS_MANAGE,
     PERMISSIONS.AGENDA_CONFIGURE,
   ])

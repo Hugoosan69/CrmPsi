@@ -17,6 +17,18 @@ export type NavItem = {
 export type NavSection = {
   title: string
   items: NavItem[]
+  /**
+   * A área de trabalho a que esta seção pertence (migration 031). Sem ela a seção inteira
+   * some, por mais capacidades que a pessoa tenha.
+   *
+   * Existe porque capacidade e lugar são perguntas diferentes: o profissional precisa de
+   * `patients.view`, `agenda.view` e `queue.manage` para atender a própria fila, e era
+   * essa coincidência que colocava o balcão inteiro no menu dele.
+   *
+   * `null` em Geral: o Painel é de todo mundo — o que ele MOSTRA é que varia, e isso é
+   * decidido lá dentro, indicador por indicador.
+   */
+  area: string | null
 }
 
 /**
@@ -36,6 +48,30 @@ export function navItemVisible(
   return exigidas.some(has)
 }
 
+/** A seção aparece? A área é um AND sobre os itens, não um atalho para eles. */
+export function navSectionVisible(
+  section: NavSection,
+  has: (slug: string) => boolean
+): boolean {
+  if (section.area !== null && !has(section.area)) return false
+  return section.items.some((item) => navItemVisible(item, has))
+}
+
+/**
+ * O menu de uma pessoa: seções cujas áreas ela tem, com os itens que ela pode abrir.
+ *
+ * É a ÚNICA forma de percorrer `NAV_SECTIONS` filtrando — o layout e a busca faziam o
+ * filtro cada um por si, e o comentário acima registra o preço que essa duplicação já
+ * cobrou uma vez. Com a área entrando na conta, repeti-la seria a mesma armadilha: a busca
+ * continuaria oferecendo, e abrindo, as telas do balcão para o profissional.
+ */
+export function visibleNavSections(has: (slug: string) => boolean): NavSection[] {
+  return NAV_SECTIONS.filter((section) => navSectionVisible(section, has)).map((section) => ({
+    ...section,
+    items: section.items.filter((item) => navItemVisible(item, has)),
+  }))
+}
+
 /**
  * One list per operating area (docs/ARCHITECTURE.md §7). A user only sees the sections
  * relevant to their permissions — filtered in AppSidebar, never assumed from role alone,
@@ -44,10 +80,12 @@ export function navItemVisible(
 export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Geral",
+    area: null,
     items: [{ href: "/dashboard", label: "Painel", permission: null }],
   },
   {
     title: "Recepção",
+    area: PERMISSIONS.RECEPTION_ACCESS,
     items: [
       { href: "/recepcao/pacientes", label: "Pacientes", permission: PERMISSIONS.PATIENTS_VIEW },
       { href: "/recepcao/agenda", label: "Agenda", permission: PERMISSIONS.AGENDA_VIEW },
@@ -57,6 +95,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: "Profissional",
+    area: PERMISSIONS.PROFESSIONAL_ACCESS,
     items: [
       { href: "/profissional/agenda", label: "Minha agenda", permission: PERMISSIONS.SERVICE_MANAGE },
       { href: "/profissional/fila", label: "Minha fila", permission: PERMISSIONS.SERVICE_MANAGE },
@@ -69,6 +108,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: "Gestão",
+    area: PERMISSIONS.MANAGEMENT_ACCESS,
     items: [
       { href: "/gestao/financeiro", label: "Financeiro", permission: PERMISSIONS.FINANCIAL_VIEW },
       // Não é tela financeira: cruza fila, agenda, pacotes e cadastro. `audit.view` já é a

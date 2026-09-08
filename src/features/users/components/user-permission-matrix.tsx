@@ -19,6 +19,7 @@ import type { EffectivePermission, OverrideState } from "@/services/permissions.
 import { setUserPermissionAction } from "../actions/user.actions"
 
 const MODULE_LABELS: Record<string, string> = {
+  areas: "Áreas de trabalho",
   agenda: "Agenda",
   patients: "Pacientes",
   queue: "Fila",
@@ -110,6 +111,13 @@ export function UserPermissionMatrix({
     return acc
   }, {})
 
+  // `areas` primeiro, e não em ordem alfabética: é a permissão que decide se as outras
+  // chegam a importar. Alguém com todas as capacidades do balcão e sem `reception.access`
+  // não vê o balcão, e quem estiver depurando isso precisa topar com a área antes.
+  const gruposOrdenados = Object.entries(grouped).sort(([a], [b]) =>
+    a === "areas" ? -1 : b === "areas" ? 1 : 0
+  )
+
   return (
     <div className="grid gap-5">
       <div className="grid max-w-sm gap-1.5">
@@ -148,7 +156,7 @@ export function UserPermissionMatrix({
             afetada.
           </p>
 
-          {Object.entries(grouped).map(([module, items]) => (
+          {gruposOrdenados.map(([module, items]) => (
             <div key={module} className="grid gap-2">
               <h3 className="text-[0.78rem] font-semibold tracking-wide text-muted-foreground uppercase">
                 {MODULE_LABELS[module] ?? module}

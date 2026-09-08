@@ -1,4 +1,4 @@
-import { hasPermission, requirePermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { listPaymentMethods, listTransactions } from "@/services/financial.service"
@@ -13,7 +13,7 @@ export default async function RecepcaoFinanceiroPage({
 }: {
   searchParams: Promise<{ pagina?: string; por?: string }>
 }) {
-  const membership = await requirePermission(PERMISSIONS.FINANCIAL_VIEW)
+  const membership = await requireAreaAccess(PERMISSIONS.RECEPTION_ACCESS, PERMISSIONS.FINANCIAL_VIEW)
   const canManage = hasPermission(membership, PERMISSIONS.FINANCIAL_MANAGE)
   const canEditAmount = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_AMOUNT)
   const canEditPaid = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)

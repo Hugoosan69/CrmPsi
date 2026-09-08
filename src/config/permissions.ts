@@ -58,6 +58,23 @@ export const PERMISSIONS = {
   // de catálogo clínico: quem cadastra procedimento não decide com quem a clínica fatura.
   BILLING_VIEW: "billing.view",
   BILLING_MANAGE: "billing.manage",
+
+  /**
+   * migration 031 — ONDE a pessoa trabalha, e não o que ela pode fazer.
+   *
+   * Nenhuma das três autoriza ação alguma: elas decidem que áreas do sistema aparecem no
+   * menu e quais rotas abrem. Existem porque a pergunta "esta pessoa trabalha no balcão?"
+   * não tem resposta no conjunto de capacidades — o profissional precisa de
+   * `patients.view`, `agenda.view` e `queue.manage` exatamente como a recepção, para
+   * atender a própria fila, e era por isso que ele enxergava as telas do balcão.
+   *
+   * Regra ao usar: rota e menu exigem ÁREA + CAPACIDADE; Server Action exige só a
+   * capacidade. Chamar o próximo paciente é a mesma ação venha do balcão ou do consultório,
+   * e duplicar a checagem na action só criaria um segundo lugar para errar.
+   */
+  RECEPTION_ACCESS: "reception.access",
+  PROFESSIONAL_ACCESS: "professional.access",
+  MANAGEMENT_ACCESS: "management.access",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

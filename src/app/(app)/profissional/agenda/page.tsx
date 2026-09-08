@@ -1,6 +1,6 @@
 import Link from "next/link"
 
-import { hasPermission, requirePermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { getAgendaStatusColors } from "@/services/clinic-settings.service"
 import { PERMISSIONS } from "@/config/permissions"
@@ -37,7 +37,7 @@ export default async function ProfissionalAgendaPage({
 }: {
   searchParams: Promise<{ data?: string; vista?: string }>
 }) {
-  const membership = await requirePermission(PERMISSIONS.SERVICE_MANAGE)
+  const membership = await requireAreaAccess(PERMISSIONS.PROFESSIONAL_ACCESS, PERMISSIONS.SERVICE_MANAGE)
   // A professional can open the modal to read the booking; acting on it needs
   // agenda.manage, which the seeded `professional` role does not have.
   const canManageAgenda = hasPermission(membership, PERMISSIONS.AGENDA_MANAGE)

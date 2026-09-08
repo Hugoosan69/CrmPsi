@@ -1,4 +1,4 @@
-import { hasPermission, requirePermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import {
@@ -16,7 +16,7 @@ import { WahaSettings } from "@/features/settings/components/waha-settings"
 import { TelehealthUsagePanel } from "@/features/telehealth/components/telehealth-usage-panel"
 
 export default async function ConfiguracoesPage() {
-  const membership = await requirePermission(PERMISSIONS.SETTINGS_MANAGE)
+  const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, PERMISSIONS.SETTINGS_MANAGE)
   const supabase = await createClient()
 
   // Integrações exigem permissão própria, acima de administrador: quem as configura

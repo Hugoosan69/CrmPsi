@@ -43,7 +43,14 @@ insert into permissions (slug, module, description) values
   ('telehealth.view', 'telehealth', 'Ver teleconsultas e o histórico da chamada'),
   ('telehealth.manage', 'telehealth', 'Abrir teleconsulta, convidar o paciente e encerrar'),
   ('billing.view', 'billing', 'Ver convênios, guias e protocolos'),
-  ('billing.manage', 'billing', 'Cadastrar convênios, emitir guias e fechar protocolos');
+  ('billing.manage', 'billing', 'Cadastrar convênios, emitir guias e fechar protocolos'),
+  -- Áreas de trabalho (migration 031). Não autorizam ação nenhuma: dizem em que parte do
+  -- sistema a pessoa trabalha, e é o que separa o menu do balcão do menu do consultório.
+  -- O profissional precisa de patients.view, agenda.view e queue.manage exatamente como a
+  -- recepção — para atender a própria fila —, e era essa coincidência que lhe dava o balcão.
+  ('reception.access', 'areas', 'Trabalhar na recepção (balcão): pacientes, agenda, fila e caixa'),
+  ('professional.access', 'areas', 'Trabalhar como profissional: minha agenda, minha fila e atendimentos'),
+  ('management.access', 'areas', 'Ver a área de gestão e os indicadores gerenciais da clínica');
 
 insert into role_permissions (role_id, permission_id)
 -- Proprietário: tudo, integrações inclusive.
@@ -56,13 +63,13 @@ select '00000000-0000-0000-0000-000000000011', id from permissions
   where slug <> 'integrations.manage'
 union all
 select '00000000-0000-0000-0000-000000000012', id from permissions where slug in
-  ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.edit_amount', 'financial.edit_paid', 'telehealth.view', 'telehealth.manage', 'billing.view', 'billing.manage')
+  ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.edit_amount', 'financial.edit_paid', 'telehealth.view', 'telehealth.manage', 'billing.view', 'billing.manage', 'reception.access')
 union all
 select '00000000-0000-0000-0000-000000000013', id from permissions where slug in
-  ('patients.view', 'agenda.view', 'queue.manage', 'service.manage', 'records.view', 'documents.issue', 'packages.view', 'financial.view_own', 'telehealth.view', 'telehealth.manage', 'billing.view')
+  ('patients.view', 'agenda.view', 'queue.manage', 'service.manage', 'records.view', 'documents.issue', 'packages.view', 'financial.view_own', 'telehealth.view', 'telehealth.manage', 'billing.view', 'professional.access')
 union all
 select '00000000-0000-0000-0000-000000000014', id from permissions where slug in
-  ('financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.view_own', 'financial.edit_amount', 'financial.edit_paid', 'billing.view', 'billing.manage');
+  ('financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.view_own', 'financial.edit_amount', 'financial.edit_paid', 'billing.view', 'billing.manage', 'reception.access', 'management.access');
 
 insert into specialties (clinic_id, name) values
   ('00000000-0000-0000-0000-000000000001', 'Clínica Geral'),

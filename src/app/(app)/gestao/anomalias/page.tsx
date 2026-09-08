@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { requirePermission } from "@/lib/auth/session"
+import { requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import {
@@ -165,7 +165,7 @@ function AnomalySection({ group }: { group: AnomalyGroup }) {
 export default async function ProcessAnomaliesPage() {
   // Não é uma tela financeira: ela cruza fila, agenda, pacotes e cadastro. `audit.view` é a
   // permissão que já significa "pode olhar o que o sistema registrou sobre si mesmo".
-  const membership = await requirePermission(PERMISSIONS.AUDIT_VIEW)
+  const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, PERMISSIONS.AUDIT_VIEW)
   const supabase = await createClient()
   const scan = await scanAnomalies(supabase, membership.clinicId)
 

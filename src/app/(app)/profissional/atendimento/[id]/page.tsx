@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
-import { hasPermission, requirePermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { getProfessionalByUserId } from "@/services/professionals.service"
@@ -36,7 +36,7 @@ import { formatDate } from "@/utils/datetime"
  * patient facts pinned on the right. No modals for clinical content, no navigating away.
  */
 export default async function AtendimentoPage({ params }: { params: Promise<{ id: string }> }) {
-  const membership = await requirePermission(PERMISSIONS.SERVICE_MANAGE)
+  const membership = await requireAreaAccess(PERMISSIONS.PROFESSIONAL_ACCESS, PERMISSIONS.SERVICE_MANAGE)
   const { id: queueEntryId } = await params
 
   const supabase = await createClient()

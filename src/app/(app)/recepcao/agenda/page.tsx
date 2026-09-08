@@ -1,4 +1,4 @@
-import { hasPermission, requirePermission } from "@/lib/auth/session"
+import { hasPermission, requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { getAgendaStatusColors } from "@/services/clinic-settings.service"
 import { PERMISSIONS } from "@/config/permissions"
@@ -32,7 +32,7 @@ export default async function RecepcaoAgendaPage({
 }: {
   searchParams: Promise<{ data?: string; vista?: string; profissional?: string }>
 }) {
-  const membership = await requirePermission(PERMISSIONS.AGENDA_VIEW)
+  const membership = await requireAreaAccess(PERMISSIONS.RECEPTION_ACCESS, PERMISSIONS.AGENDA_VIEW)
   const { data, vista, profissional } = await searchParams
   const today = todaySaoPauloDate()
   const date = data || today

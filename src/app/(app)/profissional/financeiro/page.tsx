@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth/session"
+import { requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { parsePagination } from "@/config/pagination"
@@ -24,7 +24,7 @@ export default async function ProfessionalFinancialPage({
 }: {
   searchParams: Promise<{ pagina?: string; por?: string; de?: string; ate?: string }>
 }) {
-  const membership = await requirePermission(PERMISSIONS.FINANCIAL_VIEW_OWN)
+  const membership = await requireAreaAccess(PERMISSIONS.PROFESSIONAL_ACCESS, PERMISSIONS.FINANCIAL_VIEW_OWN)
   const supabase = await createClient()
 
   const professional = await getProfessionalByUserId(supabase, membership.clinicId, membership.userId)

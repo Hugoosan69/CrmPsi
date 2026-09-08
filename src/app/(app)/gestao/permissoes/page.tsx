@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth/session"
+import { requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { listClinicMembers } from "@/services/users.service"
@@ -12,7 +12,7 @@ export default async function PermissionsPage({
 }: {
   searchParams: Promise<{ usuario?: string }>
 }) {
-  const membership = await requirePermission(PERMISSIONS.USERS_MANAGE)
+  const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, PERMISSIONS.USERS_MANAGE)
   const { usuario } = await searchParams
   const supabase = await createClient()
 

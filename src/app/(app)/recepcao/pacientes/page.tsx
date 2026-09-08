@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 
-import { requirePermission } from "@/lib/auth/session"
+import { requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import {
@@ -42,7 +42,7 @@ function parseSort(value?: string): PatientSort {
 }
 
 async function PatientsList({ busca, pagina, por, status, pacote, contato, ordem }: SearchParams) {
-  const membership = await requirePermission(PERMISSIONS.PATIENTS_VIEW)
+  const membership = await requireAreaAccess(PERMISSIONS.RECEPTION_ACCESS, PERMISSIONS.PATIENTS_VIEW)
   const supabase = await createClient()
 
   const { page, pageSize, offset, rangeEnd } = parsePagination({ page: pagina, pageSize: por })

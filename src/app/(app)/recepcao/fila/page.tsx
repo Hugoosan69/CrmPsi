@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth/session"
+import { requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { listProfessionals, listSpecialties } from "@/services/professionals.service"
@@ -10,7 +10,7 @@ import { QueueList } from "@/features/queue/components/queue-list"
 import { AddToQueueDialog } from "@/features/queue/components/add-to-queue-dialog"
 
 export default async function RecepcaoFilaPage() {
-  const membership = await requirePermission(PERMISSIONS.QUEUE_MANAGE)
+  const membership = await requireAreaAccess(PERMISSIONS.RECEPTION_ACCESS, PERMISSIONS.QUEUE_MANAGE)
   const supabase = await createClient()
   const [professionals, specialties, procedures, paymentMethods, insurers] = await Promise.all([
     listProfessionals(supabase, membership.clinicId),

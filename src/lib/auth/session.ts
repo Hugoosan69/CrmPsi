@@ -125,18 +125,27 @@ export async function requirePermission(slug: string): Promise<CurrentMembership
 }
 
 /**
- * Libera a tela para quem tiver QUALQUER uma das permissões — para páginas que reúnem
- * assuntos de donos diferentes.
+ * Guarda de PÁGINA para as telas que pertencem a uma área de trabalho (migration 031):
+ * exige a área E pelo menos uma das capacidades.
  *
- * O caso é a tela de profissionais, que passou a abrigar também a configuração da agenda:
- * quem cuida da equipe tem `professionals.manage` e quem define horários tem
- * `agenda.configure`, e exigir as duas tiraria acesso de quem tinha uma. Cada aba continua
- * conferindo a sua, e as Server Actions por trás delas também — esta função só decide se a
- * pessoa vê a página.
+ * As duas condições respondem perguntas diferentes e por isso são um AND. `queue.manage`
+ * diz que a pessoa sabe e pode chamar um paciente; `reception.access` diz que ela trabalha
+ * no balcão. O profissional tem a primeira — precisa dela para a própria fila — e é a
+ * segunda que o mantém fora de `/recepcao/fila`.
+ *
+ * Só para páginas. Server Action continua em `requirePermission` com a capacidade: chamar o
+ * próximo paciente é a mesma ação venha do balcão ou do consultório, e exigir a área ali
+ * quebraria a fila do profissional — que é exatamente o que não se quer.
  */
-export async function requireAnyPermission(slugs: string[]): Promise<CurrentMembership> {
+export async function requireAreaAccess(
+  area: string,
+  capabilities: string | string[]
+): Promise<CurrentMembership> {
   const membership = await requireMembership()
-  if (!slugs.some((slug) => hasPermission(membership, slug))) {
+  const exigidas = Array.isArray(capabilities) ? capabilities : [capabilities]
+  const podeEntrar =
+    hasPermission(membership, area) && exigidas.some((slug) => hasPermission(membership, slug))
+  if (!podeEntrar) {
     redirect("/dashboard?error=forbidden")
   }
   return membership

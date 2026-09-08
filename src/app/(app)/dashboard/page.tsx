@@ -85,17 +85,32 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const today = todaySaoPauloDate()
 
-  const canSeePatients = hasPermission(membership, PERMISSIONS.PATIENTS_VIEW)
+  // O painel é a única tela que todo mundo abre, e por isso é onde vazamento de informação
+  // gerencial aparece primeiro: até a migration 031 o bloco "Cadastros" era incondicional e
+  // o bloco "Gestão" bastava ter `financial.view` — que a recepção precisa ter para fechar
+  // cobrança no balcão. Resultado: quem atendia o balcão via faturamento, despesa e
+  // resultado do mês da clínica.
+  //
+  // Agora cada bloco exige a ÁREA além da capacidade, o mesmo par que guarda as rotas. Não
+  // é enfeite: sem a área, o cartão continuaria linkando para uma tela que a pessoa não
+  // abre mais.
+  const naRecepcao = hasPermission(membership, PERMISSIONS.RECEPTION_ACCESS)
+  const naGestao = hasPermission(membership, PERMISSIONS.MANAGEMENT_ACCESS)
+  const noConsultorio = hasPermission(membership, PERMISSIONS.PROFESSIONAL_ACCESS)
+
+  const canSeePatients = naRecepcao && hasPermission(membership, PERMISSIONS.PATIENTS_VIEW)
   // Dois atalhos, duas permissões: agora que a gestão foi separada, alguém pode cuidar do
   // catálogo sem cuidar da equipe.
-  const canManageProfessionals = hasPermission(membership, PERMISSIONS.PROFESSIONALS_MANAGE)
-  const canManageCatalog = hasPermission(membership, PERMISSIONS.CATALOG_MANAGE)
-  const canSeeReception = hasPermission(membership, PERMISSIONS.QUEUE_MANAGE)
-  const canSeeService = hasPermission(membership, PERMISSIONS.SERVICE_MANAGE)
-  const canSeeFinancial = hasPermission(membership, PERMISSIONS.FINANCIAL_VIEW)
+  const canManageProfessionals = naGestao && hasPermission(membership, PERMISSIONS.PROFESSIONALS_MANAGE)
+  const canManageCatalog = naGestao && hasPermission(membership, PERMISSIONS.CATALOG_MANAGE)
+  const canSeeReception = naRecepcao && hasPermission(membership, PERMISSIONS.QUEUE_MANAGE)
+  const canSeeService = noConsultorio && hasPermission(membership, PERMISSIONS.SERVICE_MANAGE)
+  const canSeeFinancial = naGestao && hasPermission(membership, PERMISSIONS.FINANCIAL_VIEW)
 
   const [summary, receptionSummary, managementSummary, professional] = await Promise.all([
-    getClinicSummary(supabase, membership.clinicId),
+    // Números da clínica inteira — só para quem responde por ela. Condicional e não só
+    // escondido na renderização: consulta que ninguém vai ver é consulta desperdiçada.
+    naGestao ? getClinicSummary(supabase, membership.clinicId) : null,
     canSeeReception ? getReceptionSummary(supabase, membership.clinicId, today) : null,
     canSeeFinancial ? getManagementSummary(supabase, membership.clinicId, today) : null,
     canSeeService ? getProfessionalByUserId(supabase, membership.clinicId, membership.userId) : null,
@@ -248,6 +263,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {naGestao && summary && (
       <Section title="Cadastros">
         <SummaryCard
           label="Pacientes ativos"
@@ -270,6 +286,7 @@ export default async function DashboardPage() {
           href={canManageCatalog ? "/gestao/procedimentos" : undefined}
         />
       </Section>
+      )}
 
       {!receptionSummary && !managementSummary && !professionalSummary && (
         <Card>

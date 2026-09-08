@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth/session"
+import { requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { listProceduresPage } from "@/services/procedures.service"
@@ -13,7 +13,7 @@ export default async function ProceduresPage({
 }: {
   searchParams: Promise<{ pagina?: string; por?: string }>
 }) {
-  const membership = await requirePermission(PERMISSIONS.CATALOG_MANAGE)
+  const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, PERMISSIONS.CATALOG_MANAGE)
   const supabase = await createClient()
 
   const { pagina, por } = await searchParams

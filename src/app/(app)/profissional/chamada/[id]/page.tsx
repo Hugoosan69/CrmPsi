@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
-import { requirePermission } from "@/lib/auth/session"
+import { requireAreaAccess } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
 import { getCall } from "@/services/telehealth.service"
@@ -17,7 +17,7 @@ import { CallRoom } from "@/features/telehealth/components/call-room"
  * pedido pelo componente de cliente, no momento de conectar.
  */
 export default async function ChamadaPage({ params }: { params: Promise<{ id: string }> }) {
-  const membership = await requirePermission(PERMISSIONS.TELEHEALTH_MANAGE)
+  const membership = await requireAreaAccess(PERMISSIONS.PROFESSIONAL_ACCESS, PERMISSIONS.TELEHEALTH_MANAGE)
   const { id: callId } = await params
 
   const supabase = await createClient()
