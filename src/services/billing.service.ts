@@ -347,3 +347,191 @@ export async function guidesByAppointment(
   }
   return out
 }
+
+// ---------------------------------------------------------------------------
+// Listagem de guias
+// ---------------------------------------------------------------------------
+
+export type GuideRow = {
+  id: string
+  guideNumber: string | null
+  status: string
+  issuedAt: string
+  insurerId: string
+  insurerName: string
+  patientId: string | null
+  patientName: string
+  appointmentId: string
+  scheduledAt: string | null
+  professionalName: string | null
+  procedureName: string | null
+  specialtyName: string | null
+  /** Chave do objeto no R2, quando há anexo. O link é assinado sob demanda. */
+  attachmentKey: string | null
+}
+
+export type GuideStatus = Database["public"]["Enums"]["service_guide_status"]
+
+export type GuideFilters = {
+  patientId?: string
+  insurerId?: string
+  /** Primeiro dia do mês de referência, "YYYY-MM-DD". */
+  month?: string
+  status?: GuideStatus
+}
+
+/**
+ * As guias emitidas, já com os nomes que a tela mostra.
+ *
+ * Uma função só para a ficha do paciente e para a listagem geral, porque a diferença entre
+ * as duas é um filtro — e duas consultas quase iguais divergiriam no primeiro ajuste. A
+ * ficha passa `patientId`; a tela de gestão passa mês e convênio, ou nada.
+ *
+ * Tudo por leitura indexada em vez de embed: `types/supabase.ts` é escrito à mão com
+ * `Relationships: []`, então um embed do PostgREST aqui não teria tipagem nenhuma.
+ *
+ * Os nomes saem do cadastro de AGORA — convênio, procedimento, profissional, paciente. É a
+ * mesma regra do resto do sistema: renomear um convênio muda todas as telas que o mostram,
+ * sem reprocessar nada. O que fica congelado na guia é só o número dela.
+ */
+export async function listGuides(
+  supabase: DB,
+  clinicId: string,
+  filters: GuideFilters = {}
+): Promise<GuideRow[]> {
+  // O paciente não está em `service_guides`: a guia é do ATENDIMENTO, e é o atendimento que
+  // aponta o paciente. Filtrar por paciente exige, portanto, saber antes quais atendimentos
+  // são dele.
+  let appointmentIdsDoPaciente: string[] | null = null
+  if (filters.patientId) {
+    const { data } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("clinic_id", clinicId)
+      .eq("patient_id", filters.patientId)
+    appointmentIdsDoPaciente = (data ?? []).map((a) => a.id)
+    if (appointmentIdsDoPaciente.length === 0) return []
+  }
+
+  let query = supabase
+    .from("service_guides")
+    .select(
+      "id, guide_number, status, issued_at, insurer_id, appointment_id, attachment_url"
+    )
+    .eq("clinic_id", clinicId)
+    .neq("status", "cancelada")
+    .order("issued_at", { ascending: false })
+
+  if (appointmentIdsDoPaciente) query = query.in("appointment_id", appointmentIdsDoPaciente)
+  if (filters.insurerId) query = query.eq("insurer_id", filters.insurerId)
+  if (filters.status) query = query.eq("status", filters.status)
+  if (filters.month) {
+    // Mês fechado pelo início do seguinte: `lt` e não `lte` para não incluir, por um
+    // instante, a primeira guia do mês que vem.
+    const inicio = new Date(`${filters.month}T00:00:00-03:00`)
+    const fim = new Date(inicio)
+    fim.setMonth(fim.getMonth() + 1)
+    query = query.gte("issued_at", inicio.toISOString()).lt("issued_at", fim.toISOString())
+  }
+
+  const { data: guias, error } = await query
+  if (error) throw error
+  if (!guias || guias.length === 0) return []
+
+  const appointmentIds = [...new Set(guias.map((g) => g.appointment_id))]
+  const insurerIds = [...new Set(guias.map((g) => g.insurer_id))]
+
+  const [{ data: convenios }, { data: atendimentos }] = await Promise.all([
+    supabase.from("insurers").select("id, name").in("id", insurerIds),
+    supabase
+      .from("appointments")
+      .select("id, patient_id, professional_id, procedure_id, scheduled_at")
+      .eq("clinic_id", clinicId)
+      .in("id", appointmentIds),
+  ])
+
+  const patientIds = [...new Set((atendimentos ?? []).map((a) => a.patient_id))]
+  const professionalIds = [
+    ...new Set((atendimentos ?? []).map((a) => a.professional_id).filter(Boolean)),
+  ] as string[]
+  const procedureIds = [
+    ...new Set((atendimentos ?? []).map((a) => a.procedure_id).filter(Boolean)),
+  ] as string[]
+
+  const [{ data: pacientes }, { data: profissionais }, { data: procedimentos }] =
+    await Promise.all([
+      patientIds.length > 0
+        ? supabase.from("patients").select("id, full_name, social_name").in("id", patientIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string; social_name: string | null }[] }),
+      professionalIds.length > 0
+        ? supabase
+            .from("professionals")
+            .select("id, full_name, specialty_id")
+            .in("id", professionalIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string; specialty_id: string | null }[] }),
+      procedureIds.length > 0
+        ? supabase.from("procedures").select("id, name").in("id", procedureIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    ])
+
+  // A especialidade vem do PROFISSIONAL, não do procedimento: `procedures` não tem
+  // `specialty_id`. Supor o contrário já quebrou o filtro do financeiro em silêncio.
+  const specialtyIds = [
+    ...new Set((profissionais ?? []).map((p) => p.specialty_id).filter(Boolean)),
+  ] as string[]
+  const { data: especialidades } =
+    specialtyIds.length > 0
+      ? await supabase.from("specialties").select("id, name").in("id", specialtyIds)
+      : { data: [] as { id: string; name: string }[] }
+
+  const convenioPorId = new Map((convenios ?? []).map((c) => [c.id, c.name]))
+  const atendimentoPorId = new Map((atendimentos ?? []).map((a) => [a.id, a]))
+  const pacientePorId = new Map((pacientes ?? []).map((p) => [p.id, p]))
+  const profissionalPorId = new Map((profissionais ?? []).map((p) => [p.id, p]))
+  const procedimentoPorId = new Map((procedimentos ?? []).map((p) => [p.id, p.name]))
+  const especialidadePorId = new Map((especialidades ?? []).map((e) => [e.id, e.name]))
+
+  return guias.map((g) => {
+    const atendimento = atendimentoPorId.get(g.appointment_id)
+    const paciente = atendimento ? pacientePorId.get(atendimento.patient_id) : undefined
+    const profissional = atendimento?.professional_id
+      ? profissionalPorId.get(atendimento.professional_id)
+      : undefined
+    return {
+      id: g.id,
+      guideNumber: g.guide_number,
+      status: g.status,
+      issuedAt: g.issued_at,
+      insurerId: g.insurer_id,
+      insurerName: convenioPorId.get(g.insurer_id) ?? "Convênio",
+      patientId: atendimento?.patient_id ?? null,
+      patientName: paciente?.social_name || paciente?.full_name || "—",
+      appointmentId: g.appointment_id,
+      scheduledAt: atendimento?.scheduled_at ?? null,
+      professionalName: profissional?.full_name ?? null,
+      procedureName: atendimento?.procedure_id
+        ? procedimentoPorId.get(atendimento.procedure_id) ?? null
+        : null,
+      specialtyName: profissional?.specialty_id
+        ? especialidadePorId.get(profissional.specialty_id) ?? null
+        : null,
+      attachmentKey: g.attachment_url,
+    }
+  })
+}
+
+/** Uma guia, para conferir a permissão antes de gerar o link do anexo. */
+export async function getGuide(
+  supabase: DB,
+  clinicId: string,
+  id: string
+): Promise<ServiceGuide | null> {
+  const { data, error } = await supabase
+    .from("service_guides")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("id", id)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}

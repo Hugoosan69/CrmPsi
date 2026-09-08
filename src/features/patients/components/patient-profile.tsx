@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PatientGuidesPanel } from "@/features/billing/components/patient-guides-panel"
 import { requirePermission, hasPermission } from "@/lib/auth/session"
 import { createClient } from "@/lib/supabase/server"
 import { PERMISSIONS } from "@/config/permissions"
@@ -78,6 +79,9 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
     hasPermission(membership, PERMISSIONS.AGENDA_VIEW) || canViewRecords
   const canViewTelehealth = hasPermission(membership, PERMISSIONS.TELEHEALTH_VIEW)
   const canViewPackages = hasPermission(membership, PERMISSIONS.PACKAGES_VIEW)
+  // Guia é documento de faturamento, não de prontuário: quem fecha a cobrança no balcão
+  // precisa vê-la, e `billing.view` já é a permissão de "enxergar convênio e guia".
+  const canViewGuides = hasPermission(membership, PERMISSIONS.BILLING_VIEW)
   const canManagePackages = hasPermission(membership, PERMISSIONS.PACKAGES_MANAGE)
   const canMessage = hasPermission(membership, PERMISSIONS.PATIENTS_MANAGE)
 
@@ -120,6 +124,7 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
           {canViewRecords && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
           {canViewFinancial && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           {canViewPackages && <TabsTrigger value="pacotes">Pacotes</TabsTrigger>}
+          {canViewGuides && <TabsTrigger value="guias">Guias</TabsTrigger>}
           {canMessage && <TabsTrigger value="mensagens">Mensagens</TabsTrigger>}
         </TabsList>
         {!canViewRecords && (
@@ -223,6 +228,11 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
               patientId={patientId}
               canManage={canManagePackages}
             />
+          </TabsContent>
+        )}
+        {canViewGuides && (
+          <TabsContent value="guias" className="mt-4">
+            <PatientGuidesPanel clinicId={membership.clinicId} patientId={patientId} />
           </TabsContent>
         )}
         {canMessage && (

@@ -125,7 +125,14 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         href: "/gestao/pacotes",
         label: "Pacotes e convênios",
-        permission: [PERMISSIONS.PACKAGES_MANAGE, PERMISSIONS.BILLING_MANAGE],
+        // `billing.view` entra porque a aba de guias emitidas exige só ela: conferir o que
+        // foi emitido é rotina de quem fecha a cobrança, e não precisa vir com o poder de
+        // editar o cadastro do convênio.
+        permission: [
+          PERMISSIONS.PACKAGES_MANAGE,
+          PERMISSIONS.BILLING_MANAGE,
+          PERMISSIONS.BILLING_VIEW,
+        ],
       },
       { href: "/gestao/usuarios", label: "Usuários", permission: PERMISSIONS.USERS_MANAGE },
       { href: "/gestao/permissoes", label: "Permissões", permission: PERMISSIONS.USERS_MANAGE },
