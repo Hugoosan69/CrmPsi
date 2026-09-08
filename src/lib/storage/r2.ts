@@ -90,9 +90,24 @@ export async function r2Delete(key: string) {
  * `X-Amz-Expires` é o teto do protocolo: 7 dias. O padrão daqui são 24 horas, que é o que
  * a clínica pediu.
  */
-export async function r2SignedUrl(key: string, expiresInSeconds = 60 * 60 * 24) {
+export async function r2SignedUrl(
+  key: string,
+  expiresInSeconds = 60 * 60 * 24,
+  opts: { downloadAs?: string } = {}
+) {
   const url = new URL(objectUrl(key))
   url.searchParams.set("X-Amz-Expires", String(Math.min(expiresInSeconds, 60 * 60 * 24 * 7)))
+
+  // `response-content-disposition` faz o navegador BAIXAR em vez de exibir, e com o nome
+  // que a clínica reconhece — no bucket o objeto se chama por timestamp. Precisa ser
+  // assinado junto (vai na query antes da assinatura), senão o R2 recusa por parâmetro não
+  // previsto na assinatura. Por isso baixar e visualizar são dois links diferentes.
+  if (opts.downloadAs) {
+    url.searchParams.set(
+      "response-content-disposition",
+      `attachment; filename="${opts.downloadAs.replace(/"/g, "")}"`
+    )
+  }
 
   const signed = await client().sign(new Request(url, { method: "GET" }), {
     aws: { signQuery: true },

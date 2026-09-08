@@ -63,15 +63,31 @@ export async function uploadGuideAttachment(
  */
 export async function guideAttachmentUrl(
   key: string,
-  expiresInSeconds = DEFAULT_LINK_TTL_SECONDS
+  expiresInSeconds = DEFAULT_LINK_TTL_SECONDS,
+  opts: { downloadAs?: string } = {}
 ): Promise<string | null> {
   if (!isR2Configured()) return null
   try {
-    return await r2SignedUrl(key, expiresInSeconds)
+    return await r2SignedUrl(key, expiresInSeconds, opts)
   } catch (err) {
     console.error("falha ao gerar link do anexo da guia", err)
     return null
   }
+}
+
+/**
+ * O nome com que o arquivo chega ao computador de quem baixa.
+ *
+ * No bucket o objeto se chama por timestamp — bom para não colidir, péssimo numa pasta de
+ * downloads. Aqui ele ganha o número da guia, preservando a extensão original, que é o que
+ * decide se o sistema operacional abre no leitor de PDF ou no visualizador de imagens.
+ */
+export function guideDownloadName(key: string, guideNumber: string | null): string {
+  const extensao = key.includes(".") ? key.split(".").pop()!.toLowerCase() : "pdf"
+  // Só o que sobrevive a qualquer sistema de arquivos: número de guia costuma vir com
+  // barras e pontos do papel do convênio.
+  const seguro = (guideNumber ?? "sem-numero").replace(/[^\w.-]+/g, "-")
+  return `guia-${seguro}.${extensao}`
 }
 
 /** Baixa o conteúdo — para anexar num e-mail sem passar pelo navegador de quem envia. */

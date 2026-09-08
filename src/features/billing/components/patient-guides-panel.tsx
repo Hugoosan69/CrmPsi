@@ -17,9 +17,12 @@ import { GuidesTable } from "./guides-table"
 export async function PatientGuidesPanel({
   clinicId,
   patientId,
+  canManage,
 }: {
   clinicId: string
   patientId: string
+  /** `billing.manage` — governa só a exclusão; ver e enviar é `billing.view`. */
+  canManage: boolean
 }) {
   const supabase = await createClient()
   const guias = await listGuides(supabase, clinicId, { patientId })
@@ -51,6 +54,7 @@ export async function PatientGuidesPanel({
         <GuidesTable
           guides={guias}
           showPatient={false}
+          canManage={canManage}
           emptyTitle="Nenhuma guia emitida para este paciente"
           emptyDescription="As guias aparecem aqui quando o atendimento é registrado como convênio no momento do pagamento."
         />

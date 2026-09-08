@@ -124,6 +124,7 @@ export default async function PacotesEConveniosPage({
             </p>
             <GuidesTable
               guides={guides}
+              canManage={canInsurers}
               emptyTitle="Nenhuma guia emitida"
               emptyDescription="As guias aparecem aqui quando um atendimento é registrado como convênio no momento do pagamento."
             />

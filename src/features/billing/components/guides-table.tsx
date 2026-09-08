@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { GuideRow } from "@/services/billing.service"
-import { GuideAttachmentButton } from "./guide-attachment-button"
+import { GuideRowActions } from "./guide-row-actions"
 
 const STATUS_LABEL: Record<string, string> = {
   emitida: "Emitida",
@@ -44,11 +44,14 @@ function formatDate(value: string | null) {
 export function GuidesTable({
   guides,
   showPatient = true,
+  canManage = false,
   emptyTitle = "Nenhuma guia emitida",
   emptyDescription,
 }: {
   guides: GuideRow[]
   showPatient?: boolean
+  /** `billing.manage` — só quem tem pode excluir uma guia. */
+  canManage?: boolean
   emptyTitle?: string
   emptyDescription?: string
 }) {
@@ -97,10 +100,11 @@ export function GuidesTable({
                 </Badge>
               </TableCell>
               <TableCell>
-                {g.attachmentKey ? (
-                  <GuideAttachmentButton guideId={g.id} />
-                ) : (
-                  <span className="text-[0.75rem] text-muted-foreground">sem anexo</span>
+                <GuideRowActions guide={g} canManage={canManage} />
+                {!g.attachmentKey && (
+                  <span className="block text-right text-[0.7rem] text-muted-foreground">
+                    sem anexo
+                  </span>
                 )}
               </TableCell>
             </TableRow>

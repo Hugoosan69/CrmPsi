@@ -82,6 +82,7 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
   // Guia é documento de faturamento, não de prontuário: quem fecha a cobrança no balcão
   // precisa vê-la, e `billing.view` já é a permissão de "enxergar convênio e guia".
   const canViewGuides = hasPermission(membership, PERMISSIONS.BILLING_VIEW)
+  const canManageGuides = hasPermission(membership, PERMISSIONS.BILLING_MANAGE)
   const canManagePackages = hasPermission(membership, PERMISSIONS.PACKAGES_MANAGE)
   const canMessage = hasPermission(membership, PERMISSIONS.PATIENTS_MANAGE)
 
@@ -232,7 +233,11 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
         )}
         {canViewGuides && (
           <TabsContent value="guias" className="mt-4">
-            <PatientGuidesPanel clinicId={membership.clinicId} patientId={patientId} />
+            <PatientGuidesPanel
+              clinicId={membership.clinicId}
+              patientId={patientId}
+              canManage={canManageGuides}
+            />
           </TabsContent>
         )}
         {canMessage && (

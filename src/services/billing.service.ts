@@ -373,6 +373,8 @@ export type GuideRow = {
 export type GuideStatus = Database["public"]["Enums"]["service_guide_status"]
 
 export type GuideFilters = {
+  /** Uma guia só, já com todos os nomes resolvidos. */
+  id?: string
   patientId?: string
   insurerId?: string
   /** Primeiro dia do mês de referência, "YYYY-MM-DD". */
@@ -422,6 +424,7 @@ export async function listGuides(
     .neq("status", "cancelada")
     .order("issued_at", { ascending: false })
 
+  if (filters.id) query = query.eq("id", filters.id)
   if (appointmentIdsDoPaciente) query = query.in("appointment_id", appointmentIdsDoPaciente)
   if (filters.insurerId) query = query.eq("insurer_id", filters.insurerId)
   if (filters.status) query = query.eq("status", filters.status)
@@ -534,4 +537,25 @@ export async function getGuide(
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+/**
+ * Cancela uma guia.
+ *
+ * `update` e não `delete` — a razão está em `cancelGuideAction`, que é quem decide. Aqui só
+ * é preciso saber que o índice de "uma guia viva por atendimento" e a contagem do limite
+ * mensal já ignoram as canceladas, então cancelar libera o atendimento e devolve a guia ao
+ * saldo do paciente sem apagar o registro.
+ */
+export async function cancelServiceGuide(
+  supabase: DB,
+  clinicId: string,
+  id: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("service_guides")
+    .update({ status: "cancelada" })
+    .eq("clinic_id", clinicId)
+    .eq("id", id)
+  if (error) throw error
 }
