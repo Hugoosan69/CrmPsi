@@ -175,7 +175,15 @@ export async function addWalkInToQueueAction(
     },
   })
 
-  revalidateQueue()
+  // Só o financeiro. `revalidateQueue()` revalidaria mais três rotas, e o custo disso é
+  // pago pelo usuário: o retorno da Server Action só chega ao cliente junto com o payload
+  // revalidado, então cada rota a mais é tempo com o diálogo travado na tela.
+  //
+  // Nenhuma das três muda com um encaixe. O paciente entra em `payment_pending`, que as
+  // telas do profissional nem enxergam (elas leem só a faixa `in_queue`), e o quadro do
+  // balcão não vem da renderização do servidor: ele é alimentado por react-query, que o
+  // próprio diálogo invalida ao fechar. O financeiro é o único que de fato ganhou linha
+  // nova — a cobrança recém-criada.
   revalidatePath("/recepcao/financeiro")
   return { success: true }
 }

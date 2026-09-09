@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
@@ -43,11 +43,22 @@ export function AddToQueueDialog({
   const [state, formAction, isPending] = useActionState(addWalkInToQueueAction, initialState)
   const queryClient = useQueryClient()
 
+  // Só estado DESTE componente aqui. `useCloseOnSuccess` ajusta estado durante a
+  // renderização, e isso vale para o próprio componente — nunca para efeito que alcança
+  // outros. Ver a mesma armadilha documentada em `appointment-detail-dialog.tsx`.
   useCloseOnSuccess(state, Boolean(state.success), () => {
     setOpen(false)
     setProcedureId("")
-    queryClient.invalidateQueries({ queryKey: ["queue"] })
   })
+
+  // A invalidação sai do render e vai para depois do commit: `invalidateQueries` avisa,
+  // de forma síncrona, todo componente inscrito na chave "queue" — o quadro da fila, que
+  // vive em outro ramo da árvore. Disparar isso durante a renderização é atualizar um
+  // componente enquanto se renderiza outro, exatamente o que o React proíbe, e era o que
+  // atropelava o fechamento: o registro gravava e o diálogo ficava aberto.
+  useEffect(() => {
+    if (state.success) queryClient.invalidateQueries({ queryKey: ["queue"] })
+  }, [state, queryClient])
 
   const selectedPrice = procedures.find((p) => p.id === procedureId)?.price ?? null
 

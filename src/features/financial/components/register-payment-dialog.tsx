@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
@@ -73,12 +73,17 @@ export function RegisterPaymentDialog({
   const estadoAtivo = ehConvenio ? guideState : state
   const pendente = ehConvenio ? isGuidePending : isPending
 
-  useCloseOnSuccess(estadoAtivo, Boolean(estadoAtivo.success), () => {
-    setOpen(false)
-    // Settling a charge is what releases the patient — refresh the live queue board
-    // immediately instead of waiting up to 5s for the next poll.
-    queryClient.invalidateQueries({ queryKey: ["queue"] })
-  })
+  useCloseOnSuccess(estadoAtivo, Boolean(estadoAtivo.success), () => setOpen(false))
+
+  // Fora do render, pelo mesmo motivo do diálogo de encaixe: `invalidateQueries` notifica
+  // o quadro da fila, que é outro componente, e fazer isso durante a renderização atropela
+  // a atualização que fecha este diálogo.
+  //
+  // Quitar a cobrança é o que libera o paciente, então o quadro precisa saber agora — sem
+  // isto, ele só descobriria no próximo ciclo de polling, até 5s depois.
+  useEffect(() => {
+    if (estadoAtivo.success) queryClient.invalidateQueries({ queryKey: ["queue"] })
+  }, [estadoAtivo, queryClient])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
