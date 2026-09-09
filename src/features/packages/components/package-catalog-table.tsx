@@ -50,7 +50,16 @@ export function PackageCatalogTable({
               )}
             </TableCell>
             <TableCell className="hidden md:table-cell">{p.specialtyName}</TableCell>
-            <TableCell className="text-right tabular-nums">{p.total_sessions}x</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {p.total_sessions}x
+              {/* O período só ganha destaque quando NÃO é o padrão: "Mensal" em toda linha
+                  vira ruído, e é justamente o quinzenal que muda a rotina de quem vende. */}
+              {p.period === "quinzenal" && (
+                <Badge variant="secondary" className="ml-2 font-normal">
+                  Quinzenal
+                </Badge>
+              )}
+            </TableCell>
             <TableCell className="text-right tabular-nums">
               {formatCurrency(Number(p.total_price))}
               {/* O valor por sessão perde a coluna abaixo de `lg`, mas não a relevância:

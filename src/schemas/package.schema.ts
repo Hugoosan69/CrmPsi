@@ -13,6 +13,8 @@ export const sessionPackageSchema = z.object({
   total_price: z.coerce.number().min(0, "Informe um valor válido"),
   /** Como o pacote entra no financeiro — ver database/migrations/019. */
   billing_mode: z.enum(["unico", "por_sessao"]).default("unico"),
+  /** Janela para usar as sessões — ver database/migrations/033. */
+  period: z.enum(["mensal", "quinzenal"]).default("mensal"),
 })
 
 export type SessionPackageFormInput = z.input<typeof sessionPackageSchema>

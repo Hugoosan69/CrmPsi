@@ -545,6 +545,54 @@ const completedWithoutCharge: Check = async (supabase, clinicId) => {
 // PACOTES
 // ---------------------------------------------------------------------------
 
+/**
+ * Pacote com o período vencido e sessões sem usar (migration 033).
+ *
+ * NÃO é erro do sistema, e é por isso que aparece aqui em vez de virar bloqueio: o paciente
+ * pagou pelas sessões e continua podendo usá-las. É a clínica que precisa decidir — remarcar,
+ * estender, devolver —, e a decisão só existe se alguém souber que o caso existe. Antes
+ * desta checagem, uma sessão comprada e não usada simplesmente sumia da vista.
+ *
+ * A conta é sobre `period_end`, congelado na venda, e não sobre o período do catálogo: o
+ * pacote pode ter virado quinzenal depois, e o combinado com este paciente foi outro.
+ */
+const expiredPackagesWithBalance: Check = async (supabase, clinicId) => {
+  const hoje = todaySaoPauloDate()
+
+  const { data } = await supabase
+    .from("patient_packages")
+    .select("id, patient_id, total_sessions, sessions_used, period_end")
+    .eq("clinic_id", clinicId)
+    .eq("status", "active")
+    .not("period_end", "is", null)
+    .lt("period_end", hoje)
+    .limit(SCAN_LIMIT)
+
+  const rows = (data ?? []).filter((p) => p.sessions_used < p.total_sessions)
+  if (rows.length === 0) return null
+
+  const names = await patientNames(supabase, rows.map((p) => p.patient_id))
+
+  return group(
+    {
+      key: "expired-package-with-balance",
+      domain: "pacotes",
+      severity: "warning",
+      title: "Pacote com período vencido e sessões sem usar",
+      explanation:
+        "O período do pacote terminou e ainda há sessões pagas no saldo. As sessões continuam válidas — o paciente pagou por elas —, mas alguém precisa remarcar ou combinar o que fazer com o que sobrou.",
+    },
+    rows.map((p) => ({
+      id: p.id,
+      subject: names.get(p.patient_id) ?? "Paciente",
+      detail: `${p.total_sessions - p.sessions_used} de ${p.total_sessions} sessões sem usar · período até ${p.period_end}`,
+      since: p.period_end,
+      amount: null,
+      href: `/recepcao/pacientes/${p.patient_id}`,
+    }))
+  )
+}
+
 /** Saldo esgotado e o pacote continua `active`: o gatilho de consumo não fechou. */
 const exhaustedPackages: Check = async (supabase, clinicId) => {
   const { data } = await supabase
@@ -761,6 +809,7 @@ const patientsWithoutContact: Check = async (supabase, clinicId) => {
 }
 
 const CHECKS: Check[] = [
+  expiredPackagesWithBalance,
   releasedNotSent,
   paidButStillGated,
   checkedInWithoutQueue,

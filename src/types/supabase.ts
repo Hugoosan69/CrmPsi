@@ -1635,6 +1635,8 @@ export type Database = {
           financial_transaction_id: string | null
           id: string
           patient_id: string
+          period_end: string | null
+          period_start: string | null
           purchased_at: string
           session_package_id: string
           sessions_used: number
@@ -1647,6 +1649,8 @@ export type Database = {
           financial_transaction_id?: string | null
           id?: string
           patient_id: string
+          period_end?: string | null
+          period_start?: string | null
           purchased_at?: string
           session_package_id: string
           sessions_used?: number
@@ -1659,6 +1663,8 @@ export type Database = {
           financial_transaction_id?: string | null
           id?: string
           patient_id?: string
+          period_end?: string | null
+          period_start?: string | null
           purchased_at?: string
           session_package_id?: string
           sessions_used?: number
@@ -2728,6 +2734,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          period: Database["public"]["Enums"]["package_period"]
           price_per_session: number | null
           specialty_id: string
           total_price: number
@@ -2740,6 +2747,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          period?: Database["public"]["Enums"]["package_period"]
           price_per_session?: number | null
           specialty_id: string
           total_price: number
@@ -2752,6 +2760,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          period?: Database["public"]["Enums"]["package_period"]
           price_per_session?: number | null
           specialty_id?: string
           total_price?: number
@@ -3165,6 +3174,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      package_period_bounds: {
+        Args: {
+          p_period: Database["public"]["Enums"]["package_period"]
+          p_reference: string
+        }
+        Returns: { period_end: string; period_start: string }[]
+      }
       insurer_guides_used_in_month: {
         Args: {
           p_clinic: string
@@ -3297,6 +3313,7 @@ export type Database = {
         | "post_visit"
         | "general"
       notification_kind: "system" | "chat" | "queue" | "agenda" | "financial"
+      package_period: "mensal" | "quinzenal"
       patient_package_session_status: "reserved" | "consumed" | "released"
       patient_package_status: "active" | "completed" | "cancelled"
       queue_entry_type: "scheduled" | "walk_in" | "fit_in" | "transfer"
@@ -3480,6 +3497,7 @@ export const Constants = {
         "general",
       ],
       notification_kind: ["system", "chat", "queue", "agenda", "financial"],
+      package_period: ["mensal", "quinzenal"],
       patient_package_session_status: ["reserved", "consumed", "released"],
       patient_package_status: ["active", "completed", "cancelled"],
       queue_entry_type: ["scheduled", "walk_in", "fit_in", "transfer"],

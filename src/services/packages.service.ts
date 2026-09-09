@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/types/supabase"
+import { todaySaoPauloDate } from "@/utils/datetime"
 
 type DB = SupabaseClient<Database>
 
@@ -14,10 +15,51 @@ export type SessionPackageInput = {
   /** 'unico' = valor total na venda, sessões a R$ 0. 'por_sessao' = valor diluído por
    * sessão consumida. Ver database/migrations/019. */
   billing_mode: "unico" | "por_sessao"
+  /** 'mensal' ou 'quinzenal' — a janela para usar as sessões. Ver migration 033. */
+  period: "mensal" | "quinzenal"
 }
 
 export type SessionPackageView = Database["public"]["Tables"]["session_packages"]["Row"] & {
   specialtyName: string
+}
+
+export type PackagePeriod = Database["public"]["Enums"]["package_period"]
+
+export const PERIOD_LABEL: Record<PackagePeriod, string> = {
+  mensal: "Mensal",
+  quinzenal: "Quinzenal",
+}
+
+/**
+ * A janela de um pacote a partir de uma data (migration 033).
+ *
+ * QUINZENA FIXA do calendário: dia 1 ao 15, ou 16 ao último dia do mês. Não são 15 dias
+ * corridos a partir da venda — com isso cada paciente teria um ciclo próprio e o mês
+ * deixaria de fechar numa data só. A segunda quinzena tem 13, 14, 15 ou 16 dias conforme o
+ * mês, e é assim mesmo: ela acaba quando o mês acaba.
+ *
+ * Tudo em UTC de meio-dia. `new Date("2026-09-01")` é meia-noite UTC, que em São Paulo é
+ * 31/08 às 21h — e um pacote vendido no dia 1 nasceria na quinzena anterior. O meio-dia dá
+ * folga de doze horas para qualquer fuso brasileiro.
+ */
+export function packagePeriodBounds(
+  period: PackagePeriod,
+  reference: string
+): { periodStart: string; periodEnd: string } {
+  const [ano, mes, dia] = reference.slice(0, 10).split("-").map(Number)
+  // Dia 0 do mês SEGUINTE é o último dia deste — sem tabela de meses e sem caso especial
+  // para fevereiro bissexto.
+  const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate()
+
+  const emDois = (n: number) => String(n).padStart(2, "0")
+  const data = (d: number) => `${ano}-${emDois(mes)}-${emDois(d)}`
+
+  if (period === "mensal") {
+    return { periodStart: data(1), periodEnd: data(ultimoDia) }
+  }
+  return dia <= 15
+    ? { periodStart: data(1), periodEnd: data(15) }
+    : { periodStart: data(16), periodEnd: data(ultimoDia) }
 }
 
 export async function listSessionPackages(
@@ -510,6 +552,10 @@ export async function sellPackage(
     .eq("id", transaction.id)
   if (statusError) throw statusError
 
+  // A janela é congelada na venda, como o preço e a quantidade de sessões já são: o
+  // catálogo pode virar quinzenal amanhã, e o que foi combinado com este paciente não muda.
+  const janela = packagePeriodBounds(pkg.period, todaySaoPauloDate())
+
   const { data: patientPackage, error: ppError } = await supabase
     .from("patient_packages")
     .insert({
@@ -519,6 +565,8 @@ export async function sellPackage(
       total_sessions: pkg.total_sessions,
       total_price: pkg.total_price,
       financial_transaction_id: transaction.id,
+      period_start: janela.periodStart,
+      period_end: janela.periodEnd,
     })
     .select("id")
     .single()
@@ -601,11 +649,13 @@ export async function createPatientPackageWithoutCharge(
 ) {
   const { data: pkg, error: pkgError } = await supabase
     .from("session_packages")
-    .select("id, total_sessions, total_price")
+    .select("id, total_sessions, total_price, period")
     .eq("clinic_id", clinicId)
     .eq("id", input.sessionPackageId)
     .single()
   if (pkgError) throw pkgError
+
+  const janela = packagePeriodBounds(pkg.period, todaySaoPauloDate())
 
   const { data, error } = await supabase
     .from("patient_packages")
@@ -615,6 +665,8 @@ export async function createPatientPackageWithoutCharge(
       session_package_id: pkg.id,
       total_sessions: pkg.total_sessions,
       total_price: pkg.total_price,
+      period_start: janela.periodStart,
+      period_end: janela.periodEnd,
       // financial_transaction_id fica nulo de propósito: não há cobrança nova.
     })
     .select("id")

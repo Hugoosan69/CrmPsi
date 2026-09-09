@@ -88,6 +88,24 @@ export function PackageFormFields({
           aparecem a R$ 0,00. No segundo, cada sessão carrega a sua parte do valor.
         </p>
       </div>
+      <div className="col-span-2 grid gap-1.5">
+        <Label htmlFor="period">Período para usar as sessões</Label>
+        <Select name="period" defaultValue={sessionPackage?.period ?? "mensal"} required>
+          <SelectTrigger id="period" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mensal">Mensal — do dia 1 ao fim do mês</SelectItem>
+            <SelectItem value="quinzenal">Quinzenal — dia 1 ao 15, ou 16 ao fim do mês</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          A quinzena é a do calendário, não 15 dias a partir da venda: um pacote vendido no
+          dia 20 vale até o fim do mês. O período fica registrado na venda e aparece na ficha
+          do paciente — sessão que sobra depois do fim continua podendo ser usada, e aparece
+          na varredura de anomalias.
+        </p>
+      </div>
     </div>
   )
 }
