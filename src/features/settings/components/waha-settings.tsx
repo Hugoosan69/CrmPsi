@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useEffect, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { KeyRound, QrCode, RefreshCw, Smartphone } from "lucide-react"
 import { toast } from "sonner"
 
@@ -60,8 +61,21 @@ export function WahaSettings({
   const [mode, setMode] = useState<"qr" | "code">("qr")
   const [codeState, codeAction, isRequestingCode] = useActionState(requestPairingCodeAction, {})
 
+  const router = useRouter()
   const waitingQr = status.status === "SCAN_QR_CODE"
+  const starting = status.status === "STARTING"
+  const failed = status.status === "FAILED"
   const info = status.status ? STATUS_TEXT[status.status] : null
+
+  useEffect(() => {
+    if (!starting) return
+    // Depois de iniciar ou reiniciar, o WAHA passa alguns segundos em STARTING antes de
+    // pedir o QR. O status vem do servidor a cada carga, então sem isto a tela ficaria
+    // parada em "Iniciando..." até alguém recarregar — e o QR, que é o objetivo, nunca
+    // apareceria sozinho.
+    const id = setInterval(() => router.refresh(), 3_000)
+    return () => clearInterval(id)
+  }, [starting, router])
 
   useEffect(() => {
     if (!waitingQr) return
@@ -104,6 +118,17 @@ export function WahaSettings({
               <span className="block text-[0.75rem] text-muted-foreground">
                 {status.me.id.replace(/@.*/, "")}
               </span>
+            </p>
+          </div>
+        )}
+
+        {failed && (
+          <div className="rounded-lg border border-status-warning/40 bg-status-warning/5 px-3.5 py-3 text-[0.85rem]">
+            <p className="font-medium">A sessão do WhatsApp falhou</p>
+            <p className="mt-1 text-muted-foreground">
+              Acontece quando o navegador interno do WAHA cai — uma reinicialização da VPS,
+              por exemplo. Use <strong>Reiniciar sessão</strong> abaixo: em alguns segundos o
+              QR code aparece aqui para ler de novo.
             </p>
           </div>
         )}
@@ -324,7 +349,13 @@ export function WahaSettings({
                   })
                 }
               >
-                {isWorking ? "Conectando..." : "Conectar número"}
+                {isWorking
+                  ? failed
+                    ? "Reiniciando..."
+                    : "Conectando..."
+                  : failed
+                    ? "Reiniciar sessão"
+                    : "Conectar número"}
               </Button>
             )}
 

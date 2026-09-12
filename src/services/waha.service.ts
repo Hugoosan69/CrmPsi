@@ -20,7 +20,7 @@ type DB = SupabaseClient<Database>
  *   GET  /api/sessions                    lista
  *   POST /api/sessions                    cria  { name, start, config }
  *   GET  /api/sessions/{name}             estado (SessionInfo: name, me, status)
- *   POST /api/sessions/{name}/start|stop|logout
+ *   POST /api/sessions/{name}/start|stop|logout|restart   (restart recupera sessão FAILED)
  *   GET  /api/{name}/auth/qr?format=image QR para parear
  *   POST /api/sendText                    { chatId, text, session }
  * Autenticação por cabeçalho X-Api-Key.
@@ -172,14 +172,24 @@ export async function startWahaSession(config: WahaConfig) {
     return
   }
 
-  const started = await fetch(`${base}/api/sessions/${encodeURIComponent(name)}/start`, {
+  // Sessão com falha NÃO volta com /start. Conferido contra a instância: com a sessão em
+  // FAILED, o WAHA responde ao pedido de QR com 422 "restart the session", e /start é
+  // idempotente — para ele a sessão já existe, então não há o que fazer. /restart derruba o
+  // navegador interno e sobe de novo, e é o que leva a sessão de volta a SCAN_QR_CODE.
+  //
+  // Era o beco sem saída da tela: a sessão falhava, o botão chamava /start, nada mudava, e o
+  // QR nunca aparecia porque a tela só o busca quando o status é SCAN_QR_CODE.
+  const atual = existing.ok ? ((await existing.json()) as { status?: string }) : {}
+  const rota = atual.status === "FAILED" ? "restart" : "start"
+
+  const started = await fetch(`${base}/api/sessions/${encodeURIComponent(name)}/${rota}`, {
     method: "POST",
     headers: headers(config),
     signal: AbortSignal.timeout(20_000),
   })
   // 422 aqui costuma ser "já está rodando", que não é erro do ponto de vista do operador.
   if (!started.ok && started.status !== 422) {
-    throw new Error(`Falha ao iniciar a sessão: ${await started.text()}`)
+    throw new Error(`Falha ao ${rota === "restart" ? "reiniciar" : "iniciar"} a sessão: ${await started.text()}`)
   }
 }
 
