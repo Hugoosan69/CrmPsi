@@ -22,7 +22,11 @@ const ROLE = {
   financial: '00000000-0000-0000-0000-000000000014',
 }
 
-const PASS = 'Csib@2026'
+const PASS = env.DEMO_USERS_PASSWORD
+if (!PASS) {
+  console.error('Falta DEMO_USERS_PASSWORD no .env lido acima — senha não fica no repositório.')
+  process.exit(1)
+}
 const NEW = [
   { email: 'owner@csib.test', name: 'Helena Nogueira', role: 'owner' },
   { email: 'admin@csib.test', name: 'Marcos Rezende', role: 'admin' },

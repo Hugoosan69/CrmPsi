@@ -26,7 +26,11 @@ if (!U || !K) {
 }
 const H = { apikey: K, Authorization: `Bearer ${K}`, 'Content-Type': 'application/json' }
 const MASTER_EMAIL = 'master@csib.local'
-const MASTER_PASSWORD = 'Master@2026'
+const MASTER_PASSWORD = env.MASTER_PASSWORD
+if (!MASTER_PASSWORD) {
+  console.error('Falta MASTER_PASSWORD no .env lido acima — senha não fica no repositório.')
+  process.exit(1)
+}
 
 const api = async (path, opts = {}) => {
   const r = await fetch(`${U}${path}`, { ...opts, headers: { ...H, ...(opts.headers || {}) } })

@@ -30,7 +30,11 @@ const CLINIC = '00000000-0000-0000-0000-000000000001'
 const OWNER_ROLE = '00000000-0000-0000-0000-000000000010'
 
 const MASTER_EMAIL = 'master@csib.local'
-const MASTER_PASSWORD = 'Master@2026'
+const MASTER_PASSWORD = env.MASTER_PASSWORD
+if (!MASTER_PASSWORD) {
+  console.error('Falta MASTER_PASSWORD no .env lido acima — senha não fica no repositório.')
+  process.exit(1)
+}
 const MASTER_NAME = 'Master CSIB'
 
 const api = async (path, opts = {}) => {

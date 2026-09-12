@@ -45,3 +45,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Snapshot de perfis reais para os scripts de homologação — nome e e-mail de pessoas.
+scripts/dev/.profiles.local.json
