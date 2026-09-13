@@ -8,6 +8,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import {
   fetchWahaQrDataUri,
   getWahaConfig,
+  getWahaStatus,
   requestWahaPairingCode,
   logoutWahaSession,
   saveWahaConfig,
@@ -107,6 +108,23 @@ export async function logoutWahaAction(): Promise<WahaActionState> {
 
   revalidateSettings()
   return { success: "Número desconectado. Para reconectar, leia um novo QR code." }
+}
+
+/**
+ * Só o status da sessão, para a tela perceber quando ele muda.
+ *
+ * O status chega à tela na renderização do servidor, e nada o lia de novo depois. Resultado:
+ * o celular lia o QR, o WAHA ia para WORKING, e a tela continuava esperando leitura até
+ * alguém recarregar a página. Consultar aqui é barato (um GET pequeno); recarregar a página
+ * inteira a cada poucos segundos buscaria também o QR a cada vez, sem necessidade — então a
+ * tela só recarrega quando este status muda.
+ */
+export async function getWahaStatusAction(): Promise<{ status: string | null }> {
+  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
+  const supabase = await createClient()
+  const config = await getWahaConfig(supabase, membership.clinicId)
+  const { status } = await getWahaStatus(config)
+  return { status }
 }
 
 /**

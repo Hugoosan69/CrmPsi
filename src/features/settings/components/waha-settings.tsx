@@ -15,6 +15,7 @@ import { StatusDot } from "@/components/shared/status-dot"
 import { cn } from "@/lib/utils"
 import type { WahaStatus } from "@/services/waha.service"
 import {
+  getWahaStatusAction,
   logoutWahaAction,
   refreshWahaQrAction,
   requestPairingCodeAction,
@@ -68,18 +69,32 @@ export function WahaSettings({
   const info = status.status ? STATUS_TEXT[status.status] : null
 
   useEffect(() => {
-    if (!starting) return
-    // Depois de iniciar ou reiniciar, o WAHA passa alguns segundos em STARTING antes de
-    // pedir o QR. O status vem do servidor a cada carga, então sem isto a tela ficaria
-    // parada em "Iniciando..." até alguém recarregar — e o QR, que é o objetivo, nunca
-    // apareceria sozinho.
-    const id = setInterval(() => router.refresh(), 3_000)
+    if (!starting && !waitingQr) return
+    // O status chega na renderização do servidor e mais nada o lia de novo. Dois momentos
+    // dependem de perceber a mudança sem recarregar a página:
+    //   STARTING → SCAN_QR_CODE   depois de reiniciar, para o QR aparecer
+    //   SCAN_QR_CODE → WORKING    depois da leitura, para mostrar "Conectado"
+    // O segundo era o defeito relatado: o celular conectava e a tela seguia esperando QR.
+    //
+    // Pergunta só o status (leve) e recarrega a página só quando ele MUDA. Recarregar a cada
+    // ciclo refaria também a busca do QR no servidor a cada 3 s, sem nenhuma necessidade.
+    const atual = status.status
+    const id = setInterval(() => {
+      void getWahaStatusAction().then((r) => {
+        if (r.status !== atual) router.refresh()
+      })
+    }, 3_000)
     return () => clearInterval(id)
-  }, [starting, router])
+  }, [starting, waitingQr, status.status, router])
 
   useEffect(() => {
     if (!waitingQr) return
-    // O WAHA rotaciona o código; sem buscar de novo, o operador miraria um QR já vencido.
+    // Busca na hora em que a sessão passa a esperar leitura. O QR guardado no estado veio
+    // da primeira renderização — quando a sessão ainda iniciava e não havia QR —, e a
+    // página recarregada não o substitui (useState ignora props novas). Sem esta busca
+    // imediata, o QR só aparecia no primeiro ciclo, até 20 s depois de reiniciar.
+    void refreshWahaQrAction().then((r) => setQr(r.dataUri))
+    // Depois, a cada 20 s: o WAHA rotaciona o código, e um QR vencido não conecta.
     const id = setInterval(() => {
       void refreshWahaQrAction().then((r) => setQr(r.dataUri))
     }, 20_000)
