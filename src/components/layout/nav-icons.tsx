@@ -6,6 +6,7 @@ import {
   MessageSquare,
   MessagesSquare,
   Package,
+  Plug,
   Settings,
   ShieldCheck,
   Siren,
@@ -39,5 +40,8 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/gestao/pacotes": Layers,
   "/gestao/usuarios": Users,
   "/gestao/permissoes": ShieldCheck,
+  // Plugue: o que liga o sistema a serviços de fora (WAHA, n8n). Longe da engrenagem de
+  // Configurações, que fica logo abaixo e seria confundida na barra estreita.
+  "/gestao/integracoes": Plug,
   "/gestao/configuracoes": Settings,
 }

@@ -2,6 +2,30 @@
 
 import { useState, useTransition } from "react"
 import { usePathname, useRouter } from "next/navigation"
+import {
+  Building2,
+  CalendarDays,
+  Check,
+  ClipboardList,
+  FileText,
+  FolderHeart,
+  Layers,
+  LayoutGrid,
+  ListOrdered,
+  MessageSquare,
+  Minus,
+  Package,
+  Plug,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  Stethoscope,
+  Users,
+  UsersRound,
+  Video,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Label } from "@/components/ui/label"
@@ -12,35 +36,83 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { ClinicMember } from "@/services/users.service"
 import type { EffectivePermission, OverrideState } from "@/services/permissions.service"
 import { setUserPermissionAction } from "../actions/user.actions"
 
-const MODULE_LABELS: Record<string, string> = {
-  areas: "Áreas de trabalho",
-  agenda: "Agenda",
-  patients: "Pacientes",
-  queue: "Fila",
-  service: "Atendimento",
-  records: "Prontuário",
-  documents: "Documentos",
-  financial: "Financeiro",
-  settings: "Configurações",
-  catalog: "Catálogo",
-  professionals: "Profissionais",
-  communication: "Comunicação",
-  integrations: "Integrações",
-  users: "Usuários",
-  audit: "Auditoria",
-  packages: "Pacotes",
-  telehealth: "Teleconsulta",
-  billing: "Convênios e faturamento",
+const MODULES: Record<string, { label: string; icon: LucideIcon }> = {
+  areas: { label: "Áreas de trabalho", icon: LayoutGrid },
+  agenda: { label: "Agenda", icon: CalendarDays },
+  patients: { label: "Pacientes", icon: Users },
+  queue: { label: "Fila", icon: ListOrdered },
+  service: { label: "Atendimento", icon: Stethoscope },
+  records: { label: "Prontuário", icon: FolderHeart },
+  documents: { label: "Documentos", icon: FileText },
+  financial: { label: "Financeiro", icon: Wallet },
+  settings: { label: "Configurações", icon: Settings },
+  clinic: { label: "Clínica", icon: Building2 },
+  catalog: { label: "Catálogo", icon: Package },
+  professionals: { label: "Profissionais", icon: UsersRound },
+  communication: { label: "Comunicação", icon: MessageSquare },
+  integrations: { label: "Integrações", icon: Plug },
+  users: { label: "Usuários", icon: ShieldCheck },
+  audit: { label: "Auditoria", icon: ScrollText },
+  packages: { label: "Pacotes", icon: Layers },
+  telehealth: { label: "Teleconsulta", icon: Video },
+  billing: { label: "Convênios e faturamento", icon: ClipboardList },
+}
+
+/**
+ * Nome de cada permissão como aparece na tela.
+ *
+ * O slug (`patients.view`) é identificador técnico e não diz nada a quem administra a
+ * clínica; a descrição do banco serve, mas algumas foram gravadas sem acento pelas
+ * migrations. Corrigir aqui evita uma migration só de texto — o que não estiver neste mapa
+ * cai na descrição do banco, então uma permissão nova nunca aparece vazia.
+ */
+const PERMISSION_LABELS: Record<string, string> = {
+  "reception.access": "Trabalhar na recepção: pacientes, agenda, fila e caixa",
+  "professional.access": "Trabalhar como profissional: minha agenda, minha fila e atendimentos",
+  "management.access": "Ver a área de gestão e os indicadores da clínica",
+  "agenda.view": "Ver a agenda",
+  "agenda.manage": "Agendar, reagendar, confirmar e cancelar",
+  "agenda.configure": "Salas, horários de atendimento e bloqueios",
+  "agenda.appearance": "Personalizar as cores da agenda por situação",
+  "patients.view": "Ver pacientes",
+  "patients.manage": "Cadastrar e editar pacientes",
+  "queue.manage": "Gerenciar a fila e as chamadas",
+  "service.manage": "Conduzir o atendimento clínico",
+  "records.view": "Ver o prontuário",
+  "documents.issue": "Emitir prescrições e documentos",
+  "financial.view": "Ver o financeiro",
+  "financial.view_own": "Ver o próprio financeiro (apenas os seus atendimentos)",
+  "financial.manage": "Registrar pagamentos e lançamentos",
+  "financial.edit_amount": "Corrigir o valor de um lançamento já registrado",
+  "financial.edit_paid": "Alterar um lançamento que já está pago",
+  "settings.manage": "Alterar as configurações da clínica",
+  "clinic.manage": "Editar o cadastro e a identidade visual da clínica",
+  "catalog.manage": "Procedimentos, especialidades e formas de pagamento",
+  "professionals.manage": "Cadastrar e editar profissionais",
+  "communication.manage": "Modelos, campanhas e automações de mensagem",
+  "whatsapp.connect": "Vincular o número de WhatsApp da clínica (QR code, reiniciar sessão)",
+  "integrations.manage": "Configurar o servidor do WhatsApp, o n8n e pagamentos online",
+  "users.manage": "Gerenciar usuários e permissões",
+  "audit.view": "Ver a trilha de auditoria",
+  "packages.view": "Ver pacotes de sessões",
+  "packages.manage": "Vender pacotes e gerenciar o catálogo",
+  "telehealth.view": "Ver teleconsultas e o histórico da chamada",
+  "telehealth.manage": "Abrir teleconsulta, convidar o paciente e encerrar",
+  "billing.view": "Ver tipos de cobrança, guias e protocolos",
+  "billing.manage": "Cadastrar tipos de cobrança, emitir guias e fechar protocolos",
+}
+
+function labelOf(permission: EffectivePermission) {
+  return PERMISSION_LABELS[permission.slug] ?? permission.description ?? "Permissão sem descrição"
 }
 
 const OPTIONS: { value: OverrideState; label: string }[] = [
-  { value: "inherit", label: "Herda do papel" },
+  { value: "inherit", label: "Padrão" },
   { value: "granted", label: "Permitir" },
   { value: "denied", label: "Bloquear" },
 ]
@@ -82,6 +154,7 @@ export function UserPermissionMatrix({
   const selected = members.find((m) => m.userId === selectedId)
 
   function change(permission: EffectivePermission, next: OverrideState) {
+    if (next === currentState(permission)) return
     const previous = rows
     // Otimista: a matriz inteira re-renderiza a cada clique e esperar o round trip faria o
     // controle parecer travado. O estado anterior fica guardado para desfazer em caso de erro.
@@ -118,30 +191,54 @@ export function UserPermissionMatrix({
     a === "areas" ? -1 : b === "areas" ? 1 : 0
   )
 
+  const totalExcecoes = rows.filter((r) => r.override !== null).length
+
   return (
-    <div className="grid gap-5">
-      <div className="grid max-w-sm gap-1.5">
-        <Label htmlFor="permission-user">Usuário</Label>
-        <Select
-          value={selectedId}
-          onValueChange={(value) => {
-            if (!value || value === selectedId) return
-            // Navega pelo router em vez de recalcular aqui: as permissões efetivas da
-            // próxima pessoa vêm da mesma função SQL que decide a autorização de verdade.
-            router.push(`${pathname}?usuario=${value}`)
-          }}
-        >
-          <SelectTrigger id="permission-user">
-            <SelectValue placeholder="Selecione um usuário" />
-          </SelectTrigger>
-          <SelectContent>
-            {members.map((member) => (
-              <SelectItem key={member.userId} value={member.userId}>
-                {member.fullName} — {member.roleName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="grid gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-xl border border-border bg-card p-4">
+        <div className="grid w-full max-w-sm gap-1.5">
+          <Label htmlFor="permission-user">Usuário</Label>
+          <Select
+            value={selectedId}
+            onValueChange={(value) => {
+              if (!value || value === selectedId) return
+              // Navega pelo router em vez de recalcular aqui: as permissões efetivas da
+              // próxima pessoa vêm da mesma função SQL que decide a autorização de verdade.
+              router.push(`${pathname}?usuario=${value}`)
+            }}
+          >
+            <SelectTrigger id="permission-user" className="w-full">
+              <SelectValue placeholder="Selecione um usuário" />
+            </SelectTrigger>
+            <SelectContent>
+              {members.map((member) => (
+                <SelectItem key={member.userId} value={member.userId}>
+                  {member.fullName} — {member.roleName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selected && (
+          <div className="flex flex-wrap gap-2 text-[0.78rem]">
+            <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
+              Papel: <strong className="text-foreground">{selected.roleName}</strong>
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-3 py-1",
+                totalExcecoes > 0
+                  ? "bg-status-warning/10 text-status-warning"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {totalExcecoes === 0
+                ? "Sem exceções individuais"
+                : `${totalExcecoes} ${totalExcecoes === 1 ? "exceção individual" : "exceções individuais"}`}
+            </span>
+          </div>
+        )}
       </div>
 
       {!selected ? (
@@ -151,67 +248,117 @@ export function UserPermissionMatrix({
       ) : (
         <div className="grid gap-5">
           <p className="text-[0.82rem] text-muted-foreground">
-            O papel <strong>{selected.roleName}</strong> define o padrão. Aqui você abre
-            exceções só para {selected.fullName} — nenhuma outra pessoa com o mesmo papel é
-            afetada.
+            <strong>Padrão</strong> segue o que o papel {selected.roleName} define.{" "}
+            <strong>Permitir</strong> e <strong>Bloquear</strong> valem só para{" "}
+            {selected.fullName} — ninguém mais com o mesmo papel é afetado.
           </p>
 
-          {gruposOrdenados.map(([module, items]) => (
-            <div key={module} className="grid gap-2">
-              <h3 className="text-[0.78rem] font-semibold tracking-wide text-muted-foreground uppercase">
-                {MODULE_LABELS[module] ?? module}
-              </h3>
-              <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
-                {items.map((permission) => (
-                  <div
-                    key={permission.permission_id}
-                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">
-                        {permission.description ?? permission.slug}
-                      </p>
-                      <p className="font-mono text-[0.7rem] text-muted-foreground">
-                        {permission.slug}
-                      </p>
-                    </div>
-
+          <div className="grid items-start gap-4 xl:grid-cols-2">
+            {gruposOrdenados.map(([module, items]) => {
+              const meta = MODULES[module]
+              const Icon = meta?.icon ?? ShieldCheck
+              const comAcesso = items.filter((i) => i.effective).length
+              return (
+                <section
+                  key={module}
+                  className="overflow-hidden rounded-xl border border-border bg-card"
+                >
+                  <header className="flex items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-2.5">
                     <div className="flex items-center gap-2.5">
-                      <Badge
-                        variant={permission.effective ? "default" : "secondary"}
-                        className={cn(!permission.effective && "opacity-70")}
-                      >
-                        {permission.effective ? "Tem acesso" : "Sem acesso"}
-                      </Badge>
-                      <Select
-                        value={currentState(permission)}
-                        onValueChange={(value) =>
-                          value && change(permission, value as OverrideState)
-                        }
-                        disabled={isPending}
-                      >
-                        <SelectTrigger
-                          className="w-40"
-                          aria-label={`Permissão ${permission.slug} para ${selected.fullName}`}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                              {option.value === "inherit" &&
-                                ` (${permission.from_role ? "permitido" : "bloqueado"})`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="size-4" aria-hidden />
+                      </span>
+                      <h3 className="text-sm font-semibold">{meta?.label ?? "Outros"}</h3>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                    <span className="text-[0.75rem] text-muted-foreground tabular-nums">
+                      {comAcesso} de {items.length} com acesso
+                    </span>
+                  </header>
+
+                  <ul className="divide-y divide-border">
+                    {items.map((permission) => {
+                      const estado = currentState(permission)
+                      const label = labelOf(permission)
+                      return (
+                        <li
+                          key={permission.permission_id}
+                          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                        >
+                          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                            <span
+                              className={cn(
+                                "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full",
+                                permission.effective
+                                  ? "bg-status-success/15 text-status-success"
+                                  : "bg-muted text-muted-foreground"
+                              )}
+                              aria-label={permission.effective ? "Tem acesso" : "Sem acesso"}
+                            >
+                              {permission.effective ? (
+                                <Check className="size-3" />
+                              ) : (
+                                <Minus className="size-3" />
+                              )}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-[0.85rem] leading-snug">{label}</p>
+                              <p className="mt-0.5 text-[0.72rem] text-muted-foreground">
+                                {estado === "inherit" ? (
+                                  <>
+                                    Padrão do papel:{" "}
+                                    {permission.from_role ? "permitido" : "bloqueado"}
+                                  </>
+                                ) : (
+                                  <span className="font-medium text-status-warning">
+                                    Exceção individual —{" "}
+                                    {estado === "granted" ? "liberado" : "bloqueado"} só para
+                                    esta pessoa
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div
+                            role="radiogroup"
+                            aria-label={`${label} para ${selected.fullName}`}
+                            className="inline-flex shrink-0 rounded-lg border border-border bg-background p-0.5"
+                          >
+                            {OPTIONS.map((option) => {
+                              const ativo = estado === option.value
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={ativo}
+                                  disabled={isPending}
+                                  onClick={() => change(permission, option.value)}
+                                  className={cn(
+                                    "rounded-md px-2.5 py-1 text-[0.75rem] font-medium transition-colors disabled:opacity-60",
+                                    !ativo && "text-muted-foreground hover:text-foreground",
+                                    ativo && option.value === "inherit" && "bg-muted text-foreground",
+                                    ativo &&
+                                      option.value === "granted" &&
+                                      "bg-status-success/15 text-status-success",
+                                    ativo &&
+                                      option.value === "denied" &&
+                                      "bg-destructive/10 text-destructive"
+                                  )}
+                                >
+                                  {option.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
