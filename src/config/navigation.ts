@@ -136,7 +136,19 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       { href: "/gestao/usuarios", label: "Usuários", permission: PERMISSIONS.USERS_MANAGE },
       { href: "/gestao/permissoes", label: "Permissões", permission: PERMISSIONS.USERS_MANAGE },
-      { href: "/gestao/configuracoes", label: "Configurações", permission: PERMISSIONS.SETTINGS_MANAGE },
+      // Infraestrutura (servidor WAHA, chave de API, n8n) em página própria, só do
+      // proprietário. Configurações ficou com o dia a dia: identidade, cores e o vínculo do
+      // número — ver migration 034.
+      { href: "/gestao/integracoes", label: "Integrações", permission: PERMISSIONS.INTEGRATIONS_MANAGE },
+      {
+        href: "/gestao/configuracoes",
+        label: "Configurações",
+        permission: [
+          PERMISSIONS.SETTINGS_MANAGE,
+          PERMISSIONS.AGENDA_APPEARANCE,
+          PERMISSIONS.WHATSAPP_CONNECT,
+        ],
+      },
     ],
   },
 ]

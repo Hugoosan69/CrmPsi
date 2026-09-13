@@ -7,10 +7,8 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { StatusDot } from "@/components/shared/status-dot"
 import { cn } from "@/lib/utils"
 import type { WahaStatus } from "@/services/waha.service"
@@ -19,12 +17,8 @@ import {
   logoutWahaAction,
   refreshWahaQrAction,
   requestPairingCodeAction,
-  saveWahaAction,
   startWahaAction,
-  type WahaActionState,
 } from "../actions/waha.actions"
-
-const initialState: WahaActionState = {}
 
 /** Vocabulário do WAHA traduzido para o que o operador precisa fazer a seguir. */
 const STATUS_TEXT: Record<string, { label: string; tone: "success" | "warning" | "neutral" | "danger" }> = {
@@ -36,24 +30,27 @@ const STATUS_TEXT: Record<string, { label: string; tone: "success" | "warning" |
   FAILED: { label: "Falhou", tone: "danger" },
 }
 
-export function WahaSettings({
-  enabled,
-  baseUrl,
-  session,
-  hasApiKey,
+/**
+ * O vínculo do número de WhatsApp: estado, QR code, código de pareamento, reiniciar e
+ * desconectar.
+ *
+ * Só isso. Endereço do servidor, nome da sessão e chave de API NÃO aparecem aqui nem chegam
+ * a este componente — moram em Gestão › Integrações, com permissão própria (migration 034).
+ * Reler o QR depois de uma queda da sessão é rotina; a chave dá controle total da conta, e
+ * quem faz a primeira coisa não precisa enxergar a segunda.
+ */
+export function WahaConnection({
+  configured,
   status,
   initialQr,
 }: {
-  enabled: boolean
-  baseUrl: string
-  session: string
-  hasApiKey: boolean
-  status: WahaStatus
+  /** Servidor salvo e integração ligada. Sem isso não há o que vincular. */
+  configured: boolean
+  status: WahaStatus | null
   /** data:image/png;base64,... já resolvido no servidor. */
   initialQr: string | null
 }) {
-  const [state, formAction, isPending] = useActionState(saveWahaAction, initialState)
-  const [isEnabled, setIsEnabled] = useState(enabled)
+  const router = useRouter()
   const [isWorking, startWork] = useTransition()
   const [qr, setQr] = useState(initialQr)
   const [isRefreshing, startRefresh] = useTransition()
@@ -62,37 +59,32 @@ export function WahaSettings({
   const [mode, setMode] = useState<"qr" | "code">("qr")
   const [codeState, codeAction, isRequestingCode] = useActionState(requestPairingCodeAction, {})
 
-  const router = useRouter()
-  const waitingQr = status.status === "SCAN_QR_CODE"
-  const starting = status.status === "STARTING"
-  const failed = status.status === "FAILED"
-  const info = status.status ? STATUS_TEXT[status.status] : null
+  const atual = status?.status ?? null
+  const waitingQr = atual === "SCAN_QR_CODE"
+  const starting = atual === "STARTING"
+  const failed = atual === "FAILED"
+  const info = atual ? STATUS_TEXT[atual] : null
 
   useEffect(() => {
     if (!starting && !waitingQr) return
-    // O status chega na renderização do servidor e mais nada o lia de novo. Dois momentos
+    // O status chega na renderização do servidor e mais nada o lia de novo. Duas transições
     // dependem de perceber a mudança sem recarregar a página:
     //   STARTING → SCAN_QR_CODE   depois de reiniciar, para o QR aparecer
     //   SCAN_QR_CODE → WORKING    depois da leitura, para mostrar "Conectado"
-    // O segundo era o defeito relatado: o celular conectava e a tela seguia esperando QR.
-    //
-    // Pergunta só o status (leve) e recarrega a página só quando ele MUDA. Recarregar a cada
-    // ciclo refaria também a busca do QR no servidor a cada 3 s, sem nenhuma necessidade.
-    const atual = status.status
+    // Pergunta só o status (leve) e recarrega só quando ele MUDA: recarregar a cada ciclo
+    // refaria também a busca do QR no servidor a cada 3 s, sem necessidade.
     const id = setInterval(() => {
       void getWahaStatusAction().then((r) => {
         if (r.status !== atual) router.refresh()
       })
     }, 3_000)
     return () => clearInterval(id)
-  }, [starting, waitingQr, status.status, router])
+  }, [starting, waitingQr, atual, router])
 
   useEffect(() => {
     if (!waitingQr) return
-    // Busca na hora em que a sessão passa a esperar leitura. O QR guardado no estado veio
-    // da primeira renderização — quando a sessão ainda iniciava e não havia QR —, e a
-    // página recarregada não o substitui (useState ignora props novas). Sem esta busca
-    // imediata, o QR só aparecia no primeiro ciclo, até 20 s depois de reiniciar.
+    // Busca na hora em que a sessão passa a esperar leitura: o QR guardado no estado veio da
+    // primeira renderização, quando ainda não havia QR, e useState ignora props novas.
     void refreshWahaQrAction().then((r) => setQr(r.dataUri))
     // Depois, a cada 20 s: o WAHA rotaciona o código, e um QR vencido não conecta.
     const id = setInterval(() => {
@@ -101,11 +93,28 @@ export function WahaSettings({
     return () => clearInterval(id)
   }, [waitingQr])
 
+  if (!configured || !status) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">WhatsApp da clínica</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-sm text-muted-foreground">
+          <p>O servidor do WhatsApp ainda não foi configurado.</p>
+          <p>
+            O proprietário configura em <strong>Gestão › Integrações</strong>. Depois disso, o
+            número da clínica é vinculado aqui, lendo o QR code.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <CardTitle className="text-sm">WhatsApp da clínica (WAHA)</CardTitle>
+          <CardTitle className="text-sm">WhatsApp da clínica</CardTitle>
           <StatusDot
             tone={info?.tone ?? (status.reachable ? "neutral" : "danger")}
             label={
@@ -119,9 +128,9 @@ export function WahaSettings({
 
       <CardContent className="grid gap-5">
         <p className="text-sm text-muted-foreground">
-          O WAHA mantém a sessão do WhatsApp da clínica. Você lê o QR code uma vez com o
-          celular do número da clínica, e a partir daí as mensagens saem por ele. O número
-          fica conectado até você desconectar aqui ou desvincular no aparelho.
+          Leia o QR code uma vez com o celular do número da clínica, e a partir daí as mensagens
+          saem por ele. O número fica conectado até você desconectar aqui ou desvincular no
+          aparelho.
         </p>
 
         {status.me && (
@@ -141,9 +150,9 @@ export function WahaSettings({
           <div className="rounded-lg border border-status-warning/40 bg-status-warning/5 px-3.5 py-3 text-[0.85rem]">
             <p className="font-medium">A sessão do WhatsApp falhou</p>
             <p className="mt-1 text-muted-foreground">
-              Acontece quando o navegador interno do WAHA cai — uma reinicialização da VPS,
-              por exemplo. Use <strong>Reiniciar sessão</strong> abaixo: em alguns segundos o
-              QR code aparece aqui para ler de novo.
+              Acontece quando o navegador interno do WAHA cai — uma reinicialização do servidor,
+              por exemplo. Use <strong>Reiniciar sessão</strong> abaixo: em alguns segundos o QR
+              code aparece aqui para ler de novo.
             </p>
           </div>
         )}
@@ -193,20 +202,21 @@ export function WahaSettings({
 
             {/* next/image não serve para um data URI que muda a cada segundos e não deve
                 ser otimizado nem cacheado. */}
-            {mode === "qr" && (qr ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={qr}
-                alt="QR code para conectar o WhatsApp"
-                className="size-56 rounded-lg bg-white p-2"
-              />
-            ) : (
-              <div className="flex size-56 items-center justify-center rounded-lg border border-dashed border-border text-center text-[0.78rem] text-muted-foreground">
-                QR ainda não disponível.
-                <br />
-                Aguarde alguns segundos.
-              </div>
-            ))}
+            {mode === "qr" &&
+              (qr ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={qr}
+                  alt="QR code para conectar o WhatsApp"
+                  className="size-56 rounded-lg bg-white p-2"
+                />
+              ) : (
+                <div className="flex size-56 items-center justify-center rounded-lg border border-dashed border-border text-center text-[0.78rem] text-muted-foreground">
+                  QR ainda não disponível.
+                  <br />
+                  Aguarde alguns segundos.
+                </div>
+              ))}
 
             {mode === "code" && (
               <form action={codeAction} className="grid w-full max-w-sm justify-items-center gap-3">
@@ -250,148 +260,65 @@ export function WahaSettings({
             )}
 
             {mode === "qr" && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isRefreshing}
-              onClick={() =>
-                startRefresh(async () => {
-                  const r = await refreshWahaQrAction()
-                  setQr(r.dataUri)
-                })
-              }
-              aria-label="Gerar novo QR code"
-            >
-              <RefreshCw className="size-3.5" />
-              {isRefreshing ? "Buscando..." : "Atualizar QR"}
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isRefreshing}
+                onClick={() =>
+                  startRefresh(async () => {
+                    const r = await refreshWahaQrAction()
+                    setQr(r.dataUri)
+                  })
+                }
+                aria-label="Gerar novo QR code"
+              >
+                <RefreshCw className="size-3.5" />
+                {isRefreshing ? "Buscando..." : "Atualizar QR"}
+              </Button>
             )}
           </div>
         )}
 
-        <form action={formAction} className="grid gap-4 border-t border-border pt-5">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="waha-enabled"
-              name="enabled"
-              checked={isEnabled}
-              onCheckedChange={(c) => setIsEnabled(c === true)}
-            />
-            <Label htmlFor="waha-enabled" className="cursor-pointer">
-              Usar o WAHA para enviar WhatsApp
-            </Label>
-          </div>
-
-          {/* items-start é necessário: sem ele cada célula estica até a altura da linha e
-              distribui o conteúdo, então um campo COM texto de ajuda e outro SEM ficam com
-              os inputs em alturas diferentes — 27px de diferença, medido. */}
-          <div className="grid items-start gap-4 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label htmlFor="waha-url">Servidor WAHA</Label>
-              <Input
-                id="waha-url"
-                name="base_url"
-                defaultValue={baseUrl}
-                placeholder="http://64.181.189.174:3000"
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label htmlFor="waha-session">Nome da sessão</Label>
-              <Input
-                id="waha-session"
-                name="session"
-                defaultValue={session}
-                placeholder="default"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-[0.72rem] text-muted-foreground">
-                Um número por sessão. &quot;default&quot; serve para uma clínica só.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label htmlFor="waha-key">Chave de API</Label>
-            <Input
-              id="waha-key"
-              name="api_key"
-              type="password"
-              placeholder={hasApiKey ? "•••••••• (mantida)" : "opcional, se o WAHA exigir"}
-              autoComplete="new-password"
-            />
-            <p className="text-[0.72rem] text-muted-foreground">
-              Enviada no cabeçalho <code className="font-mono">X-Api-Key</code>. Nunca sai do
-              servidor.
-              {hasApiKey && " Deixe vazio para manter a atual."}
-            </p>
-            {hasApiKey && (
-              <label className="mt-1 flex items-center gap-2 text-[0.78rem] text-muted-foreground">
-                <Checkbox name="clear_api_key" /> Remover a chave salva
-              </label>
-            )}
-          </div>
-
-          {state.error && (
-            <p className="text-sm text-destructive" role="alert">
-              {state.error}
-            </p>
-          )}
-          {state.success && (
-            <p className="text-sm text-status-success" role="status">
-              {state.success}
-            </p>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Salvando..." : "Salvar"}
+        <div className="flex flex-wrap gap-2 border-t border-border pt-5">
+          {status.status !== "WORKING" && (
+            <Button
+              type="button"
+              disabled={isWorking}
+              onClick={() =>
+                startWork(async () => {
+                  const r = await startWahaAction()
+                  if (r.error) toast.error(r.error)
+                  else if (r.success) toast.success(r.success)
+                })
+              }
+            >
+              {isWorking
+                ? failed
+                  ? "Reiniciando..."
+                  : "Conectando..."
+                : failed
+                  ? "Reiniciar sessão"
+                  : "Conectar número"}
             </Button>
+          )}
 
-            {status.status !== "WORKING" && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isWorking || !baseUrl}
-                onClick={() =>
-                  startWork(async () => {
-                    const r = await startWahaAction()
-                    if (r.error) toast.error(r.error)
-                    else if (r.success) toast.success(r.success)
-                  })
-                }
-              >
-                {isWorking
-                  ? failed
-                    ? "Reiniciando..."
-                    : "Conectando..."
-                  : failed
-                    ? "Reiniciar sessão"
-                    : "Conectar número"}
-              </Button>
-            )}
-
-            {status.me && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isWorking}
-                onClick={() =>
-                  startWork(async () => {
-                    const r = await logoutWahaAction()
-                    if (r.error) toast.error(r.error)
-                    else if (r.success) toast.success(r.success)
-                  })
-                }
-              >
-                Desconectar número
-              </Button>
-            )}
-          </div>
-        </form>
+          {status.me && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isWorking}
+              onClick={() =>
+                startWork(async () => {
+                  const r = await logoutWahaAction()
+                  if (r.error) toast.error(r.error)
+                  else if (r.success) toast.success(r.success)
+                })
+              }
+            >
+              Desconectar número
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

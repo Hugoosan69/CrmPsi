@@ -50,7 +50,10 @@ insert into permissions (slug, module, description) values
   -- recepção — para atender a própria fila —, e era essa coincidência que lhe dava o balcão.
   ('reception.access', 'areas', 'Trabalhar na recepção (balcão): pacientes, agenda, fila e caixa'),
   ('professional.access', 'areas', 'Trabalhar como profissional: minha agenda, minha fila e atendimentos'),
-  ('management.access', 'areas', 'Ver a área de gestão e os indicadores gerenciais da clínica');
+  ('management.access', 'areas', 'Ver a área de gestão e os indicadores gerenciais da clínica'),
+  -- migration 034: vínculo do número separado da infraestrutura (servidor, chave de API).
+  -- O administrador a recebe pela regra "tudo menos integrations.manage" logo abaixo.
+  ('whatsapp.connect', 'communication', 'Vincular e desvincular o número de WhatsApp da clínica (ler QR code, reiniciar sessão)');
 
 insert into role_permissions (role_id, permission_id)
 -- Proprietário: tudo, integrações inclusive.

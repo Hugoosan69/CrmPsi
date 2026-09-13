@@ -19,7 +19,9 @@ import { recordAudit } from "@/services/audit.service"
 export type WahaActionState = { error?: string; success?: string }
 
 function revalidateSettings() {
+  // As duas telas leem o mesmo estado: o vínculo em Configurações, o servidor em Integrações.
   revalidatePath("/gestao/configuracoes")
+  revalidatePath("/gestao/integracoes")
 }
 
 export async function saveWahaAction(
@@ -69,11 +71,11 @@ export async function saveWahaAction(
 
 /** Cria/inicia a sessão para o QR aparecer. */
 export async function startWahaAction(): Promise<WahaActionState> {
-  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.WHATSAPP_CONNECT)
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
 
-  if (!config.baseUrl) return { error: "Configure e salve o servidor WAHA antes de conectar." }
+  if (!config.baseUrl) return { error: "O servidor do WhatsApp não está configurado. O proprietário configura em Gestão › Integrações." }
 
   try {
     await startWahaSession(config)
@@ -87,7 +89,7 @@ export async function startWahaAction(): Promise<WahaActionState> {
 }
 
 export async function logoutWahaAction(): Promise<WahaActionState> {
-  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.WHATSAPP_CONNECT)
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
 
@@ -120,7 +122,7 @@ export async function logoutWahaAction(): Promise<WahaActionState> {
  * tela só recarrega quando este status muda.
  */
 export async function getWahaStatusAction(): Promise<{ status: string | null }> {
-  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.WHATSAPP_CONNECT)
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
   const { status } = await getWahaStatus(config)
@@ -137,7 +139,7 @@ export async function getWahaStatusAction(): Promise<{ status: string | null }> 
  * pareamento a quem não tem sessão.
  */
 export async function refreshWahaQrAction(): Promise<{ dataUri: string | null }> {
-  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.WHATSAPP_CONNECT)
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
   return { dataUri: await fetchWahaQrDataUri(config) }
@@ -154,7 +156,7 @@ export async function requestPairingCodeAction(
   _prev: WahaActionState & { code?: string },
   formData: FormData
 ): Promise<WahaActionState & { code?: string }> {
-  const membership = await requirePermission(PERMISSIONS.INTEGRATIONS_MANAGE)
+  const membership = await requirePermission(PERMISSIONS.WHATSAPP_CONNECT)
   const phone = String(formData.get("phone") ?? "").trim()
 
   if (phone.replace(/\D/g, "").length < 10) {
@@ -163,7 +165,7 @@ export async function requestPairingCodeAction(
 
   const supabase = await createClient()
   const config = await getWahaConfig(supabase, membership.clinicId)
-  if (!config.baseUrl) return { error: "Configure e salve o servidor WAHA antes." }
+  if (!config.baseUrl) return { error: "O servidor do WhatsApp não está configurado. O proprietário configura em Gestão › Integrações." }
 
   try {
     const code = await requestWahaPairingCode(config, phone)

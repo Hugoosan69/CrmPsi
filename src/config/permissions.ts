@@ -75,6 +75,15 @@ export const PERMISSIONS = {
   RECEPTION_ACCESS: "reception.access",
   PROFESSIONAL_ACCESS: "professional.access",
   MANAGEMENT_ACCESS: "management.access",
+
+  /**
+   * migration 034 — vincular e desvincular o número de WhatsApp (ler QR, reiniciar sessão).
+   *
+   * Separada de `integrations.manage` de propósito. Reler o QR depois de uma queda da sessão
+   * é rotina; o endereço do servidor e a chave de API dão controle total da conta de
+   * WhatsApp da clínica. Quem precisa fazer a primeira não precisa, e não deve, ver a segunda.
+   */
+  WHATSAPP_CONNECT: "whatsapp.connect",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
