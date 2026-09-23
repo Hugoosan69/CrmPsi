@@ -21,10 +21,33 @@ import { minutesToTime } from "@/utils/datetime"
  * Altura da grade. A 1.05 px/min uma consulta de 30 minutos ocupava ~31px — cabia só o
  * nome do paciente, e os limiares abaixo escondiam procedimento e situação justamente nos
  * blocos mais comuns. A 1.8 os mesmos 30 minutos viram 54px, o suficiente para as três
- * linhas do bloco, e o dia inteiro continua rolando normalmente.
+ * linhas do bloco.
  */
 const PX_PER_MINUTE = 1.8
-const HOUR_HEIGHT = 60 * PX_PER_MINUTE
+
+/**
+ * Teto de altura da grade, em pixels: o equivalente a 10 horas na densidade cheia.
+ *
+ * Existe porque a janela vem da disponibilidade cadastrada, e um profissional que se
+ * cadastra como disponível o dia inteiro produzia 24h × 108px = 2.592px de grade — a
+ * pessoa rolava a tela sem fim para achar as consultas da tarde. Acima deste teto a
+ * densidade cede; até ele, nada muda.
+ */
+const MAX_GRID_HEIGHT = 10 * 60 * PX_PER_MINUTE
+
+/** Abaixo disto o bloco de 30 minutos fica ilegível, então a grade volta a rolar. */
+const MIN_PX_PER_MINUTE = 0.8
+
+/**
+ * Quantos pixels por minuto esta janela comporta.
+ *
+ * Expediente normal (até 10h) fica na densidade cheia, idêntico ao que era. Janelas longas
+ * encolhem só o quanto for preciso para caber, e nunca abaixo do mínimo legível.
+ */
+function densityFor(totalMinutes: number): number {
+  if (totalMinutes <= 0) return PX_PER_MINUTE
+  return Math.min(PX_PER_MINUTE, Math.max(MIN_PX_PER_MINUTE, MAX_GRID_HEIGHT / totalMinutes))
+}
 
 export type CalendarColumn = {
   key: string
@@ -155,9 +178,12 @@ export function CalendarGrid({
   const lastHour = Math.ceil(windowEnd / 60)
   const hours = Array.from({ length: lastHour - firstHour }, (_, i) => firstHour + i)
   const totalMinutes = (lastHour - firstHour) * 60
-  const gridHeight = totalMinutes * PX_PER_MINUTE
+  // Densidade da janela desta grade, não constante: ver densityFor.
+  const pxPerMinute = densityFor(totalMinutes)
+  const hourHeight = 60 * pxPerMinute
+  const gridHeight = totalMinutes * pxPerMinute
 
-  const offset = (minutes: number) => (minutes - firstHour * 60) * PX_PER_MINUTE
+  const offset = (minutes: number) => (minutes - firstHour * 60) * pxPerMinute
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
@@ -190,7 +216,7 @@ export function CalendarGrid({
             <div
               key={hour}
               className="relative border-border text-right"
-              style={{ height: HOUR_HEIGHT }}
+              style={{ height: hourHeight }}
             >
               {index > 0 && (
                 <span className="absolute -top-2 right-2 text-[0.68rem] text-muted-foreground tabular-nums">
@@ -229,11 +255,11 @@ export function CalendarGrid({
                       "absolute inset-x-0 border-t",
                       index === 0 ? "border-transparent" : "border-border"
                     )}
-                    style={{ top: index * HOUR_HEIGHT }}
+                    style={{ top: index * hourHeight }}
                   />
                   <div
                     className="absolute inset-x-0 border-t border-dashed border-border/45"
-                    style={{ top: index * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
+                    style={{ top: index * hourHeight + hourHeight / 2 }}
                   />
                 </div>
               ))}
@@ -250,7 +276,7 @@ export function CalendarGrid({
                   )}
                   style={{
                     top: offset(band.startMinutes),
-                    height: Math.max((band.endMinutes - band.startMinutes) * PX_PER_MINUTE, 4),
+                    height: Math.max((band.endMinutes - band.startMinutes) * pxPerMinute, 4),
                   }}
                   title={band.label}
                   aria-hidden
@@ -274,7 +300,7 @@ export function CalendarGrid({
               {/* Events */}
               {columnEvents.map(({ event, lane, lanes }) => {
                 const top = offset(event.startMinutes)
-                const height = Math.max((event.endMinutes - event.startMinutes) * PX_PER_MINUTE, 22)
+                const height = Math.max((event.endMinutes - event.startMinutes) * pxPerMinute, 22)
                 const widthPct = 100 / lanes
                 // Cor da clínica quando existe, tom do tema quando não. As mesmas
                 // proporções (45% na borda, 12% no fundo) dos tons padrão, para uma cor
