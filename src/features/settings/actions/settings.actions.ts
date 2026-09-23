@@ -110,6 +110,12 @@ export async function saveBrandingAction(
 function parseN8nForm(formData: FormData) {
   return n8nSettingsSchema.safeParse({
     enabled: formData.get("enabled") === "on" || formData.get("enabled") === "true",
+    // Os dois campos que o formulário mostra. Ficaram de fora quando o endereço único foi
+    // dividido em servidor + caminho, e o schema os completava com "" — então cada
+    // salvamento limpava os dois no banco, sem erro nenhum, enquanto a tela seguia
+    // exibindo o que a pessoa tinha acabado de digitar.
+    base_url: formData.get("base_url") ?? "",
+    path: formData.get("path") ?? "",
     webhook_url: formData.get("webhook_url") ?? "",
     secret: formData.get("secret") ?? "",
     clear_secret: formData.get("clear_secret") === "on",
