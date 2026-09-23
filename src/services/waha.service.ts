@@ -239,23 +239,51 @@ export async function fetchWahaQrDataUri(config: WahaConfig): Promise<string | n
 }
 
 /**
+ * Descobre o identificador de conversa de um número, perguntando ao WhatsApp.
+ *
+ * O formato clássico é `<numero>@c.us`, mas o WhatsApp passou a endereçar contas por LID
+ * (`<id>@lid`), e o WEBJS não resolve `@c.us` de quem a sessão ainda não conhece: o envio
+ * falha com "WAHA 500: No LID for user". Enviar para o próprio número da clínica funcionava
+ * — ele já é conhecido —, e foi por isso que o defeito passou pelo primeiro teste.
+ *
+ * `check-exists` devolve o `chatId` correto e, de quebra, diz se o número tem WhatsApp, o
+ * que vira um erro legível em vez de um 500 do motor.
+ */
+async function resolveChatId(config: WahaConfig, withCountry: string): Promise<string> {
+  const url = `${config.baseUrl}/api/contacts/check-exists?phone=${withCountry}&session=${encodeURIComponent(config.session)}`
+  const response = await fetch(url, { headers: headers(config), signal: AbortSignal.timeout(15_000) })
+
+  if (!response.ok) {
+    // O WAHA pode não expor a checagem (versão antiga). Segue com o formato clássico, que
+    // é o que sempre funcionou para contato já conhecido pela sessão.
+    return `${withCountry}@c.us`
+  }
+
+  const data = (await response.json()) as { numberExists?: boolean; chatId?: string }
+  if (data.numberExists === false) {
+    throw new Error("Este número não tem WhatsApp.")
+  }
+  return data.chatId || `${withCountry}@c.us`
+}
+
+/**
  * Envia uma mensagem de texto.
  *
- * `chatId` no WAHA é `<numero>@c.us` com DDI, sem símbolos — um telefone gravado como
- * "(61) 99869-4211" precisa virar "5561998694211@c.us", e mandar o formato brasileiro cru
- * faz o WAHA aceitar a chamada e a mensagem nunca chegar.
+ * O número é normalizado com DDI e sem símbolos — "(61) 99869-4211" vira "5561998694211" —
+ * e o destino é resolvido por `resolveChatId`, não montado à mão.
  */
 export async function sendWahaText(config: WahaConfig, phone: string, text: string) {
   const digits = phone.replace(/\D/g, "")
   // Número brasileiro sem DDI: 10 (fixo) ou 11 (celular) dígitos. Prefixa 55.
   const withCountry = digits.length <= 11 ? `55${digits}` : digits
+  const chatId = await resolveChatId(config, withCountry)
 
   const response = await fetch(`${config.baseUrl}/api/sendText`, {
     method: "POST",
     headers: headers(config),
     body: JSON.stringify({
       session: config.session,
-      chatId: `${withCountry}@c.us`,
+      chatId,
       text,
     }),
     signal: AbortSignal.timeout(20_000),
