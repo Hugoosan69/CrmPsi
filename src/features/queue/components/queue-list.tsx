@@ -1,15 +1,25 @@
 "use client"
 
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { PhoneCall } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/shared/empty-state"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { formatTime } from "@/utils/datetime"
 import type { QueueEntryView } from "@/services/queue.service"
+import type { ProfessionalOption } from "@/types/options"
+import type { QueueStatus } from "@/types/supabase"
 import {
   callQueueEntryAction,
   cancelQueueEntryAction,
@@ -17,6 +27,7 @@ import {
 } from "../actions/queue.actions"
 import { PaymentGateBoard } from "./payment-gate-board"
 import { QueueStatusBadge } from "./queue-status-badge"
+import { TransferQueueEntryDialog } from "./transfer-queue-entry-dialog"
 import { CallingNow } from "./calling-now"
 
 const ENTRY_TYPE_LABEL: Record<string, string> = {
@@ -24,6 +35,20 @@ const ENTRY_TYPE_LABEL: Record<string, string> = {
   walk_in: "Encaixe",
   fit_in: "Encaixe",
   transfer: "Transferido",
+}
+
+/** Situações que compõem "Na fila" — o que já passou do portão de pagamento. */
+const IN_QUEUE_STATUSES: QueueStatus[] = ["waiting", "called", "in_service", "paused"]
+
+const STATUS_FILTER_LABEL: Record<QueueStatus, string> = {
+  payment_pending: "Aguardando pagamento",
+  released: "A enviar para a fila",
+  waiting: "Aguardando",
+  called: "Chamado",
+  in_service: "Em atendimento",
+  paused: "Pausado",
+  completed: "Finalizado",
+  cancelled: "Cancelado",
 }
 
 /** Faixas de espera. A cor sobe junto com o tempo, para o balcão ler de longe. */
@@ -83,17 +108,82 @@ function QueueSummary({ entries }: { entries: QueueEntryView[] }) {
   )
 }
 
+/**
+ * Filtros da lista "Na fila": profissional (vai para a consulta, já que o serviço já sabe
+ * filtrar por `professional_id`) e situação (aplicado no cliente, sobre o que já chegou).
+ *
+ * Estado local, não na URL — a fila reconsulta a cada 5s (`refetchInterval`), e um filtro
+ * na URL empurraria uma navegação a cada refresh do operador. O quadro de resumo acima
+ * conta sempre os dados sem filtro: filtrar a lista não deve fazer parecer que a fila
+ * mudou de tamanho.
+ */
+function QueueFilters({
+  professionals,
+  professionalId,
+  onProfessionalChange,
+  status,
+  onStatusChange,
+}: {
+  professionals: ProfessionalOption[]
+  professionalId: string
+  onProfessionalChange: (value: string) => void
+  status: string
+  onStatusChange: (value: string) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="grid gap-1.5">
+        <Label>Profissional</Label>
+        <Select value={professionalId} onValueChange={(v) => onProfessionalChange(v ?? "")}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todos</SelectItem>
+            {professionals.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.full_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>Situação</Label>
+        <Select value={status} onValueChange={(v) => onStatusChange(v ?? "")}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Todas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todas</SelectItem>
+            {IN_QUEUE_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {STATUS_FILTER_LABEL[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  )
+}
+
 export function QueueList({
   paymentMethods,
   insurers = [],
+  professionals,
 }: {
   paymentMethods: PaymentMethod[]
   insurers?: InsurerOption[]
+  professionals: ProfessionalOption[]
 }) {
   const queryClient = useQueryClient()
+  const [professionalFilter, setProfessionalFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+
   const { data: all, isLoading, error } = useQuery({
-    queryKey: ["queue", "recepcao"],
-    queryFn: () => getQueueSnapshotAction(),
+    queryKey: ["queue", "recepcao", professionalFilter],
+    queryFn: () => getQueueSnapshotAction(professionalFilter || undefined),
     refetchInterval: 5000,
     retry: false,
   })
@@ -135,9 +225,12 @@ export function QueueList({
   const entries = all ?? []
   // As duas bandas: a recepção é dona do portão de pagamento, e só o que passou dele é fila.
   const gated = entries.filter((e) => e.status === "payment_pending" || e.status === "released")
-  const inQueue = entries.filter(
+  const inQueueAll = entries.filter(
     (e) => e.status !== "payment_pending" && e.status !== "released"
   )
+  const inQueue = statusFilter
+    ? inQueueAll.filter((e) => e.status === statusFilter)
+    : inQueueAll
 
   return (
     <div className="grid gap-6">
@@ -149,21 +242,33 @@ export function QueueList({
 
       <PaymentGateBoard entries={gated} paymentMethods={paymentMethods} insurers={insurers} />
 
-      {inQueue.length === 0 ? (
-        <EmptyState
-          title="Ninguém na fila no momento"
-          description="Pacientes entram na fila depois que o pagamento é confirmado e a recepção os envia."
-        />
-      ) : (
-        <section className="grid gap-3">
+      <section className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <h2 className="font-heading text-[0.95rem] font-semibold">Na fila</h2>
             <span className="rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-semibold tabular-nums text-muted-foreground">
               {inQueue.length}
             </span>
-            <span className="h-px flex-1 bg-border" aria-hidden />
           </div>
+          <QueueFilters
+            professionals={professionals}
+            professionalId={professionalFilter}
+            onProfessionalChange={setProfessionalFilter}
+            status={statusFilter}
+            onStatusChange={setStatusFilter}
+          />
+        </div>
 
+        {inQueue.length === 0 ? (
+          <EmptyState
+            title={inQueueAll.length === 0 ? "Ninguém na fila no momento" : "Nenhum resultado para este filtro"}
+            description={
+              inQueueAll.length === 0
+                ? "Pacientes entram na fila depois que o pagamento é confirmado e a recepção os envia."
+                : "Troque o profissional ou a situação para ver outros pacientes."
+            }
+          />
+        ) : (
           <ul className="overflow-hidden rounded-xl border border-border bg-card shadow-soft divide-y divide-border/70">
             {inQueue.map((entry, index) => (
               <li key={entry.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
@@ -204,21 +309,35 @@ export function QueueList({
                     </Button>
                   )}
                   {(entry.status === "waiting" || entry.status === "called") && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() => run(() => cancelQueueEntryAction(entry.id))}
-                    >
-                      Cancelar
-                    </Button>
+                    <>
+                      <TransferQueueEntryDialog
+                        queueEntryId={entry.id}
+                        fromProfessionalId={entry.professional_id}
+                        professionals={professionals}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() => run(() => cancelQueueEntryAction(entry.id))}
+                      >
+                        Cancelar
+                      </Button>
+                    </>
+                  )}
+                  {(entry.status === "in_service" || entry.status === "paused") && (
+                    <TransferQueueEntryDialog
+                      queueEntryId={entry.id}
+                      fromProfessionalId={entry.professional_id}
+                      professionals={professionals}
+                    />
                   )}
                 </div>
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
     </div>
   )
 }

@@ -35,7 +35,11 @@ export default async function RecepcaoFilaPage() {
           />
         }
       />
-      <QueueList paymentMethods={paymentMethods} insurers={insurers} />
+      <QueueList
+        paymentMethods={paymentMethods}
+        insurers={insurers}
+        professionals={professionals.filter((p) => p.active)}
+      />
     </div>
   )
 }
