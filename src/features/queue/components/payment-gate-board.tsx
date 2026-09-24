@@ -5,12 +5,14 @@ import { useQueryClient } from "@tanstack/react-query"
 import { ArrowRight, Lock, Wallet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { RegisterPaymentDialog } from "@/features/financial/components/register-payment-dialog"
 import { StatusDot } from "@/components/shared/status-dot"
 import { cn } from "@/lib/utils"
 import { formatTime } from "@/utils/datetime"
 import type { QueueEntryView } from "@/services/queue.service"
 import { releaseToQueueAction } from "../actions/queue.actions"
+import { BulkRegisterPaymentDialog } from "./bulk-register-payment-dialog"
 
 type PaymentMethod = { id: string; name: string }
 import type { InsurerOption } from "@/features/billing/components/insurer-guide-fields"
@@ -27,15 +29,17 @@ function SectionHeader({
   count,
   tone,
   hint,
+  children,
 }: {
   title: string
   count: number
   tone: "danger" | "success"
   hint: string
+  children?: React.ReactNode
 }) {
   return (
     <div className="grid gap-1">
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
         <h2 className="font-heading text-[0.95rem] font-semibold">{title}</h2>
         <span
           className={cn(
@@ -47,7 +51,7 @@ function SectionHeader({
         >
           {count}
         </span>
-        <span className="h-px flex-1 bg-border" aria-hidden />
+        {children && <div className="ml-auto flex items-center gap-2">{children}</div>}
       </div>
       <p className="text-[0.78rem] text-muted-foreground">{hint}</p>
     </div>
@@ -57,19 +61,56 @@ function SectionHeader({
 function GateRow({
   children,
   accent,
+  selected,
+  onToggle,
 }: {
   children: React.ReactNode
   accent?: "overdue"
+  selected?: boolean
+  onToggle?: (checked: boolean) => void
 }) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border bg-card p-4 shadow-soft",
+        "flex flex-wrap items-center gap-x-3 gap-y-3 rounded-xl border bg-card p-4 shadow-soft",
         accent === "overdue" ? "border-status-warning/45" : "border-border"
       )}
     >
+      {onToggle && (
+        <Checkbox
+          checked={selected ?? false}
+          onCheckedChange={(v) => onToggle(v === true)}
+          aria-label="Selecionar"
+        />
+      )}
       <div className="min-w-0 flex-1 basis-48">{children}</div>
     </div>
+  )
+}
+
+/**
+ * Um bloco por situação, com fundo e borda próprios — não só um título separando texto
+ * corrido. É a diferença entre "três listas" e "uma lista comprida com subtítulos", e é
+ * a leitura rápida que o balcão precisa entre um paciente e outro.
+ */
+function SectionCard({
+  tone,
+  children,
+}: {
+  tone: "danger" | "success"
+  children: React.ReactNode
+}) {
+  return (
+    <section
+      className={cn(
+        "grid gap-3 rounded-xl border p-4",
+        tone === "danger"
+          ? "border-status-danger/25 bg-status-danger/[0.03]"
+          : "border-status-success/25 bg-status-success/[0.03]"
+      )}
+    >
+      {children}
+    </section>
   )
 }
 
@@ -79,10 +120,9 @@ function GateRow({
  *  `payment_pending` — chegou, cobrança em aberto, não pode ser chamado.
  *  `released`        — JÁ PAGOU e está esperando o clique "Enviar para fila".
  *
- * As duas viviam sob um único título "Aguardando pagamento". Quem passa o olho no balcão lê
- * esse título, reconhece que aquele paciente já pagou e segue adiante — e o paciente fica
- * sentado, invisível para o profissional, porque ninguém o enviou. Era a causa de raiz do
- * "muito atendimento com pagamento confirmado sem ir para a fila": separá-las é a correção.
+ * Cada uma vive num bloco próprio (fundo e borda coloridos, não só um título), e cada uma
+ * aceita seleção múltipla para a ação em lote correspondente — enviar vários para a fila
+ * de uma vez, ou registrar o mesmo método de pagamento para várias cobranças.
  */
 export function PaymentGateBoard({
   entries,
@@ -96,9 +136,12 @@ export function PaymentGateBoard({
   const queryClient = useQueryClient()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [selectedSend, setSelectedSend] = useState<Set<string>>(new Set())
+  const [selectedPay, setSelectedPay] = useState<Set<string>>(new Set())
 
   const awaitingPayment = entries.filter((e) => e.status === "payment_pending")
   const readyToSend = entries.filter((e) => e.status === "released")
+  const payableSelection = awaitingPayment.filter((e) => selectedPay.has(e.id) && e.charge)
 
   if (entries.length === 0) return null
 
@@ -108,6 +151,39 @@ export function PaymentGateBoard({
       const result = await releaseToQueueAction(id)
       if (result.error) setError(result.error)
       queryClient.invalidateQueries({ queryKey: ["queue"] })
+    })
+  }
+
+  function sendSelected() {
+    startTransition(async () => {
+      setError(null)
+      for (const id of selectedSend) {
+        const result = await releaseToQueueAction(id)
+        if (result.error) {
+          setError(result.error)
+          break
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["queue"] })
+      setSelectedSend(new Set())
+    })
+  }
+
+  function toggleSend(id: string, checked: boolean) {
+    setSelectedSend((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  function togglePay(id: string, checked: boolean) {
+    setSelectedPay((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
     })
   }
 
@@ -122,18 +198,29 @@ export function PaymentGateBoard({
       {/* ---- Pagos, esperando envio. Vem PRIMEIRO: é o único bloco com paciente parado
               por inação da recepção, e é a ação mais barata do balcão. ---- */}
       {readyToSend.length > 0 && (
-        <section className="grid gap-3">
+        <SectionCard tone="success">
           <SectionHeader
             title="Pagos — enviar para a fila"
             count={readyToSend.length}
             tone="success"
             hint="Pagamento confirmado. Enquanto não forem enviados, nenhum profissional enxerga estes pacientes."
-          />
+          >
+            {selectedSend.size > 0 && (
+              <Button size="sm" disabled={isPending} onClick={sendSelected}>
+                Enviar {selectedSend.size} para a fila <ArrowRight className="size-3.5" />
+              </Button>
+            )}
+          </SectionHeader>
           <div className="grid gap-2.5">
             {readyToSend.map((entry) => {
               const overdue = entry.waitingMinutes >= SEND_OVERDUE_MINUTES
               return (
-                <GateRow key={entry.id} accent={overdue ? "overdue" : undefined}>
+                <GateRow
+                  key={entry.id}
+                  accent={overdue ? "overdue" : undefined}
+                  selected={selectedSend.has(entry.id)}
+                  onToggle={(checked) => toggleSend(entry.id, checked)}
+                >
                   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -165,21 +252,37 @@ export function PaymentGateBoard({
               )
             })}
           </div>
-        </section>
+        </SectionCard>
       )}
 
       {/* ---- Cobrança em aberto ---- */}
       {awaitingPayment.length > 0 && (
-        <section className="grid gap-3">
+        <SectionCard tone="danger">
           <SectionHeader
             title="Aguardando pagamento"
             count={awaitingPayment.length}
             tone="danger"
             hint="Chegaram e têm cobrança em aberto. O banco impede a entrada na fila até o pagamento ser confirmado."
-          />
+          >
+            {payableSelection.length > 0 && (
+              <BulkRegisterPaymentDialog
+                entries={payableSelection.map((e) => ({
+                  transactionId: e.charge!.id,
+                  patientName: e.patientName,
+                  amount: e.charge!.amount,
+                }))}
+                paymentMethods={paymentMethods}
+                onDone={() => setSelectedPay(new Set())}
+              />
+            )}
+          </SectionHeader>
           <div className="grid gap-2.5">
             {awaitingPayment.map((entry) => (
-              <GateRow key={entry.id}>
+              <GateRow
+                key={entry.id}
+                selected={selectedPay.has(entry.id)}
+                onToggle={entry.charge ? (checked) => togglePay(entry.id, checked) : undefined}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -217,7 +320,7 @@ export function PaymentGateBoard({
               </GateRow>
             ))}
           </div>
-        </section>
+        </SectionCard>
       )}
 
       {readyToSend.length === 0 && awaitingPayment.length > 0 && (

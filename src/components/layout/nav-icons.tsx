@@ -7,6 +7,7 @@ import {
   MessagesSquare,
   Package,
   Plug,
+  ScrollText,
   Settings,
   ShieldCheck,
   Siren,
@@ -31,6 +32,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/gestao/financeiro": Wallet,
   // Sirene: a única entrada do menu que existe para dizer "algo saiu do esperado".
   // Deliberadamente longe de ShieldCheck (Permissões), que na barra estreita ficaria igual.
+  "/gestao/auditoria": ScrollText,
   "/gestao/anomalias": Siren,
   "/gestao/profissionais": UsersRound,
   "/gestao/comunicacao": MessageSquare,

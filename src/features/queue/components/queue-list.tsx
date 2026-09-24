@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { PhoneCall } from "lucide-react"
 
@@ -15,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PaginationBar } from "@/components/shared/pagination-bar"
+import { PAGE_PARAM, PAGE_SIZE_PARAM, parsePagination } from "@/config/pagination"
 import { cn } from "@/lib/utils"
 import { formatTime } from "@/utils/datetime"
 import type { QueueEntryView } from "@/services/queue.service"
@@ -178,8 +181,25 @@ export function QueueList({
   professionals: ProfessionalOption[]
 }) {
   const queryClient = useQueryClient()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [professionalFilter, setProfessionalFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
+
+  const { page, pageSize } = parsePagination({
+    page: searchParams.get(PAGE_PARAM),
+    pageSize: searchParams.get(PAGE_SIZE_PARAM),
+  })
+
+  // Trocar o filtro é um recomeço da lista, igual a `FinancialFilters`: volta para a
+  // primeira página em vez de deixar a pessoa na página 4 de um resultado que agora tem 2.
+  function resetPage() {
+    if (!searchParams.get(PAGE_PARAM)) return
+    const params = new URLSearchParams(searchParams)
+    params.delete(PAGE_PARAM)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
   const { data: all, isLoading, error } = useQuery({
     queryKey: ["queue", "recepcao", professionalFilter],
@@ -231,6 +251,8 @@ export function QueueList({
   const inQueue = statusFilter
     ? inQueueAll.filter((e) => e.status === statusFilter)
     : inQueueAll
+  const pageStart = (page - 1) * pageSize
+  const inQueuePage = inQueue.slice(pageStart, pageStart + pageSize)
 
   return (
     <div className="grid gap-6">
@@ -242,20 +264,28 @@ export function QueueList({
 
       <PaymentGateBoard entries={gated} paymentMethods={paymentMethods} insurers={insurers} />
 
-      <section className="grid gap-3">
+      {/* Bloco próprio, mesmo tratamento visual dos dois acima — "na fila" não é a
+          continuação da lista de pagamento, é a terceira situação. */}
+      <section className="grid gap-3 rounded-xl border border-status-warning/25 bg-status-warning/[0.03] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <h2 className="font-heading text-[0.95rem] font-semibold">Na fila</h2>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-semibold tabular-nums text-muted-foreground">
+            <span className="rounded-full bg-status-warning/12 px-2 py-0.5 text-[0.7rem] font-semibold tabular-nums text-status-warning">
               {inQueue.length}
             </span>
           </div>
           <QueueFilters
             professionals={professionals}
             professionalId={professionalFilter}
-            onProfessionalChange={setProfessionalFilter}
+            onProfessionalChange={(v) => {
+              setProfessionalFilter(v)
+              resetPage()
+            }}
             status={statusFilter}
-            onStatusChange={setStatusFilter}
+            onStatusChange={(v) => {
+              setStatusFilter(v)
+              resetPage()
+            }}
           />
         </div>
 
@@ -269,11 +299,12 @@ export function QueueList({
             }
           />
         ) : (
+          <>
           <ul className="overflow-hidden rounded-xl border border-border bg-card shadow-soft divide-y divide-border/70">
-            {inQueue.map((entry, index) => (
+            {inQueuePage.map((entry, index) => (
               <li key={entry.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                 <span className="w-5 shrink-0 text-center text-[0.78rem] font-medium tabular-nums text-muted-foreground">
-                  {index + 1}
+                  {pageStart + index + 1}
                 </span>
 
                 <div className="min-w-0 flex-1 basis-44">
@@ -336,6 +367,8 @@ export function QueueList({
               </li>
             ))}
           </ul>
+          <PaginationBar total={inQueue.length} page={page} pageSize={pageSize} label="na fila" />
+          </>
         )}
       </section>
     </div>
