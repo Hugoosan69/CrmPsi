@@ -61,6 +61,7 @@ const MODULES: Record<string, { label: string; icon: LucideIcon }> = {
   packages: { label: "Pacotes", icon: Layers },
   telehealth: { label: "Teleconsulta", icon: Video },
   billing: { label: "Convênios e faturamento", icon: ClipboardList },
+  sandbox: { label: "Sandbox", icon: Settings },
 }
 
 /**
@@ -96,6 +97,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "professionals.manage": "Cadastrar e editar profissionais",
   "communication.manage": "Modelos, campanhas e automações de mensagem",
   "whatsapp.connect": "Vincular o número de WhatsApp da clínica (QR code, reiniciar sessão)",
+  "sandbox.toggle": "Ativar/desativar modo sandbox (banco de homologação)",
   "integrations.manage": "Configurar o servidor do WhatsApp, o n8n e pagamentos online",
   "users.manage": "Gerenciar usuários e permissões",
   "audit.view": "Ver a trilha de auditoria",

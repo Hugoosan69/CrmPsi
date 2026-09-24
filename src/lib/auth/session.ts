@@ -3,7 +3,7 @@ import "server-only"
 import { cache } from "react"
 import { redirect } from "next/navigation"
 
-import { createClient } from "@/lib/supabase/server"
+import { createAuthClient } from "@/lib/supabase/server"
 
 export type CurrentMembership = {
   userId: string
@@ -25,7 +25,7 @@ export type CurrentMembership = {
  * Cached per request so pages/layouts/Server Actions can all call it without re-querying.
  */
 export const getCurrentMembership = cache(async (): Promise<CurrentMembership | null> => {
-  const supabase = await createClient()
+  const supabase = await createAuthClient()
 
   const {
     data: { user },

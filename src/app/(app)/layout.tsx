@@ -2,6 +2,7 @@ import { requireMembership, hasPermission } from "@/lib/auth/session"
 import { isSupabaseConfigured } from "@/lib/supabase/env"
 import { ConfigurationRequired } from "@/components/shared/configuration-required"
 import { AppShell } from "@/components/layout/app-shell"
+import { SandboxBanner } from "@/components/layout/sandbox-banner"
 import { visibleNavSections } from "@/config/navigation"
 import { PERMISSIONS } from "@/config/permissions"
 import { createClient } from "@/lib/supabase/server"
@@ -37,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       // paciente. A área responde a pergunta que aquele AND tentava responder.
       isFrontDesk={hasPermission(membership, PERMISSIONS.RECEPTION_ACCESS)}
     >
+      <SandboxBanner />
       {children}
     </AppShell>
   )

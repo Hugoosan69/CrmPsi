@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createAuthClient } from "@/lib/supabase/server"
 import { resetRedirectUrl } from "@/lib/auth/password-reset"
 import { passwordResetRequestSchema } from "@/schemas/auth.schema"
 
@@ -15,7 +15,7 @@ export async function requestPasswordResetAction(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
   }
 
-  const supabase = await createClient()
+  const supabase = await createAuthClient()
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: await resetRedirectUrl(),
   })

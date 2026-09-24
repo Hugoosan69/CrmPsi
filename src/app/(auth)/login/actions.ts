@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation"
 
-import { createClient } from "@/lib/supabase/server"
+import { createAuthClient } from "@/lib/supabase/server"
 import { getCurrentMembership } from "@/lib/auth/session"
 import { defaultHomeForRole } from "@/config/roles"
 import { loginSchema } from "@/schemas/auth.schema"
@@ -18,7 +18,7 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" }
   }
 
-  const supabase = await createClient()
+  const supabase = await createAuthClient()
   const { error } = await supabase.auth.signInWithPassword(parsed.data)
   if (error) {
     return { error: "E-mail ou senha inválidos." }
@@ -34,7 +34,7 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
 }
 
 export async function signOut() {
-  const supabase = await createClient()
+  const supabase = await createAuthClient()
   await supabase.auth.signOut()
   redirect("/login")
 }

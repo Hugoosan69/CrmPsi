@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createAuthClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireMembership } from "@/lib/auth/session"
 import {
@@ -126,7 +126,7 @@ export async function sendOwnPasswordResetAction(): Promise<ProfileActionState> 
   const membership = await requireMembership()
 
   try {
-    const supabase = await createClient()
+    const supabase = await createAuthClient()
     const { error } = await supabase.auth.resetPasswordForEmail(membership.email, {
       redirectTo: await resetRedirectUrl(),
     })

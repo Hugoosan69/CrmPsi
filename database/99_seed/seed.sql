@@ -53,7 +53,8 @@ insert into permissions (slug, module, description) values
   ('management.access', 'areas', 'Ver a área de gestão e os indicadores gerenciais da clínica'),
   -- migration 034: vínculo do número separado da infraestrutura (servidor, chave de API).
   -- O administrador a recebe pela regra "tudo menos integrations.manage" logo abaixo.
-  ('whatsapp.connect', 'communication', 'Vincular e desvincular o número de WhatsApp da clínica (ler QR code, reiniciar sessão)');
+  ('whatsapp.connect', 'communication', 'Vincular e desvincular o número de WhatsApp da clínica (ler QR code, reiniciar sessão)'),
+  ('sandbox.toggle', 'sandbox', 'Alternar modo sandbox (dados de homologação)');
 
 insert into role_permissions (role_id, permission_id)
 -- Proprietário: tudo, integrações inclusive.
@@ -63,7 +64,7 @@ union all
 -- pagamentos é um nível acima de administrar o sistema, e a clínica quer isso numa pessoa
 -- só. Quem precisar recebe por exceção individual (user_permission_overrides).
 select '00000000-0000-0000-0000-000000000011', id from permissions
-  where slug <> 'integrations.manage'
+  where slug not in ('integrations.manage', 'sandbox.toggle')
 union all
 select '00000000-0000-0000-0000-000000000012', id from permissions where slug in
   ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.edit_amount', 'financial.edit_paid', 'telehealth.view', 'telehealth.manage', 'billing.view', 'billing.manage', 'reception.access')

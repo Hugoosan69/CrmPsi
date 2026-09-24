@@ -84,6 +84,9 @@ export const PERMISSIONS = {
    * WhatsApp da clínica. Quem precisa fazer a primeira não precisa, e não deve, ver a segunda.
    */
   WHATSAPP_CONNECT: "whatsapp.connect",
+
+  // migration 035 — modo sandbox (direcionar operações para homologação).
+  SANDBOX_TOGGLE: "sandbox.toggle",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
