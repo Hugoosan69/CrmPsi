@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  Building2,
   CalendarDays,
   Check,
   ClipboardList,
@@ -51,7 +50,6 @@ const MODULES: Record<string, { label: string; icon: LucideIcon }> = {
   documents: { label: "Documentos", icon: FileText },
   financial: { label: "Financeiro", icon: Wallet },
   settings: { label: "Configurações", icon: Settings },
-  clinic: { label: "Clínica", icon: Building2 },
   catalog: { label: "Catálogo", icon: Package },
   professionals: { label: "Profissionais", icon: UsersRound },
   communication: { label: "Comunicação", icon: MessageSquare },
@@ -61,7 +59,6 @@ const MODULES: Record<string, { label: string; icon: LucideIcon }> = {
   packages: { label: "Pacotes", icon: Layers },
   telehealth: { label: "Teleconsulta", icon: Video },
   billing: { label: "Convênios e faturamento", icon: ClipboardList },
-  sandbox: { label: "Sandbox", icon: Settings },
 }
 
 /**
@@ -92,7 +89,6 @@ const PERMISSION_LABELS: Record<string, string> = {
   "financial.edit_amount": "Corrigir o valor de um lançamento já registrado",
   "financial.edit_paid": "Alterar um lançamento que já está pago",
   "settings.manage": "Alterar as configurações da clínica",
-  "clinic.manage": "Editar o cadastro e a identidade visual da clínica",
   "catalog.manage": "Procedimentos, especialidades e formas de pagamento",
   "professionals.manage": "Cadastrar e editar profissionais",
   "communication.manage": "Modelos, campanhas e automações de mensagem",

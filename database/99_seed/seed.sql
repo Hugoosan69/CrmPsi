@@ -53,8 +53,11 @@ insert into permissions (slug, module, description) values
   ('management.access', 'areas', 'Ver a área de gestão e os indicadores gerenciais da clínica'),
   -- migration 034: vínculo do número separado da infraestrutura (servidor, chave de API).
   -- O administrador a recebe pela regra "tudo menos integrations.manage" logo abaixo.
-  ('whatsapp.connect', 'communication', 'Vincular e desvincular o número de WhatsApp da clínica (ler QR code, reiniciar sessão)'),
-  ('sandbox.toggle', 'sandbox', 'Alternar modo sandbox (dados de homologação)');
+  -- 'settings' e não 'communication': a tela onde isso se faz é Configurações › WhatsApp,
+  -- não Comunicação (que é modelo/campanha/automação para o PACIENTE, não a conexão da
+  -- própria clínica).
+  ('whatsapp.connect', 'settings', 'Vincular e desvincular o número de WhatsApp da clínica (ler QR code, reiniciar sessão)'),
+  ('sandbox.toggle', 'settings', 'Alternar modo sandbox (dados de homologação)');
 
 insert into role_permissions (role_id, permission_id)
 -- Proprietário: tudo, integrações inclusive.
