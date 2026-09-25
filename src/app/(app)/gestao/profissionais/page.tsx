@@ -16,6 +16,7 @@ import {
 import { listRoles } from "@/services/users.service"
 import { PageHeader } from "@/components/shared/page-header"
 import { PaginationBar } from "@/components/shared/pagination-bar"
+import { ListFilters } from "@/components/shared/list-filters"
 import { TabsContent } from "@/components/ui/tabs"
 import { ProfessionalsTabs } from "@/features/professionals/components/professionals-tabs"
 import { ProfessionalsTable } from "@/features/professionals/components/professionals-table"
@@ -46,7 +47,7 @@ type Aba = (typeof ABAS)[number]
 export default async function ProfessionalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ aba?: string; pagina?: string; por?: string }>
+  searchParams: Promise<{ aba?: string; pagina?: string; por?: string; busca?: string; status?: string }>
 }) {
   const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, [
     PERMISSIONS.PROFESSIONALS_MANAGE,
@@ -59,12 +60,16 @@ export default async function ProfessionalsPage({
   // Criar login é decisão de outro dono. Ver a coluna de acesso não depende disso; o botão sim.
   const canManageUsers = hasPermission(membership, PERMISSIONS.USERS_MANAGE)
 
-  const { aba, pagina, por } = await searchParams
+  const { aba, pagina, por, busca, status } = await searchParams
   const disponiveis = ABAS.filter((a) =>
     a === "equipe" || a === "especialidades" ? canManageTeam : canConfigureAgenda
   )
   const abaAtiva: Aba = disponiveis.includes(aba as Aba) ? (aba as Aba) : disponiveis[0]
   const { page, pageSize, offset, rangeEnd } = parsePagination({ page: pagina, pageSize: por })
+  const filtroEquipe = {
+    search: busca,
+    active: status === "ativo" ? true : status === "inativo" ? false : undefined,
+  }
 
   // Só a aba visível é paginada; as demais consultas alimentam seletores e precisam vir
   // inteiras. `listProfessionals` (sem sufixo) é a lista completa que os seletores de
@@ -73,7 +78,11 @@ export default async function ProfessionalsPage({
 
   const [equipe, especialidadesAtivas, especialidades, todosProfissionais] = await Promise.all([
     canManageTeam
-      ? listProfessionalsPage(supabase, membership.clinicId, abaAtiva === "equipe" ? recorte : {})
+      ? listProfessionalsPage(
+          supabase,
+          membership.clinicId,
+          abaAtiva === "equipe" ? { ...recorte, ...filtroEquipe } : {}
+        )
       : Promise.resolve({ rows: [], total: 0 }),
     listSpecialties(supabase, membership.clinicId),
     canManageTeam
@@ -124,6 +133,21 @@ export default async function ProfessionalsPage({
           <>
             <TabsContent value="equipe" className="mt-5">
               <div className="grid gap-3">
+                <ListFilters
+                  fields={[
+                    { type: "search", key: "busca", label: "Buscar", placeholder: "Nome" },
+                    {
+                      type: "select",
+                      key: "status",
+                      label: "Situação",
+                      placeholder: "Todas",
+                      options: [
+                        { value: "ativo", label: "Ativos" },
+                        { value: "inativo", label: "Inativos" },
+                      ],
+                    },
+                  ]}
+                />
                 <ProfessionalsTable
                   professionals={equipe.rows}
                   specialties={especialidadesAtivas}

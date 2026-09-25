@@ -319,20 +319,25 @@ export type Campaign = {
 export async function listCampaigns(
   supabase: DB,
   clinicId: string,
-  opts: { offset?: number; rangeEnd?: number } = {}
+  opts: {
+    offset?: number
+    rangeEnd?: number
+    status?: string
+    channel?: string
+  } = {}
 ): Promise<{ rows: Campaign[]; total: number }> {
-  const { rows, total } = await fetchPage(
-    () =>
-      supabase
-        .from("message_campaigns")
-        .select(
-          "id, name, channel, subject, body_template, audience, patient_id, scheduled_for, status, recipients_count, sent_count, failed_count, created_at",
-          { count: "exact" }
-        )
-        .eq("clinic_id", clinicId)
-        .order("created_at", { ascending: false }),
-    opts
-  )
+  const { rows, total } = await fetchPage(() => {
+    let query = supabase
+      .from("message_campaigns")
+      .select(
+        "id, name, channel, subject, body_template, audience, patient_id, scheduled_for, status, recipients_count, sent_count, failed_count, created_at",
+        { count: "exact" }
+      )
+      .eq("clinic_id", clinicId)
+    if (opts.status) query = query.eq("status", opts.status as Campaign["status"])
+    if (opts.channel) query = query.eq("channel", opts.channel as MessageChannel)
+    return query.order("created_at", { ascending: false })
+  }, opts)
   return { rows: rows as Campaign[], total }
 }
 

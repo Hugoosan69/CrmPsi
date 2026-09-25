@@ -8,6 +8,7 @@ import { listGuides, listInsurers, type GuideStatus } from "@/services/billing.s
 import { PageHeader } from "@/components/shared/page-header"
 import { TabsContent } from "@/components/ui/tabs"
 import { UrlTabs, type UrlTab } from "@/components/shared/url-tabs"
+import { ListFilters } from "@/components/shared/list-filters"
 import { PackageCatalogTable } from "@/features/packages/components/package-catalog-table"
 import { CreatePackageDialog } from "@/features/packages/components/create-package-dialog"
 import { InsurersTable } from "@/features/billing/components/insurers-table"
@@ -31,7 +32,14 @@ const SITUACOES_VALIDAS: GuideStatus[] = ["emitida", "enviada", "paga", "glosada
 export default async function PacotesEConveniosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ aba?: string; mes?: string; convenio?: string; situacao?: string }>
+  searchParams: Promise<{
+    aba?: string
+    mes?: string
+    convenio?: string
+    situacao?: string
+    busca?: string
+    status?: string
+  }>
 }) {
   const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, [
     PERMISSIONS.PACKAGES_MANAGE,
@@ -42,7 +50,7 @@ export default async function PacotesEConveniosPage({
   const canInsurers = hasPermission(membership, PERMISSIONS.BILLING_MANAGE)
   const canGuides = hasPermission(membership, PERMISSIONS.BILLING_VIEW)
 
-  const { aba, mes, convenio, situacao } = await searchParams
+  const { aba, mes, convenio, situacao, busca, status } = await searchParams
 
   const abas: UrlTab[] = [
     ...(canPackages ? [{ value: "pacotes", label: "Pacotes" }] : []),
@@ -85,6 +93,26 @@ export default async function PacotesEConveniosPage({
     specialtyName: null,
   }))
 
+  // Catálogos pequenos, já trazidos inteiros — filtrar em memória evita reconsultar o banco
+  // só para um recorte que cabe todo numa página.
+  const buscaLower = busca?.toLowerCase().trim()
+  const somenteAtivos = status === "ativo" ? true : status === "inativo" ? false : undefined
+  const packagesFiltrados = packages.filter(
+    (p) =>
+      (buscaLower ? p.name.toLowerCase().includes(buscaLower) : true) &&
+      (somenteAtivos === undefined ? true : p.active === somenteAtivos)
+  )
+  const insurersFiltrados = insurers.filter(
+    (i) =>
+      (buscaLower ? i.name.toLowerCase().includes(buscaLower) : true) &&
+      (somenteAtivos === undefined ? true : i.active === somenteAtivos)
+  )
+
+  const statusOptions = [
+    { value: "ativo", label: "Ativos" },
+    { value: "inativo", label: "Inativos" },
+  ]
+
   return (
     <div className="grid gap-6">
       <PageHeader
@@ -95,19 +123,31 @@ export default async function PacotesEConveniosPage({
       <UrlTabs active={abaAtiva} tabs={abas}>
         {canPackages && (
           <TabsContent value="pacotes" className="grid gap-3">
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <ListFilters
+                fields={[
+                  { type: "search", key: "busca", label: "Buscar", placeholder: "Nome do pacote" },
+                  { type: "select", key: "status", label: "Situação", placeholder: "Todas", options: statusOptions },
+                ]}
+              />
               <CreatePackageDialog specialties={specialties ?? []} />
             </div>
-            <PackageCatalogTable packages={packages} specialties={specialties ?? []} />
+            <PackageCatalogTable packages={packagesFiltrados} specialties={specialties ?? []} />
           </TabsContent>
         )}
 
         {canInsurers && (
           <TabsContent value="convenios" className="grid gap-3">
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <ListFilters
+                fields={[
+                  { type: "search", key: "busca", label: "Buscar", placeholder: "Nome do convênio" },
+                  { type: "select", key: "status", label: "Situação", placeholder: "Todas", options: statusOptions },
+                ]}
+              />
               <CreateInsurerDialog procedures={procedureOptions} />
             </div>
-            <InsurersTable insurers={insurers} procedures={procedureOptions} />
+            <InsurersTable insurers={insurersFiltrados} procedures={procedureOptions} />
           </TabsContent>
         )}
 

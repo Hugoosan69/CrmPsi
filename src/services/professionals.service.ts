@@ -42,20 +42,20 @@ export async function getProfessionalByUserId(supabase: DB, clinicId: string, us
 export async function listProfessionalsPage(
   supabase: DB,
   clinicId: string,
-  opts: { offset?: number; rangeEnd?: number } = {}
+  opts: { offset?: number; rangeEnd?: number; search?: string; active?: boolean } = {}
 ): Promise<{
   rows: Database["public"]["Tables"]["professionals"]["Row"][]
   total: number
 }> {
-  return fetchPage(
-    () =>
-      supabase
-        .from("professionals")
-        .select("*", { count: "exact" })
-        .eq("clinic_id", clinicId)
-        .order("full_name"),
-    opts
-  )
+  return fetchPage(() => {
+    let query = supabase
+      .from("professionals")
+      .select("*", { count: "exact" })
+      .eq("clinic_id", clinicId)
+    if (opts.search) query = query.ilike("full_name", `%${opts.search}%`)
+    if (opts.active !== undefined) query = query.eq("active", opts.active)
+    return query.order("full_name")
+  }, opts)
 }
 
 export async function listProfessionals(supabase: DB, clinicId: string) {

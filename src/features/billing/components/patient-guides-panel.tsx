@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/server"
 import { listGuides } from "@/services/billing.service"
-import { GuidesTable } from "./guides-table"
+import { PatientGuidesFiltered } from "./patient-guides-filtered"
 
 /**
  * As guias de convênio deste paciente.
@@ -51,13 +51,7 @@ export async function PatientGuidesPanel({
         )}
       </CardHeader>
       <CardContent>
-        <GuidesTable
-          guides={guias}
-          showPatient={false}
-          canManage={canManage}
-          emptyTitle="Nenhuma guia emitida para este paciente"
-          emptyDescription="As guias aparecem aqui quando o atendimento é registrado como convênio no momento do pagamento."
-        />
+        <PatientGuidesFiltered guides={guias} canManage={canManage} />
       </CardContent>
     </Card>
   )

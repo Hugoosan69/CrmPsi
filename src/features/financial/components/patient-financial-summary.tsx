@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { listPaymentMethods, listTransactions } from "@/services/financial.service"
-import { TransactionsTable } from "./transactions-table"
+import { PatientTransactionsPanel } from "./patient-transactions-panel"
 
 export async function PatientFinancialSummary({
   clinicId,
@@ -20,7 +20,7 @@ export async function PatientFinancialSummary({
   ])
 
   return (
-    <TransactionsTable
+    <PatientTransactionsPanel
       transactions={transactions.rows}
       paymentMethods={paymentMethods}
       canManage={canManage}

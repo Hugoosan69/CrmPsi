@@ -11,23 +11,29 @@ import { listSpecialties } from "@/services/professionals.service"
 import { parsePagination } from "@/config/pagination"
 import { PageHeader } from "@/components/shared/page-header"
 import { PaginationBar } from "@/components/shared/pagination-bar"
+import { ListFilters } from "@/components/shared/list-filters"
 import { UsersTable } from "@/features/users/components/users-table"
 import { InviteUserDialog } from "@/features/users/components/invite-user-dialog"
 
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pagina?: string; por?: string }>
+  searchParams: Promise<{ pagina?: string; por?: string; papel?: string; status?: string }>
 }) {
   const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, PERMISSIONS.USERS_MANAGE)
   const supabase = await createClient()
 
-  const { pagina, por } = await searchParams
+  const { pagina, por, papel, status } = await searchParams
   const { page, pageSize, offset, rangeEnd } = parsePagination({ page: pagina, pageSize: por })
   // Especialidades vêm junto porque criar um usuário pode criar a ficha de profissional
   // na mesma ação — sem elas o formulário não teria como classificar quem atende.
   const [members, roles, specialties, unlinked, linkedIds] = await Promise.all([
-    listClinicMembers(supabase, membership.clinicId, { offset, rangeEnd }),
+    listClinicMembers(supabase, membership.clinicId, {
+      offset,
+      rangeEnd,
+      roleId: papel || undefined,
+      active: status === "ativo" ? true : status === "inativo" ? false : undefined,
+    }),
     listRoles(supabase, membership.clinicId),
     listSpecialties(supabase, membership.clinicId),
     listUnlinkedProfessionals(supabase, membership.clinicId),
@@ -40,6 +46,27 @@ export default async function UsersPage({
         title="Usuários"
         description="Acesso ao sistema e papel de cada pessoa."
         actions={<InviteUserDialog roles={roles} specialties={specialties} />}
+      />
+      <ListFilters
+        fields={[
+          {
+            type: "select",
+            key: "papel",
+            label: "Papel",
+            placeholder: "Todos",
+            options: roles.map((r) => ({ value: r.id, label: r.name })),
+          },
+          {
+            type: "select",
+            key: "status",
+            label: "Situação",
+            placeholder: "Todas",
+            options: [
+              { value: "ativo", label: "Ativos" },
+              { value: "inativo", label: "Inativos" },
+            ],
+          },
+        ]}
       />
       <div className="grid gap-3">
         <UsersTable

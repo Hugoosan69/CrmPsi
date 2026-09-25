@@ -32,20 +32,20 @@ export async function listRoles(supabase: DB, clinicId: string) {
 export async function listClinicMembers(
   supabase: DB,
   clinicId: string,
-  opts: { offset?: number; rangeEnd?: number } = {}
+  opts: { offset?: number; rangeEnd?: number; roleId?: string; active?: boolean } = {}
 ): Promise<{ rows: ClinicMember[]; total: number }> {
   // Ordenado por criação para a paginação ser estável: sem ordem explícita o Postgres pode
   // devolver as linhas em ordens diferentes entre uma página e outra, e um mesmo usuário
   // apareceria duas vezes ou nenhuma.
-  const { rows: memberships, total } = await fetchPage(
-    () =>
-      supabase
-        .from("clinic_memberships")
-        .select("id, user_id, role_id, active", { count: "exact" })
-        .eq("clinic_id", clinicId)
-        .order("created_at", { ascending: true }),
-    opts
-  )
+  const { rows: memberships, total } = await fetchPage(() => {
+    let query = supabase
+      .from("clinic_memberships")
+      .select("id, user_id, role_id, active", { count: "exact" })
+      .eq("clinic_id", clinicId)
+    if (opts.roleId) query = query.eq("role_id", opts.roleId)
+    if (opts.active !== undefined) query = query.eq("active", opts.active)
+    return query.order("created_at", { ascending: true })
+  }, opts)
   if (memberships.length === 0) return { rows: [], total }
 
   const userIds = memberships.map((m) => m.user_id)

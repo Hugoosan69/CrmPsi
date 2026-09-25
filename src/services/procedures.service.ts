@@ -32,15 +32,23 @@ export async function listProcedures(supabase: DB, clinicId: string) {
 export async function listProceduresPage(
   supabase: DB,
   clinicId: string,
-  opts: { offset?: number; rangeEnd?: number } = {}
+  opts: {
+    offset?: number
+    rangeEnd?: number
+    search?: string
+    active?: boolean
+  } = {}
 ): Promise<{ rows: Database["public"]["Tables"]["procedures"]["Row"][]; total: number }> {
   return fetchPage(
-    () =>
-      supabase
+    () => {
+      let query = supabase
         .from("procedures")
         .select("*", { count: "exact" })
         .eq("clinic_id", clinicId)
-        .order("name"),
+      if (opts.search) query = query.ilike("name", `%${opts.search}%`)
+      if (opts.active !== undefined) query = query.eq("active", opts.active)
+      return query.order("name")
+    },
     opts
   )
 }
