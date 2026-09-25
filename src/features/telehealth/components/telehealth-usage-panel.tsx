@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import { getTelehealthMonthlyLimit } from "@/services/clinic-settings.service"
 import { getTelehealthUsage } from "@/services/telehealth.service"
 import { isLiveKitConfigured } from "@/lib/livekit/env"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusDot } from "@/components/shared/status-dot"
 import { cn } from "@/lib/utils"
 import { TelehealthLimitForm } from "./telehealth-limit-form"
@@ -44,18 +45,18 @@ export async function TelehealthUsagePanel() {
   const mes = periodo.label.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
 
   return (
-    <section className="grid gap-4">
-      <div className="grid gap-1">
-        <h2 className="flex items-center gap-1.5 font-heading text-[0.95rem] font-semibold">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5 text-sm">
           <Video className="size-4 text-muted-foreground" aria-hidden />
           Consumo de teleconsulta
-        </h2>
+        </CardTitle>
         <p className="text-[0.8rem] text-muted-foreground">
           Minutos de sala usados em {mes}. Controle interno: o valor é medido pelo próprio
           sistema, entre a entrada do profissional e o encerramento da chamada.
         </p>
-      </div>
-
+      </CardHeader>
+      <CardContent className="grid gap-4">
       {!isLiveKitConfigured() && (
         <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[0.8rem] text-muted-foreground">
           A teleconsulta não está configurada neste ambiente — o consumo abaixo reflete
@@ -112,7 +113,8 @@ export async function TelehealthUsagePanel() {
       )}
 
       <TelehealthLimitForm currentLimit={limite} />
-    </section>
+      </CardContent>
+    </Card>
   )
 }
 
