@@ -9,7 +9,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state"
 import { Badge } from "@/components/ui/badge"
 import type { AuditLogRow } from "@/services/audit.service"
-import { ACTION_LABELS, ENTITY_LABELS } from "./audit-labels"
+import { ACTION_LABELS, ENTITY_LABELS, humanizeSlug } from "./audit-labels"
 import { AuditDetailDialog } from "./audit-detail-dialog"
 
 function formatDateTime(iso: string) {
@@ -51,14 +51,14 @@ export function AuditLogTable({ rows }: { rows: AuditLogRow[] }) {
               {formatDateTime(row.createdAt)}
             </TableCell>
             <TableCell className="font-medium">
-              {ACTION_LABELS[row.action] ?? row.action}
+              {ACTION_LABELS[row.action] ?? humanizeSlug(row.action)}
               <p className="text-xs font-normal text-muted-foreground sm:hidden">
                 {row.userName ?? "Sistema"}
               </p>
             </TableCell>
             <TableCell className="hidden md:table-cell">
               <Badge variant="secondary" className="font-normal">
-                {ENTITY_LABELS[row.entityType] ?? row.entityType}
+                {ENTITY_LABELS[row.entityType] ?? humanizeSlug(row.entityType)}
               </Badge>
             </TableCell>
             <TableCell className="hidden sm:table-cell">{row.userName ?? "Sistema"}</TableCell>

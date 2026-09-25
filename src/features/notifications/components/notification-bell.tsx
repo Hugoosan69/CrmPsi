@@ -92,7 +92,7 @@ export function NotificationBell() {
           </Button>
         }
       />
-      <PopoverContent className="w-[21rem] p-0" align="end">
+      <PopoverContent className="w-[21rem] overflow-hidden p-0" align="end">
         <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
           <p className="text-sm font-medium">Notificações</p>
           {unread > 0 && (
@@ -127,7 +127,7 @@ export function NotificationBell() {
             nesta lista.
           </p>
         ) : (
-          <ScrollArea className="max-h-[24rem]">
+          <ScrollArea className="h-[min(24rem,60vh)] overflow-hidden">
             <ul className="divide-y divide-border">
               {items.map((item) => {
                 const Icon = KIND_ICON[item.kind] ?? Info

@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import type { AuditLogRow } from "@/services/audit.service"
 import type { Json } from "@/types/supabase"
-import { ACTION_LABELS, ENTITY_LABELS } from "./audit-labels"
+import { ACTION_LABELS, ENTITY_LABELS, humanizeField, humanizeSlug } from "./audit-labels"
 
 function formatDateTime(iso: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -34,6 +34,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function stringify(value: unknown): string {
   if (value === null || value === undefined) return "—"
+  if (typeof value === "boolean") return value ? "Sim" : "Não"
   if (typeof value === "object") return JSON.stringify(value)
   return String(value)
 }
@@ -51,7 +52,7 @@ function ChangedFields({ before, after }: { before: Json | null; after: Json | n
     return (
       <div className="grid gap-0">
         {Object.entries(afterObj).map(([key, val]) => (
-          <Row key={key} label={key}>
+          <Row key={key} label={humanizeField(key)}>
             {stringify(val)}
           </Row>
         ))}
@@ -71,7 +72,7 @@ function ChangedFields({ before, after }: { before: Json | null; after: Json | n
     return (
       <div className="grid gap-0">
         {changed.map((key) => (
-          <Row key={key} label={key}>
+          <Row key={key} label={humanizeField(key)}>
             <span className="text-status-danger line-through">{stringify(beforeObj[key])}</span>
             {" → "}
             <span className="text-status-success">{stringify(afterObj[key])}</span>
@@ -86,7 +87,7 @@ function ChangedFields({ before, after }: { before: Json | null; after: Json | n
     <div className="grid gap-0">
       {beforeObj &&
         Object.entries(beforeObj).map(([key, val]) => (
-          <Row key={key} label={key}>
+          <Row key={key} label={humanizeField(key)}>
             {stringify(val)}
           </Row>
         ))}
@@ -108,9 +109,9 @@ export function AuditDetailDialog({ row }: { row: AuditLogRow }) {
       />
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{ACTION_LABELS[row.action] ?? row.action}</DialogTitle>
+          <DialogTitle>{ACTION_LABELS[row.action] ?? humanizeSlug(row.action)}</DialogTitle>
           <DialogDescription>
-            {ENTITY_LABELS[row.entityType] ?? row.entityType} · {formatDateTime(row.createdAt)}
+            {ENTITY_LABELS[row.entityType] ?? humanizeSlug(row.entityType)} · {formatDateTime(row.createdAt)}
           </DialogDescription>
         </DialogHeader>
 

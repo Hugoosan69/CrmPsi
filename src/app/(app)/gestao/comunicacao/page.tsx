@@ -7,7 +7,6 @@ import {
   listMessageTemplates,
 } from "@/services/communication.service"
 import { listPatients } from "@/services/patients.service"
-import { TriangleAlert } from "lucide-react"
 
 import { parsePagination } from "@/config/pagination"
 import { PageHeader } from "@/components/shared/page-header"
@@ -54,25 +53,6 @@ export default async function ComunicacaoPage({
         title="Comunicação"
         description="Campanhas, automações e modelos de mensagem para os pacientes."
       />
-
-      {/* As campanhas gravam a intenção corretamente, mas o disparo automático depende de
-          um fluxo externo que ainda não está ligado. Sem este aviso alguém agenda uma
-          promoção, vê "agendada" na tela, e descobre que nada saiu quando o cliente
-          reclamar. */}
-      <div
-        className="flex gap-3 rounded-xl border border-status-warning/40 bg-status-warning/5 px-4 py-3.5"
-        role="status"
-      >
-        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" aria-hidden />
-        <div className="text-[0.85rem]">
-          <p className="font-medium">Módulo em testes — o envio ainda não está ativo</p>
-          <p className="mt-0.5 text-muted-foreground">
-            Você pode montar campanhas, definir público e agendar. As mensagens ficam
-            registradas, mas <strong>nada é enviado ao paciente</strong> até a integração de
-            disparo ser concluída. Use para preparar o conteúdo, não para comunicar de fato.
-          </p>
-        </div>
-      </div>
 
       <Tabs defaultValue="nova">
         <TabsList>

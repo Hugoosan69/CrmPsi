@@ -1424,6 +1424,8 @@ export type Database = {
           channel: Database["public"]["Enums"]["message_channel"]
           clinic_id: string
           created_at: string
+          direction: string
+          from_number: string | null
           id: string
           patient_id: string
           payload: Json | null
@@ -1439,6 +1441,8 @@ export type Database = {
           channel: Database["public"]["Enums"]["message_channel"]
           clinic_id: string
           created_at?: string
+          direction?: string
+          from_number?: string | null
           id?: string
           patient_id: string
           payload?: Json | null
@@ -1454,6 +1458,8 @@ export type Database = {
           channel?: Database["public"]["Enums"]["message_channel"]
           clinic_id?: string
           created_at?: string
+          direction?: string
+          from_number?: string | null
           id?: string
           patient_id?: string
           payload?: Json | null
@@ -3305,7 +3311,7 @@ export type Database = {
         | "cancelado"
       financial_transaction_type: "receita" | "despesa"
       message_channel: "whatsapp" | "sms" | "email"
-      message_status: "queued" | "sent" | "failed" | "skipped"
+      message_status: "queued" | "sent" | "failed" | "skipped" | "received"
       message_type:
         | "confirmation"
         | "reminder"
@@ -3488,7 +3494,7 @@ export const Constants = {
       ],
       financial_transaction_type: ["receita", "despesa"],
       message_channel: ["whatsapp", "sms", "email"],
-      message_status: ["queued", "sent", "failed", "skipped"],
+      message_status: ["queued", "sent", "failed", "skipped", "received"],
       message_type: [
         "confirmation",
         "reminder",

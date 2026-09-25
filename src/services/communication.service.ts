@@ -11,6 +11,7 @@ import {
   type N8nIntegration,
 } from "./clinic-settings.service"
 import { getWahaConfig, sendWahaText, type WahaConfig } from "./waha.service"
+import { setAppointmentStatus } from "./scheduling.service"
 import { fetchPage } from "@/lib/paginated-query"
 
 type DB = SupabaseClient<Database>
@@ -559,4 +560,164 @@ export async function queueMessage(
     .single()
   if (error) throw error
   return data.id
+}
+
+// ---------------------------------------------------------------------------
+// Recebidas — resposta do paciente por WhatsApp
+// ---------------------------------------------------------------------------
+
+/** Sinais fortes de que a pessoa está confirmando, não pedindo para remarcar. */
+const CONFIRM_PATTERNS = [
+  /\bconfirm(o|ad[oa]|ar)\b/,
+  /\bpode confirmar\b/,
+  /\best[aá] confirmad[oa]\b/,
+  /\bconfirmadíssimo\b/,
+  /\bok\b/,
+  /\bokay\b/,
+  /\bsim\b/,
+  /\bcerto\b/,
+  /\bbeleza\b/,
+  /\bblz\b/,
+  /\bpositivo\b/,
+]
+
+/** Qualquer um destes anula o "sim"/"ok" isolado — a pessoa está tratando de outra coisa. */
+const NEGATION_PATTERNS = [
+  /\bn[ãa]o\b/,
+  /\bremarcar\b/,
+  /\bcancelar\b/,
+  /\bdesmarcar\b/,
+  /\bmudar\b/,
+  /\badiar\b/,
+  /\bimpossível\b/,
+]
+
+function normalizeReply(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim()
+}
+
+/**
+ * A resposta confirma a consulta?
+ *
+ * Prefere não confirmar a confirmar errado: "sim" e "ok" contam, mas qualquer sinal de
+ * negação ou pedido de remarcação no mesmo texto anula — "sim, mas preciso remarcar" não
+ * pode virar uma confirmação silenciosa.
+ */
+export function matchesConfirmation(rawText: string): boolean {
+  const text = normalizeReply(rawText)
+  if (!text) return false
+  if (NEGATION_PATTERNS.some((p) => p.test(text))) return false
+  return CONFIRM_PATTERNS.some((p) => p.test(text))
+}
+
+/**
+ * Os últimos dígitos de um telefone, para casar contra o cadastro sem depender de como o
+ * número foi digitado (com DDI, com traço, com espaço). Nove dígitos é o celular brasileiro
+ * sem DDD nem DDI — curto o bastante para bater mesmo com formatação diferente, e ainda
+ * específico o bastante para não colidir entre pacientes.
+ */
+function phoneSuffix(raw: string): string {
+  const digits = raw.replace(/\D/g, "")
+  return digits.slice(-9)
+}
+
+/** Encontra o paciente da clínica dono deste número, casando pelos últimos dígitos. */
+export async function findPatientByPhoneSuffix(
+  supabase: DB,
+  clinicId: string,
+  rawPhone: string
+): Promise<{ id: string; full_name: string } | null> {
+  const suffix = phoneSuffix(rawPhone)
+  if (suffix.length < 8) return null
+
+  const { data } = await supabase
+    .from("patients")
+    .select("id, full_name, phone, whatsapp")
+    .eq("clinic_id", clinicId)
+    .or(`whatsapp.ilike.%${suffix},phone.ilike.%${suffix}`)
+    .limit(1)
+    .maybeSingle()
+
+  return data ? { id: data.id, full_name: data.full_name } : null
+}
+
+/** A próxima consulta deste paciente que ainda pode ser confirmada. */
+async function findConfirmableAppointment(
+  supabase: DB,
+  clinicId: string,
+  patientId: string
+): Promise<{ id: string } | null> {
+  const { data } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .in("status", ["scheduled", "triagem"])
+    .gte("scheduled_at", new Date().toISOString())
+    .order("scheduled_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  return data
+}
+
+export type InboundResult = {
+  patientId: string | null
+  patientName: string | null
+  confirmed: boolean
+  appointmentId: string | null
+}
+
+/**
+ * Processa uma mensagem recebida do WhatsApp: registra na tabela `messages` (auditável,
+ * como tudo que sai) e, se o texto confirma e existe uma consulta esperando confirmação,
+ * marca `confirmed` — sem passar por permissão de usuário, porque quem "pediu" essa ação foi
+ * o próprio paciente pelo WhatsApp, não uma sessão da clínica.
+ *
+ * Paciente não encontrado pelo número: a mensagem não é gravada (a tabela não aceita
+ * `patient_id` nulo) e a recepção não fica sabendo — limitação aceita para o v1, resolvida
+ * quando um número novo responder de fato precisar de atenção manual.
+ */
+export async function processInboundWhatsapp(
+  supabase: DB,
+  clinicId: string,
+  input: { fromNumber: string; body: string }
+): Promise<InboundResult> {
+  const patient = await findPatientByPhoneSuffix(supabase, clinicId, input.fromNumber)
+  if (!patient) {
+    return { patientId: null, patientName: null, confirmed: false, appointmentId: null }
+  }
+
+  await supabase.from("messages").insert({
+    clinic_id: clinicId,
+    patient_id: patient.id,
+    channel: "whatsapp",
+    type: "general",
+    status: "received",
+    direction: "inbound",
+    from_number: input.fromNumber,
+    payload: { body: input.body },
+  })
+
+  if (!matchesConfirmation(input.body)) {
+    return { patientId: patient.id, patientName: patient.full_name, confirmed: false, appointmentId: null }
+  }
+
+  const appointment = await findConfirmableAppointment(supabase, clinicId, patient.id)
+  if (!appointment) {
+    return { patientId: patient.id, patientName: patient.full_name, confirmed: false, appointmentId: null }
+  }
+
+  await setAppointmentStatus(supabase, clinicId, appointment.id, "confirmed")
+
+  return {
+    patientId: patient.id,
+    patientName: patient.full_name,
+    confirmed: true,
+    appointmentId: appointment.id,
+  }
 }

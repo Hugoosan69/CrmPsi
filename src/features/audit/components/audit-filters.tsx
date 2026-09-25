@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { PAGE_PARAM } from "@/config/pagination"
-import { ACTION_LABELS, ENTITY_LABELS } from "./audit-labels"
+import { ACTION_LABELS, ENTITY_LABELS, humanizeSlug } from "./audit-labels"
 
 export type AuditFilterValues = {
   de?: string
@@ -98,7 +98,7 @@ export function AuditFilters({
             <SelectItem value="">Todas</SelectItem>
             {entityTypes.map((et) => (
               <SelectItem key={et} value={et}>
-                {ENTITY_LABELS[et] ?? et}
+                {ENTITY_LABELS[et] ?? humanizeSlug(et)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -114,7 +114,7 @@ export function AuditFilters({
             <SelectItem value="">Todas</SelectItem>
             {actions.map((a) => (
               <SelectItem key={a} value={a}>
-                {ACTION_LABELS[a] ?? a}
+                {ACTION_LABELS[a] ?? humanizeSlug(a)}
               </SelectItem>
             ))}
           </SelectContent>
