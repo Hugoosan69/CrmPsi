@@ -15,6 +15,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import { getPatient, getPatientClinicalInfo } from "@/services/patients.service"
 import { EditPatientDialog } from "./edit-patient-dialog"
 import { ClinicalInfoCard } from "./clinical-info-card"
+import { PatientMedicalRecordsPanel } from "@/features/records/components/patient-medical-records-panel"
 import { PatientTimeline } from "./patient-timeline"
 import { PatientCallsPanel } from "@/features/telehealth/components/patient-calls-panel"
 import { PatientPrescriptionsPanel } from "@/features/prescriptions/components/patient-prescriptions-panel"
@@ -120,6 +121,7 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
         <TabsList>
           <TabsTrigger value="dados">Dados pessoais</TabsTrigger>
           <TabsTrigger value="clinico">Informações clínicas</TabsTrigger>
+          {canViewRecords && <TabsTrigger value="prontuario">Prontuário</TabsTrigger>}
           {canViewAppointments && <TabsTrigger value="historico">Atendimentos</TabsTrigger>}
           {canViewRecords && <TabsTrigger value="prescricoes">Prescrições</TabsTrigger>}
           {canViewRecords && <TabsTrigger value="documentos">Documentos</TabsTrigger>}
@@ -161,6 +163,16 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
         <TabsContent value="clinico" className="mt-4">
           <ClinicalInfoCard patientId={patientId} info={clinicalInfo} canEdit={canEditClinicalInfo} />
         </TabsContent>
+        {canViewRecords && (
+          <TabsContent value="prontuario" className="mt-4">
+            <PatientMedicalRecordsPanel
+              supabase={supabase}
+              clinicId={membership.clinicId}
+              patientId={patientId}
+              canEdit={canEditClinicalInfo}
+            />
+          </TabsContent>
+        )}
         {canViewAppointments && (
           <TabsContent value="historico" className="mt-4">
             <div className="grid gap-6">
