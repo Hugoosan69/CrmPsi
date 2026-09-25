@@ -6,6 +6,7 @@ import { getN8nIntegration } from "@/services/clinic-settings.service"
 import { getWahaConfig, getWahaStatus } from "@/services/waha.service"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { N8nSettings } from "@/features/settings/components/n8n-settings"
 import { WahaServerSettings } from "@/features/settings/components/waha-server-settings"
 
@@ -45,53 +46,79 @@ export default async function IntegracoesPage() {
         description="Servidor do WhatsApp e automações no n8n. Só quem responde pela conta da clínica tem acesso."
       />
 
-      <WahaServerSettings
-        enabled={waha.enabled}
-        baseUrl={waha.baseUrl}
-        session={waha.session}
-        hasApiKey={Boolean(waha.apiKey)}
-        status={wahaStatus}
-      />
+      <Tabs defaultValue="waha">
+        <TabsList>
+          <TabsTrigger value="waha">WhatsApp (WAHA)</TabsTrigger>
+          <TabsTrigger value="n8n">n8n</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Endereços para o workflow do n8n</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-[0.85rem]">
-          <p className="text-muted-foreground">
-            O n8n chama estes endereços com o cabeçalho{" "}
-            <code className="font-mono">X-CSIB-Token</code> igual ao token da integração abaixo.
-          </p>
-          <div className="grid gap-1">
-            <p className="font-medium">Fila de mensagens — a cada 5 minutos</p>
-            <code className="block overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-[0.78rem]">
-              {outboxUrl}
-            </code>
-            <p className="text-[0.75rem] text-muted-foreground">
-              GET busca o que venceu; POST reporta o resultado. Reportar é obrigatório: sem o
-              reporte, a mesma mensagem sai de novo na varredura seguinte.
-            </p>
-          </div>
-          <div className="grid gap-1">
-            <p className="font-medium">Fechamentos pendentes — uma vez por dia</p>
-            <code className="block overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-[0.78rem]">
-              {closuresUrl}
-            </code>
-            <p className="text-[0.75rem] text-muted-foreground">
-              POST, sem corpo. Avisa cada profissional com consultas passadas sem fechamento.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="waha" className="mt-5">
+          <WahaServerSettings
+            enabled={waha.enabled}
+            baseUrl={waha.baseUrl}
+            session={waha.session}
+            hasApiKey={Boolean(waha.apiKey)}
+            status={wahaStatus}
+          />
+        </TabsContent>
 
-      <N8nSettings
-        enabled={n8n.enabled}
-        baseUrl={n8n.baseUrl}
-        path={n8n.path}
-        webhookUrl={n8n.webhookUrl}
-        hasSecret={Boolean(n8n.secret)}
-        channels={n8n.channels}
-      />
+        <TabsContent value="n8n" className="mt-5">
+          <div className="grid gap-6">
+            <N8nSettings
+              enabled={n8n.enabled}
+              baseUrl={n8n.baseUrl}
+              path={n8n.path}
+              webhookUrl={n8n.webhookUrl}
+              hasSecret={Boolean(n8n.secret)}
+              channels={n8n.channels}
+            />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Endereços para o workflow do n8n</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-[0.85rem]">
+                <p className="text-muted-foreground">
+                  O n8n chama estes endereços com o cabeçalho{" "}
+                  <code className="font-mono">X-CSIB-Token</code> igual ao token da integração
+                  acima.
+                </p>
+                <div className="grid gap-1">
+                  <p className="font-medium">Fila de mensagens — a cada 5 minutos</p>
+                  <code className="block overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-[0.78rem]">
+                    {outboxUrl}
+                  </code>
+                  <p className="text-[0.75rem] text-muted-foreground">
+                    GET busca o que venceu; POST reporta o resultado. Reportar é obrigatório: sem
+                    o reporte, a mesma mensagem sai de novo na varredura seguinte.
+                  </p>
+                </div>
+                <div className="grid gap-1">
+                  <p className="font-medium">Fechamentos pendentes — uma vez por dia</p>
+                  <code className="block overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-[0.78rem]">
+                    {closuresUrl}
+                  </code>
+                  <p className="text-[0.75rem] text-muted-foreground">
+                    POST, sem corpo. Avisa cada profissional com consultas passadas sem
+                    fechamento.
+                  </p>
+                </div>
+                <div className="grid gap-1">
+                  <p className="font-medium">Resposta do paciente — em tempo real</p>
+                  <code className="block overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-[0.78rem]">
+                    /webhook/csib-inbound
+                  </code>
+                  <p className="text-[0.75rem] text-muted-foreground">
+                    O WAHA chama este endereço do n8n (não do CRM) quando o paciente responde no
+                    WhatsApp. Configure-o no webhook da sessão do WAHA, evento{" "}
+                    <code className="font-mono">message</code>.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
