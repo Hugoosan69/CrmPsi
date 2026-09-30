@@ -5,23 +5,13 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   CalendarDays,
   Check,
-  ClipboardList,
-  FileText,
-  FolderHeart,
-  Layers,
   LayoutGrid,
-  ListOrdered,
   MessageSquare,
   Minus,
   Package,
-  Plug,
-  ScrollText,
   Settings,
   ShieldCheck,
   Stethoscope,
-  Users,
-  UsersRound,
-  Video,
   Wallet,
   type LucideIcon,
 } from "lucide-react"
@@ -40,26 +30,63 @@ import type { ClinicMember } from "@/services/users.service"
 import type { EffectivePermission, OverrideState } from "@/services/permissions.service"
 import { setUserPermissionAction } from "../actions/user.actions"
 
-const MODULES: Record<string, { label: string; icon: LucideIcon }> = {
-  areas: { label: "Áreas de trabalho", icon: LayoutGrid },
-  agenda: { label: "Agenda", icon: CalendarDays },
-  patients: { label: "Pacientes", icon: Users },
-  queue: { label: "Fila", icon: ListOrdered },
-  service: { label: "Atendimento", icon: Stethoscope },
-  records: { label: "Prontuário", icon: FolderHeart },
-  documents: { label: "Documentos", icon: FileText },
-  financial: { label: "Financeiro", icon: Wallet },
-  settings: { label: "Configurações", icon: Settings },
-  catalog: { label: "Catálogo", icon: Package },
-  professionals: { label: "Profissionais", icon: UsersRound },
-  communication: { label: "Comunicação", icon: MessageSquare },
-  integrations: { label: "Integrações", icon: Plug },
-  users: { label: "Usuários", icon: ShieldCheck },
-  audit: { label: "Auditoria", icon: ScrollText },
-  packages: { label: "Pacotes", icon: Layers },
-  telehealth: { label: "Teleconsulta", icon: Video },
-  billing: { label: "Convênios e faturamento", icon: ClipboardList },
-}
+/**
+ * Agrupamento lógico de permissões: 8 grupos que refletem a operação da clínica
+ * em vez dos 17 módulos técnicos do banco. Uma permissão pertence a um grupo
+ * pelo seu `module` — o mapa abaixo traduz `module → grupo visual`.
+ *
+ * Ordem intencional: acesso primeiro (sem ele nada mais importa), depois o que
+ * a clínica FAZ (atender, agendar, cobrar), e no final o que dá suporte (config,
+ * infra, admin).
+ */
+type PermissionGroup = { label: string; icon: LucideIcon; modules: string[] }
+
+const GROUPS: PermissionGroup[] = [
+  {
+    label: "Acesso e navegação",
+    icon: LayoutGrid,
+    modules: ["areas"],
+  },
+  {
+    label: "Atendimento clínico",
+    icon: Stethoscope,
+    modules: ["patients", "records", "documents", "service", "telehealth"],
+  },
+  {
+    label: "Agenda e fila",
+    icon: CalendarDays,
+    modules: ["agenda", "queue"],
+  },
+  {
+    label: "Financeiro",
+    icon: Wallet,
+    modules: ["financial", "packages", "billing"],
+  },
+  {
+    label: "Comunicação",
+    icon: MessageSquare,
+    modules: ["communication"],
+  },
+  {
+    label: "Catálogo e equipe",
+    icon: Package,
+    modules: ["catalog", "professionals"],
+  },
+  {
+    label: "Administração",
+    icon: ShieldCheck,
+    modules: ["users", "audit"],
+  },
+  {
+    label: "Infraestrutura e configurações",
+    icon: Settings,
+    modules: ["integrations", "settings"],
+  },
+]
+
+/** Mapa inverso: module → índice do grupo, para agrupar no render. */
+const MODULE_TO_GROUP = new Map<string, number>()
+GROUPS.forEach((g, i) => g.modules.forEach((m) => MODULE_TO_GROUP.set(m, i)))
 
 /**
  * Nome de cada permissão como aparece na tela.
@@ -177,17 +204,17 @@ export function UserPermissionMatrix({
     })
   }
 
-  const grouped = rows.reduce<Record<string, EffectivePermission[]>>((acc, row) => {
-    ;(acc[row.module] ??= []).push(row)
+  // Agrupa permissões nos 8 grupos lógicos em vez dos 17 módulos técnicos.
+  // A ordem dos grupos é intencional (GROUPS) e não precisa de sort.
+  const groupedByIndex = rows.reduce<Record<number, EffectivePermission[]>>((acc, row) => {
+    const idx = MODULE_TO_GROUP.get(row.module) ?? GROUPS.length - 1
+    ;(acc[idx] ??= []).push(row)
     return acc
   }, {})
 
-  // `areas` primeiro, e não em ordem alfabética: é a permissão que decide se as outras
-  // chegam a importar. Alguém com todas as capacidades do balcão e sem `reception.access`
-  // não vê o balcão, e quem estiver depurando isso precisa topar com a área antes.
-  const gruposOrdenados = Object.entries(grouped).sort(([a], [b]) =>
-    a === "areas" ? -1 : b === "areas" ? 1 : 0
-  )
+  const gruposOrdenados = GROUPS
+    .map((group, idx) => [group, groupedByIndex[idx] ?? []] as const)
+    .filter(([, items]) => items.length > 0)
 
   const totalExcecoes = rows.filter((r) => r.override !== null).length
 
@@ -252,13 +279,12 @@ export function UserPermissionMatrix({
           </p>
 
           <div className="grid items-start gap-4 xl:grid-cols-2">
-            {gruposOrdenados.map(([module, items]) => {
-              const meta = MODULES[module]
-              const Icon = meta?.icon ?? ShieldCheck
+            {gruposOrdenados.map(([group, items]) => {
+              const Icon = group.icon
               const comAcesso = items.filter((i) => i.effective).length
               return (
                 <section
-                  key={module}
+                  key={group.label}
                   className="overflow-hidden rounded-xl border border-border bg-card"
                 >
                   <header className="flex items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-2.5">
@@ -266,7 +292,7 @@ export function UserPermissionMatrix({
                       <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
                         <Icon className="size-4" aria-hidden />
                       </span>
-                      <h3 className="text-sm font-semibold">{meta?.label ?? "Outros"}</h3>
+                      <h3 className="text-sm font-semibold">{group.label}</h3>
                     </div>
                     <span className="text-[0.75rem] text-muted-foreground tabular-nums">
                       {comAcesso} de {items.length} com acesso
