@@ -97,6 +97,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Profissional",
     area: PERMISSIONS.PROFESSIONAL_ACCESS,
     items: [
+      { href: "/profissional/pacientes", label: "Meus pacientes", permission: PERMISSIONS.PATIENTS_VIEW },
       { href: "/profissional/agenda", label: "Minha agenda", permission: PERMISSIONS.SERVICE_MANAGE },
       { href: "/profissional/fila", label: "Minha fila", permission: PERMISSIONS.SERVICE_MANAGE },
       {

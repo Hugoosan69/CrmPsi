@@ -2125,6 +2125,55 @@ export type Database = {
           },
         ]
       }
+      professional_patient_links: {
+        Row: {
+          id: string
+          clinic_id: string
+          professional_id: string
+          patient_id: string
+          source: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          professional_id: string
+          patient_id: string
+          source?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          professional_id?: string
+          patient_id?: string
+          source?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_patient_links_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_patient_links_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_patient_links_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professionals: {
         Row: {
           active: boolean

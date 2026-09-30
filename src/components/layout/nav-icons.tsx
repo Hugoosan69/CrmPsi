@@ -26,6 +26,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "/recepcao/agenda": CalendarDays,
   "/recepcao/fila": ListOrdered,
   "/recepcao/financeiro": Wallet,
+  "/profissional/pacientes": Users,
   "/profissional/agenda": CalendarDays,
   "/profissional/fila": ListOrdered,
   "/profissional/financeiro": Wallet,

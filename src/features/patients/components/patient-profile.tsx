@@ -28,6 +28,9 @@ import { PatientFinancialSummary } from "@/features/financial/components/patient
 import { PatientPackagesPanel } from "@/features/packages/components/patient-packages-panel"
 import { PatientAppointments } from "./patient-appointments"
 import { PatientMessagesPanel } from "@/features/communication/components/patient-messages-panel"
+import { PatientProfessionalLinks } from "./patient-professional-links"
+import { listPatientProfessionalLinks } from "@/services/professional-links.service"
+import { listProfessionals } from "@/services/professionals.service"
 import { formatDate as formatSaoPauloDate } from "@/utils/datetime"
 
 function formatDate(value: string | null) {
@@ -85,17 +88,24 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
   const canViewGuides = hasPermission(membership, PERMISSIONS.BILLING_VIEW)
   const canManageGuides = hasPermission(membership, PERMISSIONS.BILLING_MANAGE)
   const canManagePackages = hasPermission(membership, PERMISSIONS.PACKAGES_MANAGE)
-  const canMessage = hasPermission(membership, PERMISSIONS.PATIENTS_MANAGE)
+  const canManagePatients = hasPermission(membership, PERMISSIONS.PATIENTS_MANAGE)
+  const canMessage = canManagePatients
 
   // Emitir receita ou documento fora do atendimento exige duas coisas: a permissão de
   // emitir e uma ficha de profissional vinculada ao login — um documento clínico precisa
   // de alguém que o assine, e quem não atende não tem quem assinar por ele.
   const canIssue = hasPermission(membership, PERMISSIONS.DOCUMENTS_ISSUE)
-  const [issuer, templates] = await Promise.all([
+  const [issuer, templates, profLinks, allProfessionals] = await Promise.all([
     canIssue
       ? getProfessionalByUserId(supabase, membership.clinicId, membership.userId)
       : Promise.resolve(null),
     canIssue ? listDocumentTemplates(supabase, membership.clinicId) : Promise.resolve([]),
+    canManagePatients
+      ? listPatientProfessionalLinks(supabase, membership.clinicId, patientId)
+      : Promise.resolve([]),
+    canManagePatients
+      ? listProfessionals(supabase, membership.clinicId)
+      : Promise.resolve([]),
   ])
   const age = calculateAge(patient.birth_date)
 
@@ -128,6 +138,7 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
           {canViewFinancial && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           {canViewPackages && <TabsTrigger value="pacotes">Pacotes</TabsTrigger>}
           {canViewGuides && <TabsTrigger value="guias">Guias</TabsTrigger>}
+          {canManagePatients && <TabsTrigger value="vinculos">Vínculos</TabsTrigger>}
           {canMessage && <TabsTrigger value="mensagens">Mensagens</TabsTrigger>}
         </TabsList>
         {!canViewRecords && (
@@ -249,6 +260,18 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
               clinicId={membership.clinicId}
               patientId={patientId}
               canManage={canManageGuides}
+            />
+          </TabsContent>
+        )}
+        {canManagePatients && (
+          <TabsContent value="vinculos" className="mt-4">
+            <PatientProfessionalLinks
+              patientId={patientId}
+              links={profLinks}
+              professionals={allProfessionals.map((p) => ({
+                id: p.id,
+                full_name: p.full_name,
+              }))}
             />
           </TabsContent>
         )}
