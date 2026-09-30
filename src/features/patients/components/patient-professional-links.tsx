@@ -40,10 +40,13 @@ export function PatientProfessionalLinks({
   patientId,
   links,
   professionals,
+  canManage = false,
 }: {
   patientId: string
   links: Link[]
   professionals: Professional[]
+  /** Só recepção/gestão pode vincular/desvincular. Profissional vê, não edita. */
+  canManage?: boolean
 }) {
   const [selectedProfId, setSelectedProfId] = useState("")
   const [isPending, startTransition] = useTransition()
@@ -97,22 +100,24 @@ export function PatientProfessionalLinks({
                     {link.source === "appointment" ? "Agendamento" : "Manual"}
                   </Badge>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 text-destructive hover:text-destructive"
-                  disabled={isPending}
-                  onClick={() => handleUnlink(link.professional_id)}
-                  title="Desvincular profissional"
-                >
-                  <UserMinus className="size-4" />
-                </Button>
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-destructive hover:text-destructive"
+                    disabled={isPending}
+                    onClick={() => handleUnlink(link.professional_id)}
+                    title="Desvincular profissional"
+                  >
+                    <UserMinus className="size-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        {availableProfessionals.length > 0 && (
+        {canManage && availableProfessionals.length > 0 && (
           <div className="flex items-end gap-2">
             <div className="grid flex-1 gap-1.5">
               <Select value={selectedProfId} onValueChange={(v) => setSelectedProfId(v ?? "")}>

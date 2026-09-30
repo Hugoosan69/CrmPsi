@@ -100,9 +100,7 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
       ? getProfessionalByUserId(supabase, membership.clinicId, membership.userId)
       : Promise.resolve(null),
     canIssue ? listDocumentTemplates(supabase, membership.clinicId) : Promise.resolve([]),
-    canManagePatients
-      ? listPatientProfessionalLinks(supabase, membership.clinicId, patientId)
-      : Promise.resolve([]),
+    listPatientProfessionalLinks(supabase, membership.clinicId, patientId),
     canManagePatients
       ? listProfessionals(supabase, membership.clinicId)
       : Promise.resolve([]),
@@ -138,7 +136,7 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
           {canViewFinancial && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           {canViewPackages && <TabsTrigger value="pacotes">Pacotes</TabsTrigger>}
           {canViewGuides && <TabsTrigger value="guias">Guias</TabsTrigger>}
-          {canManagePatients && <TabsTrigger value="vinculos">Vínculos</TabsTrigger>}
+          <TabsTrigger value="vinculos">Vínculos</TabsTrigger>
           {canMessage && <TabsTrigger value="mensagens">Mensagens</TabsTrigger>}
         </TabsList>
         {!canViewRecords && (
@@ -263,18 +261,17 @@ export async function PatientProfile({ patientId }: { patientId: string }) {
             />
           </TabsContent>
         )}
-        {canManagePatients && (
-          <TabsContent value="vinculos" className="mt-4">
-            <PatientProfessionalLinks
-              patientId={patientId}
-              links={profLinks}
-              professionals={allProfessionals.map((p) => ({
-                id: p.id,
-                full_name: p.full_name,
-              }))}
-            />
-          </TabsContent>
-        )}
+        <TabsContent value="vinculos" className="mt-4">
+          <PatientProfessionalLinks
+            patientId={patientId}
+            links={profLinks}
+            professionals={allProfessionals.map((p) => ({
+              id: p.id,
+              full_name: p.full_name,
+            }))}
+            canManage={canManagePatients}
+          />
+        </TabsContent>
         {canMessage && (
           <TabsContent value="mensagens" className="mt-4">
             <PatientMessagesPanel
