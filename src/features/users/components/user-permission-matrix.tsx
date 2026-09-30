@@ -107,6 +107,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "patients.view": "Ver pacientes",
   "patients.manage": "Cadastrar e editar pacientes",
   "queue.manage": "Gerenciar a fila e as chamadas",
+  "queue.force_complete": "Finalizar processos da fila sem atendimento (limpeza)",
   "service.manage": "Conduzir o atendimento clínico",
   "records.view": "Ver o prontuário",
   "documents.issue": "Emitir prescrições e documentos",

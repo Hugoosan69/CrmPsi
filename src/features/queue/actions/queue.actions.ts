@@ -10,6 +10,8 @@ import {
   addWalkInToQueue,
   cancelQueueEntry,
   callQueueEntry,
+  forceCompleteQueueEntry,
+  forceCompleteQueueEntries,
   getQueueEntry,
   listActiveQueue,
   listPendingCalls,
@@ -271,6 +273,59 @@ export async function cancelQueueEntryAction(queueEntryId: string) {
   })
 
   revalidateQueue()
+}
+
+export async function forceCompleteQueueEntryAction(
+  queueEntryId: string
+): Promise<{ error?: string }> {
+  const membership = await requirePermission(PERMISSIONS.QUEUE_FORCE_COMPLETE)
+  const supabase = await createClient()
+
+  try {
+    await forceCompleteQueueEntry(supabase, membership.clinicId, queueEntryId)
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
+
+  await recordAudit({
+    clinicId: membership.clinicId,
+    userId: membership.userId,
+    action: "queue.force_complete",
+    entityType: "queue_entry",
+    entityId: queueEntryId,
+  })
+
+  revalidateQueue()
+  return {}
+}
+
+export async function forceCompleteAllQueueEntriesAction(): Promise<{
+  error?: string
+  count?: number
+}> {
+  const membership = await requirePermission(PERMISSIONS.QUEUE_FORCE_COMPLETE)
+  const supabase = await createClient()
+
+  try {
+    const count = await forceCompleteQueueEntries(supabase, membership.clinicId, [
+      "waiting",
+      "called",
+    ])
+
+    await recordAudit({
+      clinicId: membership.clinicId,
+      userId: membership.userId,
+      action: "queue.force_complete_bulk",
+      entityType: "queue_entry",
+      entityId: "bulk",
+      after: { count, statuses: ["waiting", "called"] },
+    })
+
+    revalidateQueue()
+    return { count }
+  } catch (err) {
+    return { error: describeDbError(err) }
+  }
 }
 
 export async function transferQueueEntryAction(

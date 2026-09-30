@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { PhoneCall } from "lucide-react"
+import { CheckCircle, PhoneCall } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PaginationBar } from "@/components/shared/pagination-bar"
+import { toast } from "sonner"
 import { PAGE_PARAM, PAGE_SIZE_PARAM, parsePagination } from "@/config/pagination"
 import { cn } from "@/lib/utils"
 import { formatTime } from "@/utils/datetime"
@@ -26,6 +27,8 @@ import type { QueueStatus } from "@/types/supabase"
 import {
   callQueueEntryAction,
   cancelQueueEntryAction,
+  forceCompleteQueueEntryAction,
+  forceCompleteAllQueueEntriesAction,
   getQueueSnapshotAction,
 } from "../actions/queue.actions"
 import { PaymentGateBoard } from "./payment-gate-board"
@@ -274,19 +277,43 @@ export function QueueList({
               {inQueue.length}
             </span>
           </div>
-          <QueueFilters
-            professionals={professionals}
-            professionalId={professionalFilter}
-            onProfessionalChange={(v) => {
-              setProfessionalFilter(v)
-              resetPage()
-            }}
-            status={statusFilter}
-            onStatusChange={(v) => {
-              setStatusFilter(v)
-              resetPage()
-            }}
-          />
+          <div className="flex flex-wrap items-end gap-3">
+            <QueueFilters
+              professionals={professionals}
+              professionalId={professionalFilter}
+              onProfessionalChange={(v) => {
+                setProfessionalFilter(v)
+                resetPage()
+              }}
+              status={statusFilter}
+              onStatusChange={(v) => {
+                setStatusFilter(v)
+                resetPage()
+              }}
+            />
+            {inQueueAll.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isPending}
+                onClick={() =>
+                  run(async () => {
+                    const result = await forceCompleteAllQueueEntriesAction()
+                    if (result.error) {
+                      toast.error(result.error)
+                    } else {
+                      toast.success(
+                        `${result.count} ${result.count === 1 ? "processo finalizado" : "processos finalizados"}`
+                      )
+                    }
+                  })
+                }
+              >
+                <CheckCircle className="size-3.5" />
+                Finalizar todos
+              </Button>
+            )}
+          </div>
         </div>
 
         {inQueue.length === 0 ? (
@@ -346,6 +373,14 @@ export function QueueList({
                         fromProfessionalId={entry.professional_id}
                         professionals={professionals}
                       />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() => run(() => forceCompleteQueueEntryAction(entry.id))}
+                      >
+                        <CheckCircle className="size-3.5" /> Finalizar
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

@@ -2,7 +2,7 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { Database, FinancialTransactionStatus, QueueEntryType } from "@/types/supabase"
+import type { Database, FinancialTransactionStatus, QueueEntryType, QueueStatus } from "@/types/supabase"
 import { pendingMigrationFor } from "@/lib/db-errors"
 
 type DB = SupabaseClient<Database>
@@ -289,6 +289,82 @@ export async function transferQueueEntry(
     transferred_by: input.transferredBy,
   })
   if (transferError) throw transferError
+}
+
+/**
+ * Força a conclusão de uma entrada de fila sem passar pelo fluxo de atendimento.
+ *
+ * Marca a `queue_entry` como `completed` e o `appointment` vinculado (se houver) também.
+ * Não cria `service_session` — o atendimento nunca aconteceu de fato. Serve para limpar
+ * entradas antigas que ficaram presas na fila por erro operacional no início do uso do
+ * sistema.
+ */
+export async function forceCompleteQueueEntry(
+  supabase: DB,
+  clinicId: string,
+  queueEntryId: string
+) {
+  const now = new Date().toISOString()
+
+  const entry = await getQueueEntry(supabase, clinicId, queueEntryId)
+
+  const { error } = await supabase
+    .from("queue_entries")
+    .update({ status: "completed", finished_at: now })
+    .eq("clinic_id", clinicId)
+    .eq("id", queueEntryId)
+  if (error) throw error
+
+  if (entry.appointment_id) {
+    const { error: apptError } = await supabase
+      .from("appointments")
+      .update({ status: "completed" })
+      .eq("clinic_id", clinicId)
+      .eq("id", entry.appointment_id)
+    if (apptError) throw apptError
+  }
+}
+
+/**
+ * Versão em lote: força conclusão de todas as entradas nos status indicados.
+ * Retorna a quantidade de entradas processadas.
+ */
+export async function forceCompleteQueueEntries(
+  supabase: DB,
+  clinicId: string,
+  statuses: QueueStatus[]
+): Promise<number> {
+  const now = new Date().toISOString()
+
+  const { data: entries, error: fetchError } = await supabase
+    .from("queue_entries")
+    .select("id, appointment_id")
+    .eq("clinic_id", clinicId)
+    .in("status", statuses)
+  if (fetchError) throw fetchError
+  if (!entries || entries.length === 0) return 0
+
+  const ids = entries.map((e) => e.id)
+  const { error } = await supabase
+    .from("queue_entries")
+    .update({ status: "completed", finished_at: now })
+    .eq("clinic_id", clinicId)
+    .in("id", ids)
+  if (error) throw error
+
+  const appointmentIds = entries
+    .map((e) => e.appointment_id)
+    .filter(Boolean) as string[]
+  if (appointmentIds.length > 0) {
+    const { error: apptError } = await supabase
+      .from("appointments")
+      .update({ status: "completed" })
+      .eq("clinic_id", clinicId)
+      .in("id", appointmentIds)
+    if (apptError) throw apptError
+  }
+
+  return entries.length
 }
 
 /**

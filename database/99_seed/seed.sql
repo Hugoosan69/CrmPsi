@@ -57,7 +57,8 @@ insert into permissions (slug, module, description) values
   -- não Comunicação (que é modelo/campanha/automação para o PACIENTE, não a conexão da
   -- própria clínica).
   ('whatsapp.connect', 'settings', 'Vincular e desvincular o número de WhatsApp da clínica (ler QR code, reiniciar sessão)'),
-  ('sandbox.toggle', 'settings', 'Alternar modo sandbox (dados de homologação)');
+  ('sandbox.toggle', 'settings', 'Alternar modo sandbox (dados de homologação)'),
+  ('queue.force_complete', 'queue', 'Finalizar processos da fila sem atendimento (limpeza)');
 
 insert into role_permissions (role_id, permission_id)
 -- Proprietário: tudo, integrações inclusive.
@@ -70,7 +71,7 @@ select '00000000-0000-0000-0000-000000000011', id from permissions
   where slug not in ('integrations.manage', 'sandbox.toggle')
 union all
 select '00000000-0000-0000-0000-000000000012', id from permissions where slug in
-  ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.edit_amount', 'financial.edit_paid', 'telehealth.view', 'telehealth.manage', 'billing.view', 'billing.manage', 'reception.access')
+  ('patients.view', 'patients.manage', 'agenda.view', 'agenda.manage', 'queue.manage', 'queue.force_complete', 'financial.view', 'financial.manage', 'packages.view', 'packages.manage', 'financial.edit_amount', 'financial.edit_paid', 'telehealth.view', 'telehealth.manage', 'billing.view', 'billing.manage', 'reception.access')
 union all
 select '00000000-0000-0000-0000-000000000013', id from permissions where slug in
   ('patients.view', 'agenda.view', 'queue.manage', 'service.manage', 'records.view', 'documents.issue', 'packages.view', 'financial.view_own', 'telehealth.view', 'telehealth.manage', 'billing.view', 'professional.access')

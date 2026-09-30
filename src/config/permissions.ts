@@ -87,6 +87,9 @@ export const PERMISSIONS = {
 
   // migration 035 — modo sandbox (direcionar operações para homologação).
   SANDBOX_TOGGLE: "sandbox.toggle",
+
+  // migration 039 — finalizar processos da fila sem atendimento (limpeza operacional).
+  QUEUE_FORCE_COMPLETE: "queue.force_complete",
 } as const
 
 export type PermissionSlug = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
