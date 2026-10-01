@@ -1,27 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
-  ArrowDownRight,
-  ArrowUpRight,
   CalendarDays,
-  Eye,
   TrendingDown,
   TrendingUp,
   Wallet,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -29,37 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { PAGE_PARAM } from "@/config/pagination"
 import type { CashFlowRow } from "@/services/financial.service"
-import type { TransactionView } from "@/services/financial.service"
-import { listTransactionsForPeriodAction } from "../actions/cash-flow.actions"
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
-}
-
-function formatLabel(label: string, groupBy: "day" | "month") {
-  if (groupBy === "day") {
-    const [y, m, d] = label.split("-")
-    const date = new Date(Number(y), Number(m) - 1, Number(d))
-    const weekday = date.toLocaleDateString("pt-BR", { weekday: "short" })
-    return `${weekday}, ${d}/${m}/${y}`
-  }
-  const [y, m] = label.split("-")
-  const months = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-  ]
-  return `${months[Number(m) - 1]} ${y}`
 }
 
 function formatShortLabel(label: string, groupBy: "day" | "month") {
@@ -72,26 +34,12 @@ function formatShortLabel(label: string, groupBy: "day" | "month") {
   return `${months[Number(m) - 1]} ${y}`
 }
 
-function lastDayOfMonth(label: string) {
-  const [y, m] = label.split("-").map(Number)
-  return new Date(y, m, 0).getDate()
-}
-
 function isToday(label: string) {
   return label === new Date().toISOString().slice(0, 10)
 }
 
 function isCurrentMonth(label: string) {
   return label === new Date().toISOString().slice(0, 7)
-}
-
-function describeTransaction(t: TransactionView): string {
-  if (t.packageLink) {
-    const prefixo = t.packageLink.kind === "venda" ? "Venda de pacote" : "Sessão de pacote"
-    return `${prefixo} — ${t.packageLink.packageName}`
-  }
-  if (t.procedureName) return `Atendimento — ${t.procedureName}`
-  return t.description || t.category || "—"
 }
 
 // ---------------------------------------------------------------------------
@@ -127,144 +75,6 @@ export function ResumoSelector({ value }: { value: ResumoType }) {
 
 // ---------------------------------------------------------------------------
 
-function DrillDownDialog({
-  open,
-  onClose,
-  label,
-  groupBy,
-  dateFrom,
-  dateTo,
-}: {
-  open: boolean
-  onClose: () => void
-  label: string
-  groupBy: "day" | "month"
-  dateFrom: string
-  dateTo: string
-}) {
-  const [rows, setRows] = useState<TransactionView[] | null>(null)
-  const [loading, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    setRows(null)
-    setError(null)
-    startTransition(async () => {
-      const result = await listTransactionsForPeriodAction(dateFrom, dateTo)
-      if (result.error) setError(result.error)
-      else setRows(result.rows ?? [])
-    })
-  }, [open, dateFrom, dateTo])
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen) onClose()
-    },
-    [onClose]
-  )
-
-  const receitas = (rows ?? []).filter((r) => r.type === "receita")
-  const despesas = (rows ?? []).filter((r) => r.type === "despesa")
-  const totalReceitas = receitas.reduce((s, r) => s + Number(r.amount), 0)
-  const totalDespesas = despesas.reduce((s, r) => s + Number(r.amount), 0)
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarDays className="size-4" />
-            {formatLabel(label, groupBy)}
-          </DialogTitle>
-          <DialogDescription>
-            Lançamentos pagos {groupBy === "day" ? "neste dia" : "neste mês"}
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading && (
-          <div className="grid gap-3">
-            <div className="flex gap-3">
-              <Skeleton className="h-16 flex-1" />
-              <Skeleton className="h-16 flex-1" />
-            </div>
-            <Skeleton className="h-40" />
-          </div>
-        )}
-
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
-
-        {rows && !loading && (
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/30">
-                <ArrowUpRight className="size-5 text-emerald-600" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Receitas ({receitas.length})</p>
-                  <p className="text-lg font-semibold text-emerald-600">{formatCurrency(totalReceitas)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-lg bg-red-50 p-3 dark:bg-red-950/30">
-                <ArrowDownRight className="size-5 text-red-600" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Despesas ({despesas.length})</p>
-                  <p className="text-lg font-semibold text-red-600">{formatCurrency(totalDespesas)}</p>
-                </div>
-              </div>
-            </div>
-
-            {rows.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Nenhum lançamento pago neste período.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Lançamento</TableHead>
-                    <TableHead className="hidden sm:table-cell">Paciente</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell>
-                        <span className="flex flex-wrap items-center gap-1.5 font-medium">
-                          {describeTransaction(t)}
-                          {t.isPackage && (
-                            <Badge variant="secondary" className="font-normal">Pacote</Badge>
-                          )}
-                        </span>
-                        {t.patientName && (
-                          <p className="text-xs text-muted-foreground sm:hidden">{t.patientName}</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">
-                        {t.patientName || "—"}
-                      </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        <span className={t.type === "despesa" ? "text-red-600" : "text-emerald-600"}>
-                          {t.type === "despesa" ? "− " : "+ "}
-                          {formatCurrency(Number(t.amount))}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ---------------------------------------------------------------------------
-
 export function CashFlowTable({
   rows,
   groupBy,
@@ -272,24 +82,9 @@ export function CashFlowTable({
   rows: CashFlowRow[]
   groupBy: "day" | "month"
 }) {
-  const [drillDown, setDrillDown] = useState<{
-    label: string
-    dateFrom: string
-    dateTo: string
-  } | null>(null)
-
   const totalReceitas = rows.reduce((s, r) => s + r.receitas, 0)
   const totalDespesas = rows.reduce((s, r) => s + r.despesas, 0)
   const totalSaldo = totalReceitas - totalDespesas
-
-  function openDrillDown(label: string) {
-    const dateFrom = groupBy === "day" ? label : `${label}-01`
-    const dateTo =
-      groupBy === "day"
-        ? label
-        : `${label}-${String(lastDayOfMonth(label)).padStart(2, "0")}`
-    setDrillDown({ label, dateFrom, dateTo })
-  }
 
   if (rows.length === 0) {
     return (
@@ -310,8 +105,7 @@ export function CashFlowTable({
   const maxReceita = Math.max(...rows.map((r) => r.receitas), 1)
 
   return (
-    <>
-      <div className="grid gap-4">
+    <div className="grid gap-4">
         {/* Summary cards */}
         <div className="grid gap-3 sm:grid-cols-3">
           <Card className="border-emerald-200 dark:border-emerald-900">
@@ -383,7 +177,7 @@ export function CashFlowTable({
                     <th className="px-4 py-2.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Saldo
                     </th>
-                    <th className="w-10 px-2 py-2.5" />
+                    <th className="hidden w-16 px-4 py-2.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground sm:table-cell">Qtd</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -462,16 +256,8 @@ export function CashFlowTable({
                             {formatCurrency(row.saldo)}
                           </span>
                         </td>
-                        <td className="px-2 py-2.5">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="opacity-0 transition-opacity group-hover:opacity-100"
-                            onClick={() => openDrillDown(row.label)}
-                            title="Ver lançamentos"
-                          >
-                            <Eye className="size-4" />
-                          </Button>
+                        <td className="hidden px-4 py-2.5 text-right tabular-nums text-muted-foreground sm:table-cell">
+                          {row.count}
                         </td>
                       </tr>
                     )
@@ -491,10 +277,8 @@ export function CashFlowTable({
                     <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${totalSaldo >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                       {formatCurrency(totalSaldo)}
                     </td>
-                    <td className="px-2 py-2.5">
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {rows.reduce((s, r) => s + r.count, 0)}
-                      </span>
+                    <td className="hidden px-4 py-2.5 text-right tabular-nums text-muted-foreground sm:table-cell">
+                      {rows.reduce((s, r) => s + r.count, 0)}
                     </td>
                   </tr>
                 </tfoot>
@@ -502,18 +286,6 @@ export function CashFlowTable({
             </div>
           </CardContent>
         </Card>
-      </div>
-
-      {drillDown && (
-        <DrillDownDialog
-          open
-          onClose={() => setDrillDown(null)}
-          label={drillDown.label}
-          groupBy={groupBy}
-          dateFrom={drillDown.dateFrom}
-          dateTo={drillDown.dateTo}
-        />
-      )}
-    </>
+    </div>
   )
 }
