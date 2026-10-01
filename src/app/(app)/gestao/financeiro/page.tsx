@@ -131,39 +131,38 @@ export default async function GestaoFinanceiroPage({
         title="Financeiro"
         description="Receitas, despesas e recebimentos da clínica."
         actions={
-          <div className="flex gap-2">
-            {resumoAtivo !== "periodo" && (
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<a href={`/api/financial/export-summary?${exportSummaryParams.toString()}`} />}
-              >
-                Exportar resumo CSV
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<a href={`/api/financial/export?${exportTransactionParams.toString()}`} />}
-            >
-              Exportar lançamentos CSV
-            </Button>
+          <div className="flex flex-wrap gap-2">
             {canManage && <CreateTransactionDialog />}
           </div>
         }
       />
 
-      <FinancialFilters
-        values={{ de, ate, profissional, especialidade, origem, formaPagamento }}
-        professionals={professionals ?? []}
-        specialties={specialties.data ?? []}
-        paymentMethods={paymentMethods}
-      />
-
-      <div className="flex items-center justify-between">
+      {/* Resumo selector + export buttons */}
+      <div className="flex flex-wrap items-center gap-2">
         <ResumoSelector value={resumoAtivo} />
+        <div className="ml-auto flex flex-wrap gap-2">
+          {resumoAtivo !== "periodo" && (
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<a href={`/api/financial/export-summary?${exportSummaryParams.toString()}`} />}
+            >
+              Exportar resumo
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<a href={`/api/financial/export?${exportTransactionParams.toString()}`} />}
+          >
+            Exportar lançamentos
+          </Button>
+        </div>
       </div>
 
+      {/* Summary section */}
       {resumoAtivo === "periodo" && summary && (
         <FinancialSummaryCards summary={summary} />
       )}
@@ -174,6 +173,15 @@ export default async function GestaoFinanceiroPage({
         />
       )}
 
+      {/* Filters below the summary */}
+      <FinancialFilters
+        values={{ de, ate, profissional, especialidade, origem, formaPagamento }}
+        professionals={professionals ?? []}
+        specialties={specialties.data ?? []}
+        paymentMethods={paymentMethods}
+      />
+
+      {/* Transactions section */}
       <div className="grid gap-4">
         <FinancialTabs active={abaAtiva} pendentesCount={pendentesCount} />
         <div className="grid gap-3">
