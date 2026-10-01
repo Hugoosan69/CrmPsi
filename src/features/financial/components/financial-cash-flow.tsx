@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useTransition } from "react"
+import { useCallback, useEffect, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowDownRight,
@@ -146,7 +146,8 @@ function DrillDownDialog({
   const [loading, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(() => {
+  useEffect(() => {
+    if (!open) return
     setRows(null)
     setError(null)
     startTransition(async () => {
@@ -154,14 +155,13 @@ function DrillDownDialog({
       if (result.error) setError(result.error)
       else setRows(result.rows ?? [])
     })
-  }, [dateFrom, dateTo])
+  }, [open, dateFrom, dateTo])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (nextOpen) load()
-      else onClose()
+      if (!nextOpen) onClose()
     },
-    [load, onClose]
+    [onClose]
   )
 
   const receitas = (rows ?? []).filter((r) => r.type === "receita")
