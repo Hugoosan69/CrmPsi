@@ -1,5 +1,6 @@
 "use client"
 
+import { useCallback, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -23,11 +24,6 @@ export type FinancialFilterValues = {
   formaPagamento?: string
 }
 
-/**
- * Filtros gerenciais combináveis (requisito 7) — todos controlados pela URL, no mesmo
- * padrão de `FinancialTabs`: quem filtra é a consulta no servidor, esta barra só empurra
- * os parâmetros.
- */
 export function FinancialFilters({
   values,
   professionals,
@@ -43,107 +39,123 @@ export function FinancialFilters({
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  function set(key: string, value: string | null) {
+  const [local, setLocal] = useState<FinancialFilterValues>(values)
+
+  const setField = useCallback((key: keyof FinancialFilterValues, value: string) => {
+    setLocal((prev) => ({ ...prev, [key]: value || undefined }))
+  }, [])
+
+  function apply() {
     const params = new URLSearchParams(searchParams)
-    if (value) params.set(key, value)
-    else params.delete(key)
+    const keys: (keyof FinancialFilterValues)[] = ["de", "ate", "profissional", "especialidade", "origem", "formaPagamento"]
+    for (const key of keys) {
+      if (local[key]) params.set(key, local[key]!)
+      else params.delete(key)
+    }
     params.delete(PAGE_PARAM)
     router.push(`${pathname}?${params.toString()}`, { scroll: false })
   }
 
-  const hasFilters = Object.values(values).some(Boolean)
+  function clear() {
+    setLocal({})
+    router.push(pathname, { scroll: false })
+  }
+
+  const hasFilters = Object.values(local).some(Boolean)
 
   return (
-    <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3 sm:grid-cols-3 lg:grid-cols-6">
-      <div className="grid gap-1.5">
-        <Label htmlFor="filter-de">De</Label>
-        <Input
-          id="filter-de"
-          type="date"
-          defaultValue={values.de ?? ""}
-          onChange={(e) => set("de", e.target.value || null)}
-        />
+    <div className="grid gap-3 rounded-xl border border-border p-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-1.5">
+          <Label htmlFor="filter-de">De</Label>
+          <Input
+            id="filter-de"
+            type="date"
+            value={local.de ?? ""}
+            onChange={(e) => setField("de", e.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="filter-ate">Até</Label>
+          <Input
+            id="filter-ate"
+            type="date"
+            value={local.ate ?? ""}
+            onChange={(e) => setField("ate", e.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Profissional</Label>
+          <Select value={local.profissional ?? ""} onValueChange={(v) => setField("profissional", v ?? "")}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos</SelectItem>
+              {professionals.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Especialidade</Label>
+          <Select value={local.especialidade ?? ""} onValueChange={(v) => setField("especialidade", v ?? "")}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todas</SelectItem>
+              {specialties.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Tipo de cobrança</Label>
+          <Select value={local.origem ?? ""} onValueChange={(v) => setField("origem", v ?? "")}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos</SelectItem>
+              <SelectItem value="avulsa">Avulsa</SelectItem>
+              <SelectItem value="pacote">Pacote</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Forma de pagamento</Label>
+          <Select value={local.formaPagamento ?? ""} onValueChange={(v) => setField("formaPagamento", v ?? "")}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todas</SelectItem>
+              {paymentMethods.map((pm) => (
+                <SelectItem key={pm.id} value={pm.id}>
+                  {pm.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="filter-ate">Até</Label>
-        <Input
-          id="filter-ate"
-          type="date"
-          defaultValue={values.ate ?? ""}
-          onChange={(e) => set("ate", e.target.value || null)}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label>Profissional</Label>
-        <Select value={values.profissional ?? ""} onValueChange={(v) => set("profissional", v || null)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
-            {professionals.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.full_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1.5">
-        <Label>Especialidade</Label>
-        <Select value={values.especialidade ?? ""} onValueChange={(v) => set("especialidade", v || null)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Todas</SelectItem>
-            {specialties.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1.5">
-        <Label>Tipo de cobrança</Label>
-        <Select value={values.origem ?? ""} onValueChange={(v) => set("origem", v || null)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
-            <SelectItem value="avulsa">Avulsa</SelectItem>
-            <SelectItem value="pacote">Pacote</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1.5">
-        <Label>Forma de pagamento</Label>
-        <Select
-          value={values.formaPagamento ?? ""}
-          onValueChange={(v) => set("formaPagamento", v || null)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Todas</SelectItem>
-            {paymentMethods.map((pm) => (
-              <SelectItem key={pm.id} value={pm.id}>
-                {pm.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {hasFilters && (
-        <div className="col-span-full flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => router.push(pathname)}>
+      <div className="flex justify-end gap-2">
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clear}>
             Limpar filtros
           </Button>
-        </div>
-      )}
+        )}
+        <Button size="sm" onClick={apply}>
+          Buscar
+        </Button>
+      </div>
     </div>
   )
 }

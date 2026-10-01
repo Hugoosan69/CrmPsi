@@ -62,6 +62,11 @@ export function ResumoSelector({ value }: { value: ResumoType }) {
   )
 }
 
+function lastDayOfMonth(label: string) {
+  const [y, m] = label.split("-").map(Number)
+  return new Date(y, m, 0).getDate()
+}
+
 export function CashFlowTable({
   rows,
   groupBy,
@@ -69,6 +74,23 @@ export function CashFlowTable({
   rows: CashFlowRow[]
   groupBy: "day" | "month"
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  function drillDown(label: string) {
+    const params = new URLSearchParams(searchParams)
+    if (groupBy === "day") {
+      params.set("de", label)
+      params.set("ate", label)
+    } else {
+      params.set("de", `${label}-01`)
+      params.set("ate", `${label}-${String(lastDayOfMonth(label)).padStart(2, "0")}`)
+    }
+    params.delete("resumo")
+    params.delete(PAGE_PARAM)
+    router.push(`${pathname}?${params.toString()}`, { scroll: false })
+  }
   const totalReceitas = rows.reduce((s, r) => s + r.receitas, 0)
   const totalDespesas = rows.reduce((s, r) => s + r.despesas, 0)
   const totalSaldo = totalReceitas - totalDespesas
@@ -129,8 +151,13 @@ export function CashFlowTable({
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.label} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2.5 font-medium">{formatLabel(row.label, groupBy)}</td>
+                  <tr
+                    key={row.label}
+                    className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => drillDown(row.label)}
+                    title="Clique para ver os lançamentos"
+                  >
+                    <td className="px-4 py-2.5 font-medium text-primary underline-offset-2 hover:underline">{formatLabel(row.label, groupBy)}</td>
                     <td className="px-4 py-2.5 text-right text-emerald-600">{formatCurrency(row.receitas)}</td>
                     <td className="px-4 py-2.5 text-right text-red-600">{formatCurrency(row.despesas)}</td>
                     <td className={`px-4 py-2.5 text-right font-medium ${row.saldo >= 0 ? "text-emerald-600" : "text-red-600"}`}>

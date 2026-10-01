@@ -153,6 +153,13 @@ export default async function GestaoFinanceiroPage({
         }
       />
 
+      <FinancialFilters
+        values={{ de, ate, profissional, especialidade, origem, formaPagamento }}
+        professionals={professionals ?? []}
+        specialties={specialties.data ?? []}
+        paymentMethods={paymentMethods}
+      />
+
       <div className="flex items-center justify-between">
         <ResumoSelector value={resumoAtivo} />
       </div>
@@ -169,12 +176,6 @@ export default async function GestaoFinanceiroPage({
 
       <div className="grid gap-4">
         <FinancialTabs active={abaAtiva} pendentesCount={pendentesCount} />
-        <FinancialFilters
-          values={{ de, ate, profissional, especialidade, origem, formaPagamento }}
-          professionals={professionals ?? []}
-          specialties={specialties.data ?? []}
-          paymentMethods={paymentMethods}
-        />
         <div className="grid gap-3">
           <TransactionsTable
             transactions={rows}
