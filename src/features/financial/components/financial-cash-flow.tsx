@@ -114,9 +114,9 @@ export function CashFlowTable({
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="max-h-96 overflow-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-card z-10">
                 <tr className="border-b border-border">
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                     {groupBy === "day" ? "Data" : "Mês"}
@@ -140,7 +140,7 @@ export function CashFlowTable({
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
+              <tfoot className="sticky bottom-0 bg-card z-10">
                 <tr className="border-t-2 border-border bg-muted/50">
                   <td className="px-4 py-2.5 font-semibold">Total</td>
                   <td className="px-4 py-2.5 text-right font-semibold text-emerald-600">{formatCurrency(totalReceitas)}</td>

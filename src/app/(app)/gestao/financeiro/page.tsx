@@ -112,13 +112,18 @@ export default async function GestaoFinanceiroPage({
       : Promise.resolve(null),
   ])
 
-  const exportParams = new URLSearchParams()
-  if (de) exportParams.set("de", de)
-  if (ate) exportParams.set("ate", ate)
-  if (profissional) exportParams.set("profissional", profissional)
-  if (origem) exportParams.set("origem", origem)
-  if (formaPagamento) exportParams.set("formaPagamento", formaPagamento)
-  if (filtroDaAba(abaAtiva).type) exportParams.set("tipo", filtroDaAba(abaAtiva).type!)
+  const exportTransactionParams = new URLSearchParams()
+  if (de) exportTransactionParams.set("de", de)
+  if (ate) exportTransactionParams.set("ate", ate)
+  if (profissional) exportTransactionParams.set("profissional", profissional)
+  if (origem) exportTransactionParams.set("origem", origem)
+  if (formaPagamento) exportTransactionParams.set("formaPagamento", formaPagamento)
+  if (filtroDaAba(abaAtiva).type) exportTransactionParams.set("tipo", filtroDaAba(abaAtiva).type!)
+
+  const exportSummaryParams = new URLSearchParams()
+  if (de) exportSummaryParams.set("de", de)
+  if (ate) exportSummaryParams.set("ate", ate)
+  if (resumoAtivo !== "periodo") exportSummaryParams.set("agrupamento", resumoAtivo)
 
   return (
     <div className="grid gap-6">
@@ -127,12 +132,21 @@ export default async function GestaoFinanceiroPage({
         description="Receitas, despesas e recebimentos da clínica."
         actions={
           <div className="flex gap-2">
+            {resumoAtivo !== "periodo" && (
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<a href={`/api/financial/export-summary?${exportSummaryParams.toString()}`} />}
+              >
+                Exportar resumo CSV
+              </Button>
+            )}
             <Button
               variant="outline"
               nativeButton={false}
-              render={<a href={`/api/financial/export?${exportParams.toString()}`} />}
+              render={<a href={`/api/financial/export?${exportTransactionParams.toString()}`} />}
             >
-              Exportar CSV
+              Exportar lançamentos CSV
             </Button>
             {canManage && <CreateTransactionDialog />}
           </div>
