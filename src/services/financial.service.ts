@@ -439,6 +439,46 @@ export type FinancialSummary = {
   bySpecialty: { specialtyId: string; specialtyName: string; total: number }[]
 }
 
+export type CashFlowRow = {
+  label: string
+  receitas: number
+  despesas: number
+  saldo: number
+  count: number
+}
+
+export async function getCashFlowSummary(
+  supabase: DB,
+  clinicId: string,
+  groupBy: "day" | "month",
+  opts: { dateFrom?: string; dateTo?: string } = {}
+): Promise<CashFlowRow[]> {
+  let query = supabase
+    .from("financial_transactions")
+    .select("type, amount, created_at")
+    .eq("clinic_id", clinicId)
+    .eq("status", "pago")
+  if (opts.dateFrom) query = query.gte("created_at", opts.dateFrom)
+  if (opts.dateTo) query = query.lte("created_at", opts.dateTo)
+
+  const { data, error } = await query
+  if (error) throw error
+
+  const grouped = new Map<string, { receitas: number; despesas: number; count: number }>()
+  for (const row of data ?? []) {
+    const key = groupBy === "day" ? row.created_at.slice(0, 10) : row.created_at.slice(0, 7)
+    const existing = grouped.get(key) ?? { receitas: 0, despesas: 0, count: 0 }
+    if (row.type === "receita") existing.receitas += Number(row.amount)
+    else existing.despesas += Number(row.amount)
+    existing.count++
+    grouped.set(key, existing)
+  }
+
+  return [...grouped.entries()]
+    .map(([label, v]) => ({ label, ...v, saldo: v.receitas - v.despesas }))
+    .sort((a, b) => b.label.localeCompare(a.label))
+}
+
 /**
  * Visões agregadas do requisito 7 — "destrinchar ao máximo" a receita.
  *

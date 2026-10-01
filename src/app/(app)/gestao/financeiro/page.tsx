@@ -4,6 +4,7 @@ import { PERMISSIONS } from "@/config/permissions"
 import { parsePagination } from "@/config/pagination"
 import {
   countTransactions,
+  getCashFlowSummary,
   getFinancialSummary,
   listPaymentMethods,
   listTransactions,
@@ -18,11 +19,18 @@ import { TransactionsTable } from "@/features/financial/components/transactions-
 import { CreateTransactionDialog } from "@/features/financial/components/create-transaction-dialog"
 import { FinancialFilters } from "@/features/financial/components/financial-filters"
 import { FinancialSummaryCards } from "@/features/financial/components/financial-summary-cards"
+import {
+  CashFlowTable,
+  ResumoSelector,
+  type ResumoType,
+} from "@/features/financial/components/financial-cash-flow"
 
 /** Status que compõem "contas pendentes": o que ainda vai entrar ou sair do caixa. */
 const PENDENTES: FinancialTransactionStatus[] = ["pendente", "atrasado"]
 
 const ABAS: FinancialTab[] = ["pendentes", "receitas", "despesas"]
+
+const RESUMOS: ResumoType[] = ["periodo", "diario", "mensal"]
 
 /** O filtro de cada aba, traduzido para a consulta. */
 function filtroDaAba(aba: FinancialTab): {
@@ -47,6 +55,7 @@ export default async function GestaoFinanceiroPage({
     especialidade?: string
     origem?: string
     formaPagamento?: string
+    resumo?: string
   }>
 }) {
   const membership = await requireAreaAccess(PERMISSIONS.MANAGEMENT_ACCESS, PERMISSIONS.FINANCIAL_VIEW)
@@ -54,10 +63,13 @@ export default async function GestaoFinanceiroPage({
   const canEditAmount = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_AMOUNT)
   const canEditPaid = hasPermission(membership, PERMISSIONS.FINANCIAL_EDIT_PAID)
 
-  const { aba, pagina, por, de, ate, profissional, especialidade, origem, formaPagamento } = await searchParams
+  const { aba, pagina, por, de, ate, profissional, especialidade, origem, formaPagamento, resumo } = await searchParams
   const abaAtiva: FinancialTab = ABAS.includes(aba as FinancialTab)
     ? (aba as FinancialTab)
     : "pendentes"
+  const resumoAtivo: ResumoType = RESUMOS.includes(resumo as ResumoType)
+    ? (resumo as ResumoType)
+    : "periodo"
   const { page, pageSize, offset, rangeEnd } = parsePagination({ page: pagina, pageSize: por })
 
   function parseSourceType(value?: string): "avulsa" | "pacote" | undefined {
@@ -74,7 +86,9 @@ export default async function GestaoFinanceiroPage({
   }
 
   const supabase = await createClient()
-  const [{ rows, total }, paymentMethods, professionals, specialties, pendentesCount, summary] = await Promise.all([
+  const dateFiltros = { dateFrom: filtrosGerenciais.dateFrom, dateTo: filtrosGerenciais.dateTo }
+
+  const [{ rows, total }, paymentMethods, professionals, specialties, pendentesCount, summary, cashFlow] = await Promise.all([
     listTransactions(supabase, membership.clinicId, {
       ...filtroDaAba(abaAtiva),
       ...filtrosGerenciais,
@@ -84,13 +98,18 @@ export default async function GestaoFinanceiroPage({
     listPaymentMethods(supabase, membership.clinicId),
     listProfessionals(supabase, membership.clinicId),
     supabase.from("specialties").select("id, name").eq("clinic_id", membership.clinicId).order("name"),
-    // Contagem à parte: o número na aba tem de ser o total de pendentes, não o tamanho da
-    // página aberta.
     countTransactions(supabase, membership.clinicId, { statuses: PENDENTES }),
-    getFinancialSummary(supabase, membership.clinicId, {
-      dateFrom: filtrosGerenciais.dateFrom,
-      dateTo: filtrosGerenciais.dateTo,
-    }),
+    resumoAtivo === "periodo"
+      ? getFinancialSummary(supabase, membership.clinicId, dateFiltros)
+      : Promise.resolve(null),
+    resumoAtivo !== "periodo"
+      ? getCashFlowSummary(
+          supabase,
+          membership.clinicId,
+          resumoAtivo === "diario" ? "day" : "month",
+          dateFiltros
+        )
+      : Promise.resolve(null),
   ])
 
   const exportParams = new URLSearchParams()
@@ -108,8 +127,6 @@ export default async function GestaoFinanceiroPage({
         description="Receitas, despesas e recebimentos da clínica."
         actions={
           <div className="flex gap-2">
-            {/* nativeButton={false}: o Base UI avisa (com razão) quando um "botão" renderiza
-                outro elemento — aqui é um link de download de verdade, não um botão. */}
             <Button
               variant="outline"
               nativeButton={false}
@@ -122,7 +139,19 @@ export default async function GestaoFinanceiroPage({
         }
       />
 
-      <FinancialSummaryCards summary={summary} />
+      <div className="flex items-center justify-between">
+        <ResumoSelector value={resumoAtivo} />
+      </div>
+
+      {resumoAtivo === "periodo" && summary && (
+        <FinancialSummaryCards summary={summary} />
+      )}
+      {resumoAtivo !== "periodo" && cashFlow && (
+        <CashFlowTable
+          rows={cashFlow}
+          groupBy={resumoAtivo === "diario" ? "day" : "month"}
+        />
+      )}
 
       <div className="grid gap-4">
         <FinancialTabs active={abaAtiva} pendentesCount={pendentesCount} />
